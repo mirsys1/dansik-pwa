@@ -227,8 +227,8 @@ body.is-pwa {
   --pwa-safe-top: env(safe-area-inset-top, 0px);
   --pwa-safe-bottom: env(safe-area-inset-bottom, 0px);
   --pwa-nav-height: 54px;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: var(--pwa-viewport-height, 100dvh);
+  min-height: var(--pwa-viewport-height, 100dvh);
   padding-top: var(--pwa-safe-top);
   padding-bottom: 0;
   overflow: hidden;
@@ -236,7 +236,7 @@ body.is-pwa {
   box-sizing: border-box;
 }
 body.is-pwa .shell {
-  height: calc(100dvh - var(--pwa-safe-top));
+  height: calc(var(--pwa-viewport-height, 100dvh) - var(--pwa-safe-top));
   min-height: 0;
   padding-bottom: calc(var(--pwa-nav-height) + var(--pwa-safe-bottom));
   box-sizing: border-box;
@@ -343,3 +343,68 @@ body.is-pwa label:has(#tray-input) {
     white-space: normal;
   }
 }
+
+/* Measured first-screen fit. The controller is PWA-only and never applies
+   browser zoom or a transform to the entire interface. */
+body.is-pwa[data-fit-mode] {
+  --fit-gap: 10px;
+  --fit-meal-height: 76px;
+  --fit-panel-pad: 12px;
+  --fit-dial-size: 240px;
+}
+body.is-pwa[data-fit-mode="dense"] { --fit-gap: 6px; --fit-meal-height: 60px; --fit-panel-pad: 8px; }
+body.is-pwa[data-fit-mode="compact"] { --fit-gap: 4px; --fit-meal-height: 44px; --fit-panel-pad: 5px; }
+body.is-pwa[data-fit-mode] .sidebar { height: auto; min-height: 44px; }
+body.is-pwa[data-fit-mode] .sidebar nav { height: auto; min-height: calc(54px + var(--pwa-safe-bottom)); }
+body.is-pwa[data-fit-mode] .nav-item { white-space: normal; }
+body.is-pwa[data-fit-mode] .dashboard-grid {
+  display: flex; flex-direction: column; align-items: stretch;
+  flex: 1; min-height: 0; padding: 0 0 6px; gap: var(--fit-gap);
+}
+body.is-pwa[data-fit-mode] .meal-panel { flex: none; }
+body.is-pwa[data-fit-mode] .meal-heading { flex-wrap: wrap; gap: 2px 8px; }
+body.is-pwa[data-fit-mode] .meal-grid { margin-top: var(--fit-gap); gap: 6px; }
+body.is-pwa[data-fit-mode] .meal-button { min-height: var(--fit-meal-height); padding: 5px 3px; border-radius: 12px; }
+body.is-pwa[data-fit-mode] .meal-button strong { font-size: 14px; margin-top: 4px; min-width: 0; overflow-wrap: anywhere; }
+body.is-pwa[data-fit-mode] .meal-art { width: 26px; height: 26px; }
+body.is-pwa[data-fit-mode="compact"] .meal-button { flex-direction: row; justify-content: center; gap: 4px; }
+body.is-pwa[data-fit-mode="compact"] .meal-button strong { margin-top: 0; line-height: 1.15; }
+body.is-pwa[data-fit-mode="compact"] .meal-art { width: 20px; height: 20px; }
+body.is-pwa[data-fit-mode="compact"] .meal-art svg { width: 18px; height: 18px; }
+body.is-pwa[data-fit-mode] .timer-panel { flex: 1 0 auto; min-height: min-content; padding: var(--fit-panel-pad) 12px 4px; display: flex; flex-direction: column; }
+body.is-pwa[data-fit-mode] .timer-actions { flex-shrink: 0; }
+body.is-pwa[data-fit-mode] .timer-action { min-height: 44px; padding: 3px 8px; }
+body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: auto auto 6px; }
+body.is-pwa[data-fit-mode] .timer-digits { font-size: var(--fit-digit-size, min(clamp(43.89px, 13.585vw, 58.52px), max(32px, 19cqw))); }
+body.is-pwa[data-fit-mode] .timer-digits.long-duration { font-size: var(--fit-digit-size, min(clamp(33.44px, 10.45vw, 41.8px), max(28px, 16cqw))); }
+body.is-pwa[data-fit-mode] .timer-digits.extra-long-duration { font-size: var(--fit-digit-size, min(clamp(25.08px, 8.36vw, 33.44px), max(24px, 13cqw))); }
+body.is-pwa[data-fit-mode] .autophagy-stages { flex: none; margin: 0 0 auto; padding: 2px 0 6px; }
+body.is-pwa[data-fit-mode] .autophagy-stage { font-size: 13.5px; line-height: 1.2; white-space: normal; flex-wrap: wrap; text-align: center; overflow: visible; }
+body.is-pwa[data-fit-mode] .stage-title { text-overflow: clip; overflow: visible; }
+body.is-pwa[data-fit-mode] .timer-meta { flex: none; padding: 6px 0 3px; }
+body.is-pwa[data-fit-mode] .timer-meta strong { font-size: 16px; }
+body.is-pwa[data-fit-mode] .timer-meta small { flex-basis: 100%; white-space: normal; }
+body.is-pwa[data-fit-mode="compact"] .autophagy-stages { padding-bottom: 4px; }
+body.is-pwa[data-fit-landscape] .sidebar,
+body.is-pwa[data-fit-landscape] .shell > main { max-width: 960px; }
+body.is-pwa[data-fit-landscape] .sidebar nav { width: min(960px, 100%); }
+body.is-pwa[data-fit-landscape] .dashboard-grid { display: grid; grid-template-columns: minmax(160px, .75fr) minmax(0, 2fr); }
+body.is-pwa[data-fit-landscape] .meal-panel > .panel-header { flex-wrap: wrap; }
+body.is-pwa[data-fit-landscape] .meal-heading .date-stamp { display: none; }
+body.is-pwa[data-fit-landscape] .meal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.is-pwa[data-fit-landscape] .timer-panel { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(126px, .8fr); grid-template-rows: auto 1fr auto; column-gap: 8px; }
+body.is-pwa[data-fit-landscape] .timer-panel > .panel-header { grid-column: 1 / -1; }
+body.is-pwa[data-fit-landscape] .dial-wrap { grid-column: 1; grid-row: 2 / 4; align-self: center; margin: 6px auto; }
+body.is-pwa[data-fit-landscape] .autophagy-stages { grid-column: 2; grid-row: 2; align-self: end; margin: 0; }
+body.is-pwa[data-fit-landscape] .timer-meta { grid-column: 2; grid-row: 3; grid-template-columns: 1fr; gap: 6px; }
+body.is-pwa[data-fit-landscape] .timer-meta > div:last-child { border-left: 0; }
+body.is-pwa[data-fit-reading] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }
+body.is-pwa[data-fit-reading] .timer-digits span { display: block; }
+body.is-pwa .dial-wrap[data-clock-wrap] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }
+body.is-pwa .dial-wrap[data-clock-wrap] .timer-digits span { display: block; }
+body.is-pwa[data-fit-reading] .timer-panel > .panel-header { flex-wrap: wrap; }
+body.is-pwa[data-fit-reading] .timer-actions { flex-wrap: wrap; }
+body.is-pwa[data-fit-reading] .dial-wrap { display: grid; aspect-ratio: auto; min-height: var(--fit-dial-size, 300px); }
+body.is-pwa[data-fit-reading] .dial { grid-area: 1 / 1; min-height: 100%; }
+body.is-pwa[data-fit-reading] .dial-center { position: relative; inset: auto; grid-area: 1 / 1; min-width: 0; padding: 20px 6px; }
+body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var(--fit-dialog-top, 12px); bottom: auto; left: 0; right: 0; margin: 0 auto; max-height: var(--fit-dialog-height, 80vh); }
