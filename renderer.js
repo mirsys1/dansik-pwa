@@ -55,6 +55,11 @@ function compactDateTime(at) {
 }
 function localInput(at) { return C.formatLocalInput(at, tz()); }
 function shortDuration(ms) { const minutes = Math.floor(ms / 60000); return t('dur.hm', { h: Math.floor(minutes / 60), m: minutes % 60 }); }
+function kcalText(value, compact = false) { return t('timer.kcalValue', { kcal: new Intl.NumberFormat(L.locale, { maximumFractionDigits: 1, notation: compact && value >= 10000 ? 'compact' : 'standard' }).format(value) }); }
+function fatTrendKey(elapsedMs) {
+  const stage = C.getAutophagyStage(elapsedMs);
+  return !stage.active ? 'effects.trendEmpty' : stage.stage > 0 ? 'effects.trendFat' : 'effects.trendMixed';
+}
 let state = C.defaultState();
 let busy = false;
 let editingId = null;
@@ -69,6 +74,7 @@ function applyColorTheme(name) { document.body.dataset.colorTheme = C.validColor
 let appInfo = { version: '' };
 let firstRunShown = false;
 let pinBusy = false;
+let effectOpener = null;
 
 // Static text carries data-i18n (text), data-i18n-html (trusted catalog markup), data-i18n-text (first text node only)
 // and data-i18n-attr ("attr=key;attr=key"). Dynamic text is written by render()/tick() through t().
@@ -187,8 +193,13 @@ function tick() {
   $('mini-progress-bar').style.width = `${timer.progress * 100}%`;
   $('last-meal').textContent = latest ? `${mealName(latest.type)} · ${compactDateTime(latest.at)}` : t('timer.noRecord');
   const kcal = C.calculateCalories(active && !timer.clockSkew ? timer.elapsedMs : null, prefs);
-  $('goal-time').textContent = active && !timer.clockSkew ? t('timer.kcalValue', { kcal: kcal.totalKcal }) : t('timer.kcalZero');
-  const remaining = !active || timer.clockSkew ? '' : timer.paused ? t('timer.paused') : state.settings.goalEnabled ? (timer.reached ? t('mini.reached') : t('mini.remaining', { d: shortDuration(timer.remainingMs) })) : t('timer.kcalRate', { fat: kcal.fatGrams, rate: kcal.kcalPerHour });
+  $('goal-time').textContent = kcalText(kcal.totalKcal, true);
+  const trend = fatTrendKey(active && !timer.clockSkew ? timer.elapsedMs : null);
+  $('energy-trend').textContent = t(trend);
+  $('energy-summary').dataset.fatTrend = trend === 'effects.trendFat' ? 'rising' : 'mixed';
+  $('energy-summary').disabled = false;
+  $('energy-summary').setAttribute('aria-label', t('effects.homeAria', { energy: kcalText(kcal.totalKcal), trend: t(trend) }));
+  const remaining = !active || timer.clockSkew ? '' : timer.paused ? t('timer.paused') : state.settings.goalEnabled ? (timer.reached ? t('mini.reached') : t('mini.remaining', { d: shortDuration(timer.remainingMs) })) : '';
   $('goal-remaining').textContent = remaining;
   $('goal-remaining').hidden = !remaining;
   const nowP = C.tzParts(now, tz()), nowW = new Date(now).toLocaleDateString(L.locale, { weekday: 'long', ...tzOpt() });
@@ -220,10 +231,47 @@ function renderStats() {
   $('stat-days').innerHTML = `${stats.daily.filter(d => d.meals > 0).length}<small>${t('stats.unitDays')}</small>`;
   const longest = stats.mealIntervals.reduce((m, x) => Math.max(m, x.durationMs), 0);
   $('stat-gap').textContent = stats.mealIntervals.length ? shortDuration(longest) : t('stats.none');
-  const max = Math.max(4, ...stats.daily.map(d => d.meals));
-  $('weekly-chart').innerHTML = stats.daily.map((d,i) => `<div class="chart-day ${i===6?'today':''}"><span class="chart-value">${d.meals}</span><div class="chart-bar" style="height:${Math.max(2,d.meals/max*52)}px"></div><span class="chart-label">${i===6?t('stats.today'):new Date(d.date+'T12:00:00Z').toLocaleDateString(L.locale,{weekday:'short',timeZone:'UTC'})}</span></div>`).join('');
-  $('weekly-chart').setAttribute('aria-label', t('stats.weekAria', { list: stats.daily.map(d => t('stats.weekItem', { date: d.date, n: d.meals })).join(', ') }));
-  $('interval-list').innerHTML = stats.mealIntervals.length ? stats.mealIntervals.slice(0,7).map(interval => `<div class="interval-row"><span>${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</span><strong>${shortDuration(interval.durationMs)}</strong></div>`).join('') : `<p class="empty-recent">${t('stats.intervalsEmpty')}</p>`;
+  const max = Math.max(3600000, ...stats.daily.map(d => d.maxIntervalMs));
+  $('weekly-chart').innerHTML = stats.daily.map((d,i) => {
+    const duration = d.longestInterval ? shortDuration(d.maxIntervalMs) : t('stats.dayNoData');
+    const hours = d.maxIntervalMs / 3600000;
+    const value = d.longestInterval ? new Intl.NumberFormat(L.locale, { maximumFractionDigits: 1, notation: hours >= 1000 ? 'compact' : 'standard' }).format(hours) : '—';
+    const date = d.date.split('-').slice(1).map(Number).join('.');
+    return `<button type="button" class="chart-day ${i===6?'today':''}" data-effect-date="${d.date}" aria-haspopup="dialog" aria-controls="fasting-dialog" aria-label="${esc(t('stats.dayAria', { date: d.date, duration }))}"><span class="chart-value">${esc(value)}</span><span class="chart-bar" style="height:${Math.max(2,d.maxIntervalMs/max*52)}px" aria-hidden="true"></span><span class="chart-label">${date}</span></button>`;
+  }).join('');
+  $('weekly-chart').setAttribute('aria-label', t('stats.weekAria', { list: stats.daily.map(d => t('stats.weekItem', { date: d.date, duration: d.longestInterval ? shortDuration(d.maxIntervalMs) : t('stats.dayNoData') })).join(', ') }));
+  $('interval-list').innerHTML = stats.mealIntervals.length ? stats.mealIntervals.slice(0,7).map(interval => `<button type="button" class="interval-row" data-effect-from="${interval.from}" data-effect-to="${interval.to}" aria-haspopup="dialog" aria-controls="fasting-dialog" aria-label="${esc(t('effects.intervalAria', { from: intervalTime(interval.from), to: intervalTime(interval.to), duration: shortDuration(interval.durationMs) }))}"><span>${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</span><strong>${shortDuration(interval.durationMs)} <span aria-hidden="true">›</span></strong></button>`).join('') : `<p class="empty-recent">${t('stats.intervalsEmpty')}</p>`;
+}
+function openFastingDetail(selection = {}, opener = null) {
+  if (!$('fasting-dialog').open) effectOpener = opener || document.activeElement;
+  const now = Date.now();
+  const stats = C.weeklyStats(state, now, tz());
+  let interval, date, records = [];
+  if (selection.live) {
+    const timer = C.getTimer(state, now, prefs);
+    if (state.events.length && !timer.reset && !timer.clockSkew) interval = { from: state.events[0].at, to: timer.paused ? prefs.timerPausedAt : now, durationMs: timer.elapsedMs };
+    date = C.localDay(now, tz());
+  } else if (selection.date) {
+    date = selection.date;
+    const entry = stats.daily.find(d => d.date === date);
+    records = entry ? entry.intervals : [];
+    interval = entry && entry.longestInterval;
+  } else {
+    interval = stats.mealIntervals.find(x => x.from === selection.from && x.to === selection.to);
+    date = interval ? C.localDay(interval.to, tz()) : '';
+    records = stats.daily.find(d => d.date === date)?.intervals || [];
+  }
+  $('fasting-title').textContent = selection.live ? t('effects.liveTitle') : t('effects.dayTitle', { date: date ? new Date(date+'T12:00:00Z').toLocaleDateString(L.locale, { month: 'long', day: 'numeric', timeZone: 'UTC' }) : '' });
+  if (!interval) {
+    $('fasting-detail').innerHTML = `<div class="effect-empty">${icon('leaf')}<strong>${t('effects.emptyTitle')}</strong><p>${t(selection.live ? 'effects.emptyLive' : 'effects.emptyDay')}</p></div>`;
+  } else {
+    const trend = fatTrendKey(interval.durationMs);
+    const rising = trend === 'effects.trendFat';
+    const kcal = C.calculateCalories(interval.durationMs, prefs);
+    $('fasting-detail').innerHTML = `<p class="effect-caption">${t(selection.live ? 'effects.atOpen' : 'effects.recordedInterval')}</p><strong class="effect-duration">${shortDuration(interval.durationMs)}</strong><p class="effect-period">${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</p><section class="effect-state" data-fat-trend="${rising?'rising':'mixed'}"><div>${icon('leaf')}<strong>${t(rising?'effects.fatTitle':'effects.mixedTitle')}</strong></div><div class="effect-flow" aria-hidden="true"><span class="${rising?'':'is-current'}">${t('effects.mixedLabel')}</span><b>→</b><span class="${rising?'is-current':''}">${t('effects.fatLabel')}</span></div><p>${t(rising?'effects.fatDescription':'effects.mixedDescription')}</p></section><div class="effect-energy"><span>${t('effects.energyTitle')}</span><strong>${kcalText(kcal.totalKcal)}</strong></div>${records.length>1?`<section class="effect-records"><h3>${t('effects.otherRecords', { n: records.length })}</h3><div class="effect-record-list">${records.map(x=>`<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from===interval.from&&x.to===interval.to}"><span>${time(x.from)} → ${time(x.to)}</span><strong>${shortDuration(x.durationMs)}</strong></button>`).join('')}</div></section>`:''}`;
+  }
+  if (!$('fasting-dialog').open) $('fasting-dialog').showModal();
+  else if (interval) $('fasting-detail').querySelector('.effect-record-list [aria-pressed="true"]')?.focus({ preventScroll: true });
 }
 function render() {
 
@@ -366,6 +414,9 @@ document.addEventListener('click', event => {
   else if(button.dataset.page)goPage(button.dataset.page);
   else if(button.dataset.goto)goPage(button.dataset.goto);
   else if(button.dataset.edit)openMeal(button.dataset.edit);
+  else if(button.id==='energy-summary')openFastingDetail({live:true},button);
+  else if(button.dataset.effectDate)openFastingDetail({date:button.dataset.effectDate},button);
+  else if(button.dataset.effectFrom)openFastingDetail({from:Number(button.dataset.effectFrom),to:Number(button.dataset.effectTo)},button);
   else if(button.hasAttribute('data-add'))openMeal();
   else if(button.dataset.close)$(button.dataset.close).close();
 });
@@ -379,6 +430,15 @@ $('add-history').addEventListener('click',()=>openMeal());
 $('settings-button').addEventListener('click',openSettings);
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
 $('settings-dialog').addEventListener('close',()=>applyColorTheme(prefs.colorTheme));
+$('fasting-dialog').addEventListener('close',()=>{
+  const origin = effectOpener;
+  const target = origin?.isConnected ? origin : [...document.querySelectorAll('#weekly-chart button, #interval-list button')].find(button => origin && (
+    origin.dataset.effectDate && button.dataset.effectDate === origin.dataset.effectDate ||
+    origin.dataset.effectFrom && button.dataset.effectFrom === origin.dataset.effectFrom && button.dataset.effectTo === origin.dataset.effectTo
+  ));
+  if (origin) (target || document.querySelector('.nav-item.active'))?.focus({preventScroll:true});
+  effectOpener = null;
+});
 $('theme-button').addEventListener('click',()=>action({type:'settings',patch:{theme:theme==='light'?'dark':'light',themeAuto:false}},null,false));
 $('mini-button').addEventListener('click',()=>action({type:'mini'},null,false));
 $('expand-button').addEventListener('click',()=>action({type:'mini'},null,false));

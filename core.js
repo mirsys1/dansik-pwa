@@ -275,19 +275,33 @@
     if (!useTz) {
       const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - 6);
       rangeStart = start.getTime();
-      for (let i = 0; i < 7; i += 1) { const d = new Date(start); d.setDate(start.getDate() + i); daily.push({ date: localDay(d.getTime()), meals: 0 }); }
+      for (let i = 0; i < 7; i += 1) { const d = new Date(start); d.setDate(start.getDate() + i); daily.push({ date: localDay(d.getTime()), meals: 0, maxIntervalMs: 0, longestInterval: null, intervals: [] }); }
     } else {
       const today = tzParts(now, timeZone);
       const firstDay = new Date(Date.UTC(today.year, today.month - 1, today.day - 6));
       rangeStart = zonedTimeToUtc(firstDay.getUTCFullYear(), firstDay.getUTCMonth() + 1, firstDay.getUTCDate(), 0, 0, timeZone);
       for (let i = 0; i < 7; i += 1) {
         const u = new Date(Date.UTC(today.year, today.month - 1, today.day - 6 + i));
-        daily.push({ date: `${String(u.getUTCFullYear()).padStart(4, '0')}-${String(u.getUTCMonth() + 1).padStart(2, '0')}-${String(u.getUTCDate()).padStart(2, '0')}`, meals: 0 });
+        daily.push({ date: `${String(u.getUTCFullYear()).padStart(4, '0')}-${String(u.getUTCMonth() + 1).padStart(2, '0')}-${String(u.getUTCDate()).padStart(2, '0')}`, meals: 0, maxIntervalMs: 0, longestInterval: null, intervals: [] });
       }
     }
     const byDate = new Map(daily.map((day) => [day.date, day]));
     next.events.filter((event) => event.at >= rangeStart && event.at <= now).forEach((event) => { const day = byDate.get(localDay(event.at, timeZone)); if (day) day.meals += 1; });
-    const intervals = []; for (let i = 0; i < next.events.length - 1; i += 1) { const newer = next.events[i]; const older = next.events[i + 1]; if (newer.at >= rangeStart && newer.at <= now) intervals.push({ from: older.at, to: newer.at, durationMs: newer.at - older.at }); }
+    const intervals = []; for (let i = 0; i < next.events.length - 1; i += 1) {
+      const newer = next.events[i]; const older = next.events[i + 1];
+      if (newer.at < rangeStart || newer.at > now) continue;
+      const interval = { from: older.at, to: newer.at, durationMs: newer.at - older.at };
+      intervals.push(interval);
+      // Completed intervals belong to the date of the later meal. This avoids
+      // inventing a still-running fast for days with no following meal record.
+      const day = byDate.get(localDay(newer.at, timeZone));
+      if (!day) continue;
+      day.intervals.push(interval);
+      if (day.longestInterval === null || interval.durationMs > day.maxIntervalMs) {
+        day.maxIntervalMs = interval.durationMs;
+        day.longestInterval = interval;
+      }
+    }
     return { rangeStart, rangeEnd: now, totalMeals: daily.reduce((sum, day) => sum + day.meals, 0), daily, mealIntervals: intervals };
   }
   function parseBackup(text) {

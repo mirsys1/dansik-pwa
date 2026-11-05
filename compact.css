@@ -95,9 +95,15 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .goal-control > span { display: none; }
 .segmented { flex-wrap: wrap; justify-content: center; gap: 0; padding: 3px; }
 .segmented button { font-size: calc(var(--type-meta) + 2pt); padding: 5px 6px; }
-.timer-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 10px 0 8px; text-align: center; }
-.timer-meta > div:last-child { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: baseline; justify-content: center; column-gap: 5px; padding-left: 0; }
-.timer-meta > div:last-child > span { flex-basis: 100%; }
+.timer-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; row-gap: 2px; padding: 10px 0 8px; text-align: center; }
+.timer-meta > .energy-summary { min-width: 0; width: 100%; min-height: 44px; padding: 2px 4px; border-left: 1px solid var(--line); border-radius: 0 7px 7px 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; background: transparent; }
+.timer-meta > .energy-summary:hover { background: var(--accent-soft); }
+.timer-meta .energy-line { display: flex; align-items: baseline; justify-content: center; gap: 4px; white-space: nowrap; }
+.timer-meta .energy-line .energy-label { display: inline; }
+.timer-meta .energy-line strong { overflow-wrap: normal; white-space: nowrap; }
+.timer-meta .energy-trend { color: var(--muted); white-space: nowrap; }
+.timer-meta [data-fat-trend="rising"] .energy-trend { color: var(--accent-dark); font-weight: 600; }
+.timer-meta > .goal-status { grid-column: 1 / -1; text-align: center; color: var(--accent-dark); }
 .timer-meta span { font-size: var(--type-meta); line-height: 1.15; }
 .timer-meta strong { font-size: var(--type-body); line-height: 1.15; margin-top: 0; overflow-wrap: anywhere; }
 .timer-meta small { display: block; margin-top: 0; color: var(--muted); font-size: var(--type-meta); line-height: 1.15; white-space: nowrap; }
@@ -137,6 +143,35 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .interval-row { font-size: 15px; padding: 3px 0; gap: 6px; flex-wrap: wrap; }
 .interval-row strong { font-size: 16px; white-space: nowrap; }
 .interval-panel .empty-recent { font-size: 15px; padding: 4px 0 2px; }
+.chart-day { padding: 2px; border-radius: 6px; cursor: pointer; }
+.chart-day:hover { background: var(--accent-soft); }
+.chart-day .chart-value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+button.interval-row { width: 100%; text-align: left; align-items: center; min-height: 44px; padding-inline: 2px; border-radius: 4px; }
+button.interval-row:hover { background: var(--accent-soft); }
+#fasting-dialog { width: min(440px, calc(100% - 24px)); }
+.effect-caption, .effect-period, .effect-note, .effect-model p { font-size: var(--type-meta); line-height: 1.5; color: var(--muted); }
+.effect-duration { display: block; font-size: 30px; font-weight: 650; line-height: 1.3; letter-spacing: -.6px; margin: 3px 0; font-variant-numeric: tabular-nums; }
+.effect-period { overflow-wrap: anywhere; }
+.effect-state { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 12px; padding: 14px; margin: 14px 0 10px; }
+.effect-state > div:first-child { display: flex; align-items: center; gap: 7px; color: var(--accent-dark); font-size: var(--type-body); }
+.effect-state svg { width: 22px; height: 22px; flex-shrink: 0; }
+.effect-state p { margin-top: 10px; font-size: var(--type-meta); line-height: 1.5; }
+.effect-flow { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: var(--type-meta); color: var(--muted); }
+.effect-flow span { flex: 1; padding: 6px 3px; text-align: center; border: 1px solid var(--line); border-radius: 6px; }
+.effect-flow .is-current { background: var(--surface); border-color: var(--accent); color: var(--accent-dark); font-weight: 650; }
+.effect-energy { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: var(--type-body); }
+.effect-energy strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.effect-note { margin: 12px 0; }
+.effect-model summary { min-height: 44px; display: list-item; align-content: center; padding: 9px 0; cursor: pointer; font-size: var(--type-body); color: var(--accent-dark); }
+.effect-model p + p { margin-top: 8px; }
+.effect-records { margin-top: 12px; }
+.effect-records h3 { font-size: var(--type-body); margin: 0 0 4px; }
+.effect-record-list button { width: 100%; min-height: 44px; padding: 8px; border-bottom: 1px solid var(--line); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: var(--type-meta); text-align: left; }
+.effect-record-list button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); }
+.effect-empty { padding: 16px 0; text-align: center; }
+.effect-empty svg { width: 28px; height: 28px; color: var(--accent); margin: 0 auto 8px; }
+.effect-empty strong { display: block; font-size: var(--type-label); }
+.effect-empty p { margin-top: 7px; font-size: var(--type-meta); line-height: 1.5; color: var(--muted); }
 dialog { padding: 20px; font-size: var(--type-body); }
 .dialog-heading { margin-bottom: 16px; }
 .dialog-heading h2 { font-size: var(--type-title); }
@@ -399,7 +434,7 @@ body.is-pwa[data-fit-landscape] .timer-panel > .panel-header { grid-column: 1 / 
 body.is-pwa[data-fit-landscape] .dial-wrap { grid-column: 1; grid-row: 2 / 4; align-self: center; margin: 6px auto; }
 body.is-pwa[data-fit-landscape] .autophagy-stages { grid-column: 2; grid-row: 2; align-self: end; margin: 0; }
 body.is-pwa[data-fit-landscape] .timer-meta { grid-column: 2; grid-row: 3; grid-template-columns: 1fr; gap: 6px; }
-body.is-pwa[data-fit-landscape] .timer-meta > div:last-child { border-left: 0; }
+body.is-pwa[data-fit-landscape] .timer-meta > .energy-summary { border-left: 0; }
 body.is-pwa[data-fit-reading] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }
 body.is-pwa[data-fit-reading] .timer-digits span { display: block; }
 body.is-pwa .dial-wrap[data-clock-wrap] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }
