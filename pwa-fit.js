@@ -23,6 +23,7 @@
   let previousMode = 'comfortable';
   let previousLandscape = false;
   let observedText = '';
+  let baseScale = 0;
   const modes = ['comfortable', 'dense', 'compact'];
   const number = value => parseFloat(value) || 0;
   const height = el => el ? el.getBoundingClientRect().height : 0;
@@ -56,7 +57,12 @@
     }
   }
   function fit() {
-    if (viewport && viewport.scale > 1.05) {
+    if (viewport && !(viewport.scale > 0)) return;
+    const currentScale = viewport && viewport.scale > 0 ? viewport.scale : 1;
+    // A standalone iPhone can start at a persisted scale such as 1.5. Fit that
+    // initial viewport, then preserve additional pinch zoom relative to it.
+    if (!baseScale || currentScale < baseScale) baseScale = currentScale;
+    if (viewport && currentScale > baseScale * 1.05) {
       body.toggleAttribute('data-fit-reading', reading());
       body.dataset.fitStatus = 'zoom';
       lastKey = '';
@@ -168,7 +174,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-28';
+  const fitBuild = 'PWA-29';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -206,6 +212,7 @@
         `display: ${(navigator.standalone || matchMedia('(display-mode: standalone)').matches) ? 'standalone' : 'browser'}`,
         `layout: ${innerWidth} x ${innerHeight}`,
         `visible: ${viewport ? `${Math.round(viewport.width)} x ${Math.round(viewport.height)}, scale ${viewport.scale}` : 'API unavailable'}`,
+        `initial-scale: ${baseScale || 'pending'}`,
         `main: ${main.clientWidth} x ${main.clientHeight}; content ${main.scrollWidth} x ${main.scrollHeight}`,
         `fit: ${body.dataset.fitMode || 'not initialized'} / ${body.dataset.fitStatus || 'not initialized'}`,
         `chrome: top ${Math.round(height(document.querySelector('.sidebar')))}; nav ${Math.round(height(nav))}; safe ${style.paddingTop} / ${number(getComputedStyle(nav).paddingBottom) - 3}px`,
@@ -217,7 +224,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.28';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.29';
         stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
       }).catch(() => { stateLine.textContent = english ? 'Version unavailable.' : '버전을 확인하지 못했어요.'; });
     }, { capture: true });
