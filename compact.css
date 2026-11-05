@@ -463,3 +463,12 @@ body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var
 #activity-status { margin: 10px 0; font-size: 14px; overflow-wrap: anywhere; }
 .activity-day { margin: 14px 0; padding: 12px; background: var(--accent-soft); border-radius: 10px; }
 #activity-manual { padding-bottom: 12px; }
+
+#activity-transfer { margin: 12px 0; border-top: 1px solid var(--line); padding-top: 8px; }
+#activity-paste { display: block; width: 100%; font: inherit; font-size: 14px; padding: 8px; resize: vertical; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
+#activity-transfer-preview { overflow-wrap: anywhere; }
+
+.transfer-help { margin-bottom: 10px; }
+.transfer-help ol { padding-left: 22px; font-size: 14px; line-height: 1.6; }
+.transfer-help li + li { margin-top: 8px; }
+.transfer-help pre { padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; background: var(--bg); border-radius: 6px; user-select: text; -webkit-user-select: text; }

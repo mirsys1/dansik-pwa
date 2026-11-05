@@ -12,6 +12,7 @@
   const MAX_SAMPLES = 50000;
   const MAX_KCAL = 100000;
   const MAX_STEPS = 100000000;
+  const MAX_TRANSFER_CHARS = 20 * 1024 * 1024;
   const DEFAULT_PROFILE = Object.freeze({ sex: 'male', age: 35, heightCm: 170, weightKg: 68, activityLevel: 'light' });
 
   function assert(condition, message) { if (!condition) throw new TypeError(message); }
@@ -60,6 +61,81 @@
     });
     assert(merged.size <= MAX_SAMPLES, '병합 후 활동 기록 개수는 50000개 이하여야 합니다.');
     return Array.from(merged.values()).sort(compareSample);
+  }
+
+  function parseIsoTime(value) {
+    assert(typeof value === 'string', '단축어 활동 시각은 시간대가 있는 ISO 8601 문자열이어야 합니다.');
+    // Do not accept local-time strings: imports must mean the same instant on
+    // every device. Calendar validation prevents Date.parse normalising 2/30.
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+    assert(match, '단축어 활동 시각은 시간대가 있는 ISO 8601 문자열이어야 합니다.');
+    const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+    const hour = Number(match[4]); const minute = Number(match[5]); const second = match[6] === undefined ? 0 : Number(match[6]);
+    const millis = match[7] === undefined ? 0 : Number((match[7] + '000').slice(0, 3));
+    const timezone = match[8];
+    assert(hour <= 23 && minute <= 59 && second <= 59, '단축어 활동 시각이 올바르지 않습니다.');
+    if (timezone !== 'Z') {
+      const parts = timezone.slice(1).split(':');
+      assert(Number(parts[0]) <= 23 && Number(parts[1]) <= 59, '단축어 활동 시각의 시간대가 올바르지 않습니다.');
+    }
+    const calendar = new Date(Date.UTC(year, month - 1, day, hour, minute, second, millis));
+    assert(calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day, '단축어 활동 시각이 올바르지 않습니다.');
+    const parsed = Date.parse(value);
+    assert(Number.isSafeInteger(parsed) && validTime(parsed), '단축어 활동 시각이 올바르지 않습니다.');
+    return parsed;
+  }
+
+  function parseTransferTime(value) {
+    if (typeof value === 'number') {
+      assert(validTime(value), '단축어 활동 시각이 올바르지 않습니다.');
+      return value;
+    }
+    return parseIsoTime(value);
+  }
+
+  function convertToKcal(value, unit) {
+    assert(typeof value === 'number' && Number.isFinite(value) && value >= 0, '단축어 활동 에너지 값이 올바르지 않습니다.');
+    if (unit === 'kcal') return value;
+    if (unit === 'kJ') return value / 4.184;
+    if (unit === 'J') return value / 4184;
+    if (unit === 'cal') return value / 1000;
+    throw new TypeError('지원하지 않는 활동 에너지 단위입니다.');
+  }
+
+  function assertNotFuture(samples, now) {
+    assert(Number.isSafeInteger(now) && validTime(now), '현재 시각이 올바르지 않습니다.');
+    samples.forEach(function (sample) { assert(sample.end <= now, '미래 시각의 활동 기록은 가져올 수 없습니다.'); });
+    return samples;
+  }
+
+  // Parses clipboard/export text only. It returns normalized samples; callers
+  // merge them through mergeSamples so repeating the same transfer is idempotent.
+  function parseTransfer(text, now) {
+    assert(typeof text === 'string' && text.length <= MAX_TRANSFER_CHARS, '활동 가져오기 텍스트는 20MB 이하여야 합니다.');
+    let parsed;
+    try { parsed = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { throw new TypeError('활동 가져오기 JSON 형식이 올바르지 않습니다.'); }
+    const checkedNow = now === undefined ? Date.now() : now;
+    if (Array.isArray(parsed)) return assertNotFuture(normalizeSamples(parsed), checkedNow);
+    assert(parsed && typeof parsed === 'object' && !Array.isArray(parsed), '지원하지 않는 활동 가져오기 형식입니다.');
+    if (parsed.version === 1 && Array.isArray(parsed.samples) && parsed.format === undefined) return assertNotFuture(normalizeSamples(parsed.samples), checkedNow);
+    assert(parsed.format === 'dansik-shortcuts-v1' && Array.isArray(parsed.samples), '지원하지 않는 활동 가져오기 형식입니다.');
+    assert(parsed.samples.length <= MAX_SAMPLES, '활동 기록 개수는 50000개 이하여야 합니다.');
+    const samples = parsed.samples.map(function (raw) {
+      assert(raw && typeof raw === 'object' && !Array.isArray(raw), '단축어 활동 기록 형식이 올바르지 않습니다.');
+      assert(raw.type === 'active-energy', '단축어에서는 활성 에너지 기록만 가져올 수 있습니다.');
+      assert(typeof raw.source === 'string' && raw.source.trim().length > 0 && raw.source.length <= 100, '단축어 활동 기록 출처가 올바르지 않습니다.');
+      assert(typeof raw.id === 'string' && raw.id.length >= 1 && raw.id.length <= 160, '단축어 활동 기록 ID가 올바르지 않습니다.');
+      const normalized = {
+        id: raw.id,
+        source: 'apple-shortcuts:' + raw.source,
+        start: parseTransferTime(raw.start),
+        end: parseTransferTime(raw.end),
+        kcal: convertToKcal(raw.value, raw.unit),
+      };
+      if (raw.steps !== undefined) normalized.steps = raw.steps;
+      return normalized;
+    });
+    return assertNotFuture(normalizeSamples(samples), checkedNow);
   }
 
   function validateRange(from, to) {
@@ -146,5 +222,5 @@
     return { totalKcal: roundKcal(basalKcal + activity.activeKcal), basalKcal: basalKcal, activeKcal: activity.activeKcal, calculationStatus: 'measured-activity', activity: activity };
   }
 
-  return { MIN_TIME: MIN_TIME, MAX_TIME: MAX_TIME, MAX_SAMPLES: MAX_SAMPLES, DEFAULT_PROFILE: DEFAULT_PROFILE, normalizeSample: normalizeSample, normalizeSamples: normalizeSamples, mergeSamples: mergeSamples, normalizeProfile: normalizeProfile, calculate: calculate, estimate: estimate };
+  return { MIN_TIME: MIN_TIME, MAX_TIME: MAX_TIME, MAX_SAMPLES: MAX_SAMPLES, MAX_TRANSFER_CHARS: MAX_TRANSFER_CHARS, DEFAULT_PROFILE: DEFAULT_PROFILE, normalizeSample: normalizeSample, normalizeSamples: normalizeSamples, mergeSamples: mergeSamples, parseTransfer: parseTransfer, normalizeProfile: normalizeProfile, calculate: calculate, estimate: estimate };
 });

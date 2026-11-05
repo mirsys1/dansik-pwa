@@ -40,6 +40,7 @@
       <p class="field-help">${samples.length} ${text('개 기록','records')} · ${text('활동 기록이 없거나 겹치면 합산에서 제외돼요. 하루 합계를 단식 시간에 비례 배분하지 않아요.','Missing or overlapping records are excluded. Daily totals are not prorated into fasting intervals.')}</p>
       <div class="data-actions"><button type="button" id="activity-native" class="outline-button" ${window.nativeHealth?.available?'':'disabled'}>${text('건강앱에서 새로 읽기','Refresh Apple Health')}</button><label class="outline-button" for="activity-file">${text('파일 가져오기','Import file')}</label><input id="activity-file" type="file" accept=".xml,.json" hidden><button type="button" class="outline-button" id="activity-export">${text('활동 백업','Export activity')}</button></div>
       <p class="field-help">${text('아이폰 건강 내보내기의 압축을 푼 export.xml 또는 이 앱의 활동 JSON(20MB 이하). 활동 에너지만 읽으며 식사 기록은 변경하지 않아요. 활동 기록은 식사 백업과 별도로 보관하세요.','Use unzipped Apple Health export.xml or this app’s activity JSON (up to 20 MB). Only active energy is read; meals stay unchanged. Back up activity separately from meals.')}</p>
+      <details id="activity-transfer"><summary>${text('무료 단축어 데이터 붙여넣기','Paste free Shortcuts data')}</summary><p class="field-help">${text('단축어에서 건강 활동 에너지를 JSON으로 복사한 뒤 여기에 붙여넣으세요. 미리보기는 저장하지 않으며 가져오기 확인 후 반영돼요. PWA가 건강앱을 직접 읽거나 백그라운드 동기화하는 기능은 아니에요.','Copy health active-energy JSON from a shortcut and paste it here. Preview does not save; confirm to import. This does not directly read Health or sync in the background.')}</p><details class="transfer-help"><summary>${text('아이폰 설정 순서','iPhone setup steps')}</summary><ol><li>${text('단축어 앱에서 건강 샘플 찾기를 추가하고 활동 에너지·출처 한 개·최근 기록으로 필터하세요. 건강 읽기 권한은 아이폰에서 허용해야 해요.','In Shortcuts, add Find Health Samples and filter active energy, one source and recent records. Grant Health read access on the iPhone.')}</li><li>${text('각 기록을 아래 JSON 형식의 사전으로 만들고 목록에 모으세요. 시작·종료는 ISO 8601(시간대 포함), value는 숫자, unit은 kcal로 출력하세요. 하루 합계나 걸음 수를 넣지 마세요.','Make each record a dictionary in the JSON format below and collect them in a list. Use ISO 8601 dates with timezone, a numeric value and unit kcal. Do not use daily totals or steps.')}</li><li>${text('전체 사전을 JSON 텍스트로 변환해 클립보드에 복사하세요. 단식 앱을 다시 열고 읽기 → 미리보기 → 가져오기를 누르세요. 처음 단축어 만들기는 기기에서 직접 해야 하며 실기기 설정은 아직 검증 전이에요.','Convert the envelope dictionary to JSON text and copy to clipboard. Reopen this app, read, preview, then import. Initial shortcut creation is on your device and has not yet been device-tested.')}</li></ol><pre>{"format":"dansik-shortcuts-v1","samples":[{"id":"${text('기록의 고유 ID','unique record ID')}","source":"${text('건강 기록 출처','Health source')}","type":"active-energy","start":"${text('시작 ISO 날짜','start ISO date')}","end":"${text('종료 ISO 날짜','end ISO date')}","value":0,"unit":"kcal"}]}</pre><p class="field-help">${text('위 내용은 형식 안내이며 실제 건강 기록이 아니에요. 원본·시간·활동 값을 단축어 변수로 채워야 해요. 표준 활동 JSON 파일을 복사해 붙여넣는 방법도 지원해요.','This is a format guide, not real health data. Fill source, times and active energy from shortcut variables. Standard activity JSON files also work.')}</p></details><button type="button" id="activity-read-clipboard" class="outline-button">${text('클립보드에서 읽기','Read clipboard')}</button><label for="activity-paste">${text('활동 JSON · 길게 눌러 붙여넣기도 가능','Activity JSON · manual paste also works')}</label><textarea id="activity-paste" rows="5" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea><button type="button" id="activity-preview-transfer" class="outline-button">${text('내용 미리보기','Preview data')}</button><p id="activity-transfer-preview" class="field-help" role="status" aria-live="polite"></p><button type="button" id="activity-confirm-transfer" class="primary-button" hidden>${text('확인한 활동 가져오기','Confirm activity import')}</button></details>
       <details><summary>${text('활동 소비량 직접 기록','Enter active energy')}</summary><form id="activity-manual"><label for="activity-start">${text('시작','Start')}</label><input id="activity-start" type="datetime-local" required value="${local(now-3600000)}"><label for="activity-end">${text('종료','End')}</label><input id="activity-end" type="datetime-local" required value="${local(now)}"><label for="activity-kcal">${text('활동 칼로리(kcal) — 휴식 칼로리 제외','Active kcal — excludes resting energy')}</label><input id="activity-kcal" type="number" required min="0" max="100000" step="0.1"><label for="activity-steps">${text('걸음 수(참고용·선택)','Steps (context only, optional)')}</label><input id="activity-steps" type="number" min="0" max="1000000" step="1"><button class="primary-button" type="submit">${text('이 구간 기록','Save interval')}</button></form></details>
       <p id="activity-status" role="status" aria-live="polite"></p><button type="button" class="text-button" id="activity-clear">${text('선택한 출처 기록 삭제','Delete selected source')}</button>`;
     document.getElementById('activity-mode').value = p.energyMode || 'estimate';
@@ -47,6 +48,41 @@
     document.getElementById('activity-close').onclick = ()=>dialog.close();
     document.getElementById('activity-apply').onclick = async()=>{try{await save({energyMode:document.getElementById('activity-mode').value,activitySource:document.getElementById('activity-source').value});await render();status(text('적용했어요.','Applied.'));}catch(e){status(e.message);}};
     document.getElementById('activity-native').onclick = ()=>syncHealth();
+    let transfer = null;
+    const paste = document.getElementById('activity-paste');
+    const preview = document.getElementById('activity-transfer-preview');
+    const confirmTransfer = document.getElementById('activity-confirm-transfer');
+    function invalidateTransfer() { transfer=null;confirmTransfer.hidden=true;preview.textContent=''; }
+    paste.addEventListener('input',invalidateTransfer);
+    document.getElementById('activity-read-clipboard').onclick = async()=>{
+      invalidateTransfer();
+      try {
+        if(!navigator.clipboard?.readText)throw Error('clipboard unavailable');
+        const value=await navigator.clipboard.readText();
+        if(value.length>20*1024*1024)throw Error('clipboard too large');
+        paste.value=value;
+        preview.textContent=text('읽었어요. 내용을 확인하고 미리보기를 누르세요. 아직 저장하지 않았어요.','Clipboard loaded. Check the content and preview it. Nothing has been saved.');
+      }catch(_){preview.textContent=text('클립보드를 읽지 못했어요. 입력 칸을 길게 눌러 직접 붙여넣으세요.','Cannot read clipboard. Paste into the text field manually.');}
+    };
+    document.getElementById('activity-preview-transfer').onclick = ()=>{
+      invalidateTransfer();
+      try {
+        const parsed=A.parseTransfer(paste.value);
+        if(!parsed.length)throw Error(text('활동 에너지 기록이 없어요.','No active-energy records.'));
+        const range=parsed.reduce((r,s)=>({start:Math.min(r.start,s.start),end:Math.max(r.end,s.end)}),{start:Infinity,end:-Infinity});
+        const sources=[...new Set(parsed.map(s=>s.source))];
+        transfer=parsed;
+        const sourceSummary=sources.slice(0,3).join(', ')+(sources.length>3?` (+${sources.length-3})`:'');
+        preview.textContent=`${parsed.length} ${text('개 기록','records')} · ${local(range.start)} → ${local(range.end)} · ${sourceSummary} · ${text('기존 기록과 중복은 병합하며 출처 하나만 계산해요.','Duplicates merge with existing records; only one source is used for energy.')}`;
+        confirmTransfer.hidden=false;
+      }catch(error){preview.textContent=error.message;}
+    };
+    confirmTransfer.onclick=async()=>{
+      if(!transfer)return;
+      const parsed=transfer;
+      transfer=null;confirmTransfer.hidden=true;
+      try{await importSamples(parsed);}catch(error){preview.textContent=error.message;}
+    };
     document.getElementById('activity-file').onchange = async e=>{
       try {const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024)throw Error(text('파일은 20MB 이하여야 해요.','File must be 20 MB or smaller.'));
         const body=await file.text();let incoming;
@@ -58,7 +94,7 @@
             let hash=2166136261;for(const c of g('device'))hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0;
             return {id:[g('startDate'),g('endDate'),g('creationDate')].join('|'),source:'apple-export:'+g('sourceName').slice(0,100)+':'+hash,start,end,kcal:Number(g('value'))*({kcal:1,kJ:1/4.184,J:1/4184,cal:1/1000}[unit])};
           });
-        } else {const parsed=JSON.parse(body);incoming=Array.isArray(parsed)?parsed:parsed.samples;}
+        } else incoming=A.parseTransfer(body);
         await importSamples(incoming);
       }catch(error){status(error.message);}
     };
