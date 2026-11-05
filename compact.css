@@ -374,7 +374,8 @@ body.is-pwa[data-fit-mode="compact"] .meal-art { width: 20px; height: 20px; }
 body.is-pwa[data-fit-mode="compact"] .meal-art svg { width: 18px; height: 18px; }
 body.is-pwa[data-fit-mode] .timer-panel { flex: 1 0 auto; min-height: min-content; padding: var(--fit-panel-pad) 12px 4px; display: flex; flex-direction: column; }
 body.is-pwa[data-fit-mode] .timer-actions { flex-shrink: 0; }
-body.is-pwa[data-fit-mode] .timer-action { min-height: 44px; padding: 3px 8px; }
+body.is-pwa[data-fit-mode] .timer-action { position: relative; min-height: 36px; padding: 2px 8px; }
+body.is-pwa[data-fit-mode] .timer-action::after { content: ""; position: absolute; inset: -4px 0; }
 body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: auto auto 6px; }
 body.is-pwa[data-fit-mode] .timer-digits { font-size: var(--fit-digit-size, min(clamp(43.89px, 13.585vw, 58.52px), max(32px, 19cqw))); }
 body.is-pwa[data-fit-mode] .timer-digits.long-duration { font-size: var(--fit-digit-size, min(clamp(33.44px, 10.45vw, 41.8px), max(28px, 16cqw))); }
