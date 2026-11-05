@@ -6,11 +6,12 @@
   const Core = window.FastingCore;
   const I18n = window.FastingI18n;
   const Csv = window.FastingCsv;
+  const Activity = window.FastingActivity;
   if (!Core || !I18n || !Csv) return;
 
   const STATE_KEY = 'dansik:records:v1';
   const PREFS_KEY = 'dansik:prefs:v1';
-  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'language', 'timeZone', 'colorTheme', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel'];
+  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'language', 'timeZone', 'colorTheme', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
   const BOOLEAN_PREFS = ['tray', 'autoStart', 'firstRunDone'];
   const LANGUAGE_SETTINGS = ['auto', ...I18n.LANGS];
 
@@ -32,9 +33,10 @@
   }
 
   function loadPrefs() {
-    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', ...Core.DEFAULT_PROFILE, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
+    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
+    let raw = null;
     try {
-      const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+      raw = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
       for (const key of BOOLEAN_PREFS) if (typeof raw[key] === 'boolean') prefs[key] = raw[key];
       if (LANGUAGE_SETTINGS.includes(raw.language)) prefs[key_lang()] = raw.language;
       if (Core.validTimeZone(raw.timeZone)) prefs.timeZone = raw.timeZone;
@@ -45,6 +47,15 @@
       if (typeof raw.timerReset === 'boolean') prefs.timerReset = raw.timerReset;
       Object.assign(prefs, Core.normalizeProfile(raw));
     } catch (_) { /* ignore unreadable storage */ }
+    // Activity data is intentionally isolated from the older preference fields.
+    // A malformed import must never reset the user's meal/timer/profile settings.
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      if (Activity && Array.isArray(raw.activitySamples)) {
+        try { prefs.activitySamples = Activity.normalizeSamples(raw.activitySamples); } catch (_) { /* keep empty samples */ }
+      }
+      if (typeof raw.activitySource === 'string' && raw.activitySource.length <= 200 && prefs.activitySamples.some(sample => sample.source === raw.activitySource)) prefs.activitySource = raw.activitySource;
+      if (raw.energyMode === 'estimate' || (raw.energyMode === 'activity' && prefs.activitySource)) prefs.energyMode = raw.energyMode;
+    }
     return prefs;
     function key_lang() { return 'language'; }
   }
@@ -102,7 +113,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.14 (PWA-32)', build: 'PWA-32' },
+      app: { version: '1.0.14 (PWA-33)', build: 'PWA-33' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },
@@ -258,8 +269,30 @@
           if ('heightCm' in patch && (!Number.isFinite(patch.heightCm) || patch.heightCm < 100 || patch.heightCm > 250)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');
           if ('weightKg' in patch && (!Number.isFinite(patch.weightKg) || patch.weightKg < 25 || patch.weightKg > 300)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');
           if ('activityLevel' in patch && !Object.prototype.hasOwnProperty.call(Core.ACTIVITY_MULTIPLIERS, patch.activityLevel)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');
-          savePrefs({ ...prefs, ...patch });
-          Object.assign(prefs, patch);
+          const hasActivityPatch = ['activitySamples', 'activitySource', 'energyMode'].some(key => key in patch);
+          if (hasActivityPatch && !Activity) throw new TypeError('Activity data support is unavailable.');
+          let nextActivitySamples = prefs.activitySamples;
+          let nextActivitySource = prefs.activitySource;
+          let nextEnergyMode = prefs.energyMode;
+          if ('activitySamples' in patch) {
+            nextActivitySamples = Activity.normalizeSamples(patch.activitySamples);
+            patch.activitySamples = nextActivitySamples;
+          }
+          if ('activitySource' in patch) {
+            if (typeof patch.activitySource !== 'string' || patch.activitySource.length > 200) throw new TypeError('Activity source must be a string of 200 characters or fewer.');
+            nextActivitySource = patch.activitySource;
+          }
+          if ('energyMode' in patch) {
+            if (!['estimate', 'activity'].includes(patch.energyMode)) throw new TypeError('Energy mode must be estimate or activity.');
+            nextEnergyMode = patch.energyMode;
+          }
+          if (hasActivityPatch && nextActivitySource && !nextActivitySamples.some(sample => sample.source === nextActivitySource)) {
+            throw new TypeError('Activity source must select one imported source.');
+          }
+          if (hasActivityPatch && nextEnergyMode === 'activity' && !nextActivitySource) throw new TypeError('Activity mode requires one selected activity source.');
+          const nextPrefs = { ...prefs, ...patch };
+          savePrefs(nextPrefs);
+          Object.assign(prefs, nextPrefs);
           broadcast();
           return snapshot();
         }

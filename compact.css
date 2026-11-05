@@ -455,3 +455,11 @@ body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var
 
 /* Horizontal paging belongs to the app; vertical scrolling and pinch stay native. */
 #main-content { touch-action: pan-y pinch-zoom; }
+
+#activity-dialog .data-actions { flex-wrap: wrap; gap: 8px; }
+#activity-dialog .data-actions label { margin: 0; font-weight: 500; cursor: pointer; }
+#activity-dialog select, #activity-dialog input:not([hidden]) { width: 100%; }
+#activity-dialog button, #activity-dialog summary { min-height: 44px; }
+#activity-status { margin: 10px 0; font-size: 14px; overflow-wrap: anywhere; }
+.activity-day { margin: 14px 0; padding: 12px; background: var(--accent-soft); border-radius: 10px; }
+#activity-manual { padding-bottom: 12px; }

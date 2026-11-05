@@ -75,6 +75,7 @@ let appInfo = { version: '' };
 let firstRunShown = false;
 let pinBusy = false;
 let effectOpener = null;
+let fastingSelection = null;
 
 // Static text carries data-i18n (text), data-i18n-html (trusted catalog markup), data-i18n-text (first text node only)
 // and data-i18n-attr ("attr=key;attr=key"). Dynamic text is written by render()/tick() through t().
@@ -192,7 +193,8 @@ function tick() {
   $('dial-tip').setAttribute('cy', 180 + 170 * Math.sin(angle));
   $('mini-progress-bar').style.width = `${timer.progress * 100}%`;
   $('last-meal').textContent = latest ? `${mealName(latest.type)} · ${compactDateTime(latest.at)}` : t('timer.noRecord');
-  const kcal = C.calculateCalories(active && !timer.clockSkew ? timer.elapsedMs : null, prefs);
+  const end = timer.paused ? prefs.timerPausedAt : now;
+  const kcal = window.FastingEnergy.estimate(active && !timer.clockSkew ? {from:latest.at,to:end,durationMs:timer.elapsedMs} : null, prefs, !(prefs.timerPausedMs > 0));
   $('goal-time').textContent = kcalText(kcal.totalKcal, true);
   const trend = fatTrendKey(active && !timer.clockSkew ? timer.elapsedMs : null);
   $('energy-trend').textContent = t(trend);
@@ -243,6 +245,7 @@ function renderStats() {
   $('interval-list').innerHTML = stats.mealIntervals.length ? stats.mealIntervals.slice(0,7).map(interval => `<button type="button" class="interval-row" data-effect-from="${interval.from}" data-effect-to="${interval.to}" aria-haspopup="dialog" aria-controls="fasting-dialog" aria-label="${esc(t('effects.intervalAria', { from: intervalTime(interval.from), to: intervalTime(interval.to), duration: shortDuration(interval.durationMs) }))}"><span>${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</span><strong>${shortDuration(interval.durationMs)} <span aria-hidden="true">›</span></strong></button>`).join('') : `<p class="empty-recent">${t('stats.intervalsEmpty')}</p>`;
 }
 function openFastingDetail(selection = {}, opener = null) {
+  fastingSelection = selection;
   if (!$('fasting-dialog').open) effectOpener = opener || document.activeElement;
   const now = Date.now();
   const stats = C.weeklyStats(state, now, tz());
@@ -267,9 +270,10 @@ function openFastingDetail(selection = {}, opener = null) {
   } else {
     const trend = fatTrendKey(interval.durationMs);
     const rising = trend === 'effects.trendFat';
-    const kcal = C.calculateCalories(interval.durationMs, prefs);
+    const kcal = window.FastingEnergy.estimate(interval, prefs, !selection.live || !(prefs.timerPausedMs > 0));
     $('fasting-detail').innerHTML = `<p class="effect-caption">${t(selection.live ? 'effects.atOpen' : 'effects.recordedInterval')}</p><strong class="effect-duration">${shortDuration(interval.durationMs)}</strong><p class="effect-period">${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</p><section class="effect-state" data-fat-trend="${rising?'rising':'mixed'}"><div>${icon('leaf')}<strong>${t(rising?'effects.fatTitle':'effects.mixedTitle')}</strong></div><div class="effect-flow" aria-hidden="true"><span class="${rising?'':'is-current'}">${t('effects.mixedLabel')}</span><b>→</b><span class="${rising?'is-current':''}">${t('effects.fatLabel')}</span></div><p>${t(rising?'effects.fatDescription':'effects.mixedDescription')}</p></section><div class="effect-energy"><span>${t('effects.energyTitle')}</span><strong>${kcalText(kcal.totalKcal)}</strong></div>${records.length>1?`<section class="effect-records"><h3>${t('effects.otherRecords', { n: records.length })}</h3><div class="effect-record-list">${records.map(x=>`<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from===interval.from&&x.to===interval.to}"><span>${time(x.from)} → ${time(x.to)}</span><strong>${shortDuration(x.durationMs)}</strong></button>`).join('')}</div></section>`:''}`;
   }
+  if (interval && prefs.energyMode === 'activity') { const note = document.createElement('p'); note.className='effect-note'; const value=window.FastingEnergy.estimate(interval,prefs,!selection.live || !(prefs.timerPausedMs>0));note.textContent=window.FastingEnergy.describe(value,prefs);$('fasting-detail').append(note); }
   if (!$('fasting-dialog').open) $('fasting-dialog').showModal();
   else if (interval) $('fasting-detail').querySelector('.effect-record-list [aria-pressed="true"]')?.focus({ preventScroll: true });
 }
@@ -430,6 +434,7 @@ $('add-history').addEventListener('click',()=>openMeal());
 $('settings-button').addEventListener('click',openSettings);
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
 $('settings-dialog').addEventListener('close',()=>applyColorTheme(prefs.colorTheme));
+$('activity-dialog').addEventListener('close',()=>{if($('fasting-dialog').open && fastingSelection)openFastingDetail(fastingSelection);});
 $('fasting-dialog').addEventListener('close',()=>{
   const origin = effectOpener;
   const target = origin?.isConnected ? origin : [...document.querySelectorAll('#weekly-chart button, #interval-list button')].find(button => origin && (
