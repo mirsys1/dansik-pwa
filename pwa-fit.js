@@ -138,7 +138,7 @@
       selected = modes[i];
       if (diameter >= preferred) break;
     }
-    variable('--fit-dial-size', `${Math.max(128, diameter)}px`);
+    variable('--fit-dial-size', `${Math.max(128, Math.floor(diameter * 0.94))}px`);
     fitDigits();
     // Reading minima take precedence on exceptionally constrained viewports.
     const digitRect = digits.getBoundingClientRect();
@@ -174,7 +174,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-29';
+  const fitBuild = 'PWA-30';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -224,7 +224,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.29';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.30';
         stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
       }).catch(() => { stateLine.textContent = english ? 'Version unavailable.' : '버전을 확인하지 못했어요.'; });
     }, { capture: true });

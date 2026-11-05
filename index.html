@@ -35,7 +35,7 @@
       <a class="brand" href="#timer" role="button" aria-label="단식 홈" data-i18n-attr="aria-label=brand.home"><span class="brand-mark" aria-hidden="true">◒</span><span data-i18n="app.name">단식</span></a>
       <div class="topbar-actions"><button class="icon-button" id="theme-button" aria-label="어두운 화면으로 전환" title="화면 테마 변경" data-i18n-attr="title=theme.title"><span data-icon="moon"></span></button><button class="outline-button" id="mini-button" aria-label="항상 위 미니 타이머" data-i18n-attr="aria-label=mini.aria"><span data-icon="mini"></span><span data-i18n="mini.label">미니</span></button><button class="icon-button" id="settings-button" aria-label="설정" title="설정" data-i18n-attr="aria-label=settings.open;title=settings.open"><span data-icon="settings"></span></button></div>
       <nav aria-label="주 메뉴" data-i18n-attr="aria-label=nav.main">
-        <button class="nav-item active" data-page="timer"><span data-icon="timer"></span><span data-i18n="nav.timer">타이머</span></button>
+        <button class="nav-item active" data-page="timer" aria-current="page"><span data-icon="timer"></span><span data-i18n="nav.timer">타이머</span></button>
         <button class="nav-item" data-page="history"><span data-icon="history"></span><span data-i18n="nav.history">식사 기록</span></button>
         <button class="nav-item" data-page="insights"><span data-icon="chart"></span><span data-i18n="nav.insights">단식 통계</span></button>
       </nav>
@@ -46,7 +46,7 @@
       <section id="page-timer" class="page">
         <div class="dashboard-grid">
           <section class="meal-panel" aria-label="식사 기록" data-i18n-attr="aria-label=timer.mealsAria">
-            <div class="panel-header"><div class="meal-heading"><p class="eyebrow" id="today-label"></p><h1 data-i18n-html="timer.heading">오늘의 <span>단식.</span></h1><div class="date-stamp" id="date-stamp"></div></div><button id="past-meal" class="text-button"><span data-icon="plus"></span><span data-i18n="timer.pastMeal">이전 식사</span></button></div>
+            <div class="panel-header"><div class="meal-heading"><p class="eyebrow" id="today-label"></p><h1 data-i18n-html="timer.heading">오늘의 <span>단식</span></h1><div class="date-stamp" id="date-stamp"></div></div><button id="past-meal" class="text-button"><span data-icon="plus"></span><span data-i18n="timer.pastMeal">이전 식사</span></button></div>
             <div class="meal-grid"><button class="meal-button" data-meal="breakfast"><span class="meal-art breakfast" data-icon="sunrise"></span><strong data-i18n="meal.breakfast">아침</strong></button><button class="meal-button" data-meal="lunch"><span class="meal-art lunch" data-icon="sun"></span><strong data-i18n="meal.lunch">점심</strong></button><button class="meal-button" data-meal="dinner"><span class="meal-art dinner" data-icon="moon"></span><strong data-i18n="meal.dinner">저녁</strong></button><button class="meal-button" data-meal="snack"><span class="meal-art snack" data-icon="cup"></span><strong data-i18n="meal.snack">간식</strong></button></div>
           </section>
           <section class="timer-panel" aria-label="현재 단식 타이머" data-i18n-attr="aria-label=timer.panelAria">

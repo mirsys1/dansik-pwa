@@ -238,6 +238,91 @@ function goPage(page) {
   main.scrollTop = 0; // PWA: <main> is its own scroll container, scrollIntoView only moves ancestors
   main.scrollIntoView({behavior:'instant'});
 }
+
+(function enableTouchPaging() {
+  const surface = $('main-content');
+  const pages = ['timer', 'history', 'insights'];
+  let gesture = null;
+  let suppressClickUntil = 0;
+  const controls = 'button,a,input,select,textarea,label,[role="button"],[contenteditable],[data-swipe-ignore]';
+  function hasSelection() {
+    const selection = window.getSelection && window.getSelection();
+    return Boolean(selection && !selection.isCollapsed);
+  }
+  function begin(id, x, y, target) {
+    gesture = null;
+    suppressClickUntil = 0; // A fresh touch is an intentional new action.
+    if (!ready || document.body.classList.contains('mini') || document.querySelector('dialog[open]')) return;
+    if (x < 20 || x > innerWidth - 20) return; // Leave browser edge navigation available.
+    if (hasSelection()) return;
+    gesture = { id, x, y, started: performance.now(), axis: '', blocked: Boolean(target.closest(controls)) };
+  }
+  function move(id, x, y, event) {
+    if (!gesture || gesture.id !== id) return;
+    const dx = Math.abs(x - gesture.x), dy = Math.abs(y - gesture.y);
+    if (!gesture.axis && Math.max(dx, dy) > 12) {
+      if (dx > dy * 1.5) gesture.axis = 'x';
+      else if (dy > dx * 1.2) gesture.axis = 'y';
+    }
+    if (gesture.axis === 'x' && event.cancelable) event.preventDefault();
+  }
+  function end(id, x, y) {
+    if (!gesture || gesture.id !== id) return;
+    const current = gesture;
+    gesture = null;
+    const dx = x - current.x, dy = y - current.y;
+    if (current.axis === 'y' || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+    // A drag across an action must never turn into a meal-recording tap.
+    if (Math.abs(dx) > 12) suppressClickUntil = performance.now() + 450;
+    const threshold = Math.max(48, Math.min(72, surface.clientWidth * .16));
+    if (Math.abs(dx) < threshold || performance.now() - current.started > 800 || current.blocked) return;
+    if (document.querySelector('dialog[open]') || hasSelection()) return;
+    const active = document.querySelector('.nav-item.active');
+    const index = pages.indexOf(active && active.dataset.page);
+    const next = index + (dx < 0 ? 1 : -1);
+    if (index >= 0 && next >= 0 && next < pages.length) goPage(pages[next]);
+  }
+  surface.addEventListener('click', event => {
+    if (event.detail && performance.now() < suppressClickUntil) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+  if (window.PointerEvent) {
+    // A second finger cancels paging so the browser can handle pinch zoom.
+    document.addEventListener('pointerdown', event => {
+      if (event.pointerType !== 'mouse' && event.isPrimary === false) gesture = null;
+    }, true);
+    surface.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'mouse' || event.isPrimary === false) return;
+      begin(event.pointerId, event.clientX, event.clientY, event.target);
+    });
+    surface.addEventListener('pointermove', event => {
+      move(event.pointerId, event.clientX, event.clientY, event);
+      if (gesture && gesture.axis === 'x' && surface.setPointerCapture) {
+        try { surface.setPointerCapture(event.pointerId); } catch (_) {}
+      }
+    }, { passive: false });
+    surface.addEventListener('pointerup', event => end(event.pointerId, event.clientX, event.clientY));
+    surface.addEventListener('pointercancel', () => { gesture = null; });
+  } else {
+    surface.addEventListener('touchstart', event => {
+      if (event.touches.length !== 1) { gesture = null; return; }
+      const touch = event.touches[0];
+      begin(touch.identifier, touch.clientX, touch.clientY, event.target);
+    }, { passive: true });
+    surface.addEventListener('touchmove', event => {
+      if (event.touches.length !== 1) { gesture = null; return; }
+      const touch = event.touches[0];
+      move(touch.identifier, touch.clientX, touch.clientY, event);
+    }, { passive: false });
+    surface.addEventListener('touchend', event => {
+      const touch = event.changedTouches[0];
+      if (touch) end(touch.identifier, touch.clientX, touch.clientY);
+    });
+    surface.addEventListener('touchcancel', () => { gesture = null; });
+  }
+})();
 function openMeal(id = null) {
   editingId = id;
   const event = state.events.find(item => item.id === id);
