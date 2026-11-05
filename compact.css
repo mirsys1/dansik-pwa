@@ -224,24 +224,29 @@ kbd{display:inline-block;min-width:22px;padding:0 5px;border:1px solid var(--lin
 @media (forced-colors:active){kbd{border-color:ButtonText}}
 .import-modes{border:0;margin:8px 0 4px;padding:0;display:grid;gap:6px}
 body.is-pwa {
+  --pwa-safe-top: env(safe-area-inset-top, 0px);
+  --pwa-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --pwa-nav-height: 54px;
   height: 100dvh;
   min-height: 100dvh;
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: var(--pwa-safe-top);
   padding-bottom: 0;
   overflow: hidden;
   overscroll-behavior: none;
   box-sizing: border-box;
 }
 body.is-pwa .shell {
-  height: calc(100dvh - env(safe-area-inset-top, 0px));
+  height: calc(100dvh - var(--pwa-safe-top));
   min-height: 0;
-  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--pwa-nav-height) + var(--pwa-safe-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }
 body.is-pwa .sidebar {
   flex-shrink: 0;
+  height: 44px;
+  padding-block: 4px;
 }
 body.is-pwa #main-content,
 body.is-pwa #page-timer {
@@ -261,8 +266,9 @@ body.is-pwa .page:not(#page-timer) {
   flex: none;
 }
 body.is-pwa .sidebar nav {
-  height: calc(58px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: calc(5px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--pwa-nav-height) + var(--pwa-safe-bottom));
+  padding-top: 3px;
+  padding-bottom: calc(3px + var(--pwa-safe-bottom));
   box-sizing: border-box;
 }
 body.is-pwa #mini-button,
@@ -275,9 +281,9 @@ body.is-pwa label:has(#tray-input) {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: clamp(10px, 1.8dvh, 20px);
-    padding-top: 4px;
+    align-items: stretch;
+    gap: clamp(6px, 1dvh, 10px);
+    padding: 0 0 6px;
     box-sizing: border-box;
   }
   body.is-pwa .meal-panel {
@@ -285,7 +291,7 @@ body.is-pwa label:has(#tray-input) {
   }
   body.is-pwa .meal-grid {
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 4px;
   }
   body.is-pwa .meal-button {
     min-height: clamp(64px, 8.8dvh, 88px);
@@ -300,30 +306,40 @@ body.is-pwa label:has(#tray-input) {
     height: 26px;
   }
   body.is-pwa .timer-panel {
-    flex: 1;
-    min-height: 0;
+    flex: 1 0 auto;
+    min-height: min-content;
     display: flex;
     flex-direction: column;
-    padding: 14px 16px 8px;
+    padding: 10px 16px 4px;
     border-radius: 20px;
     box-shadow: 0 10px 32px #28382e12;
     box-sizing: border-box;
   }
   body.is-pwa .dial-wrap {
+    flex: none;
     width: min(92%, 330px, calc(100dvh - 510px));
-    margin: auto auto 8px;
+    margin: auto auto 6px;
   }
   body.is-pwa .autophagy-stages {
+    flex: none;
     margin: 0 0 auto;
-    padding: 4px 0 8px;
+    padding: 2px 0 4px;
   }
   body.is-pwa .autophagy-stage {
     font-size: 13.5px;
+    flex-wrap: wrap;
+    white-space: normal;
+    text-align: center;
   }
   body.is-pwa .timer-meta {
-    padding: 8px 0 6px;
+    flex: none;
+    padding: 5px 0 3px;
   }
   body.is-pwa .timer-meta strong {
     font-size: 16px;
+  }
+  body.is-pwa .timer-meta small {
+    flex-basis: 100%;
+    white-space: normal;
   }
 }
