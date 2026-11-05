@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'dansik-pwa-v1.0.27';
+const CACHE_NAME = 'dansik-pwa-v1.0.28';
 const ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,12 @@ const ASSETS = [
   './app-icon.svg',
   './fonts/PretendardVariable.ttf'
 ];
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'DANSIK_VERSION' && event.ports[0]) {
+    event.ports[0].postMessage({ cache: CACHE_NAME });
+  }
+});
 
 self.addEventListener('install', event => {
   event.waitUntil(

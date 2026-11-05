@@ -408,3 +408,10 @@ body.is-pwa[data-fit-reading] .dial-wrap { display: grid; aspect-ratio: auto; mi
 body.is-pwa[data-fit-reading] .dial { grid-area: 1 / 1; min-height: 100%; }
 body.is-pwa[data-fit-reading] .dial-center { position: relative; inset: auto; grid-area: 1 / 1; min-width: 0; padding: 20px 6px; }
 body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var(--fit-dialog-top, 12px); bottom: auto; left: 0; right: 0; margin: 0 auto; max-height: var(--fit-dialog-height, 80vh); }
+.pwa-diagnostics { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; background: var(--bg); }
+.pwa-build { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; }
+.pwa-build strong { color: var(--accent-dark); }
+.pwa-build-state, .pwa-copy-state { font-size: 13px; margin-top: 5px; color: var(--muted); }
+.pwa-diagnostics summary { cursor: pointer; padding: 8px 0 2px; font-size: 14px; }
+.pwa-diagnostics pre { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; user-select: text; -webkit-user-select: text; }
+.pwa-diagnostics button { min-height: 40px; }

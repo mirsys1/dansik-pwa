@@ -165,5 +165,68 @@
   changes.observe(stage, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
   changes.observe(meta, { childList: true, characterData: true, subtree: true });
   if (document.fonts) document.fonts.ready.then(() => { lastKey = ''; schedule(); });
+
+  // Version and layout diagnostics are local, read-only, and contain no meals
+  // or profile fields. Capture the home geometry before the modal opens.
+  const fitBuild = 'PWA-28';
+  body.dataset.pwaBuild = fitBuild;
+  const settingsHeading = document.querySelector('#settings-form .dialog-heading');
+  if (settingsHeading) {
+    const diagnostics = document.createElement('section');
+    diagnostics.className = 'pwa-diagnostics';
+    diagnostics.innerHTML = '<div class="pwa-build"><span></span><strong></strong></div><p class="pwa-build-state" aria-live="polite"></p><details><summary></summary><pre tabindex="0"></pre><button type="button" class="text-button"></button><p class="pwa-copy-state" aria-live="polite"></p></details>';
+    settingsHeading.after(diagnostics);
+    const output = diagnostics.querySelector('pre');
+    const copy = diagnostics.querySelector('button');
+    let english = false;
+    function workerVersion() {
+      return new Promise(resolve => {
+        const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
+        if (!worker || !window.MessageChannel) { resolve('unavailable'); return; }
+        const channel = new MessageChannel();
+        const finish = value => { clearTimeout(timeout); channel.port1.close(); resolve(value); };
+        const timeout = setTimeout(() => finish('unavailable'), 1200);
+        channel.port1.onmessage = event => finish(event.data && typeof event.data.cache === 'string' ? event.data.cache : 'unavailable');
+        try { worker.postMessage({ type: 'DANSIK_VERSION' }, [channel.port2]); }
+        catch (_) { finish('unavailable'); }
+      });
+    }
+    document.querySelector('#settings-button').addEventListener('click', () => {
+      english = document.documentElement.lang === 'en';
+      diagnostics.querySelector('.pwa-build span').textContent = english ? 'Running web app' : '웹앱 실행 버전';
+      diagnostics.querySelector('.pwa-build strong').textContent = fitBuild;
+      diagnostics.querySelector('summary').textContent = english ? 'Screen diagnostics' : '화면 진단 보기';
+      diagnostics.querySelector('.pwa-copy-state').textContent = '';
+      copy.textContent = english ? 'Copy diagnostics' : '진단 복사';
+      const stateLine = diagnostics.querySelector('.pwa-build-state');
+      stateLine.textContent = english ? 'Checking offline version…' : '오프라인 버전 확인 중…';
+      const style = getComputedStyle(body);
+      const lines = [
+        `fit-module: ${fitBuild}`,
+        `display: ${(navigator.standalone || matchMedia('(display-mode: standalone)').matches) ? 'standalone' : 'browser'}`,
+        `layout: ${innerWidth} x ${innerHeight}`,
+        `visible: ${viewport ? `${Math.round(viewport.width)} x ${Math.round(viewport.height)}, scale ${viewport.scale}` : 'API unavailable'}`,
+        `main: ${main.clientWidth} x ${main.clientHeight}; content ${main.scrollWidth} x ${main.scrollHeight}`,
+        `fit: ${body.dataset.fitMode || 'not initialized'} / ${body.dataset.fitStatus || 'not initialized'}`,
+        `chrome: top ${Math.round(height(document.querySelector('.sidebar')))}; nav ${Math.round(height(nav))}; safe ${style.paddingTop} / ${number(getComputedStyle(nav).paddingBottom) - 3}px`,
+        `document: ${document.documentElement.clientWidth} x ${document.documentElement.clientHeight}; scroll ${document.scrollingElement.scrollHeight}`,
+        `type: title ${getComputedStyle(header.querySelector('h2')).fontSize}; clock ${getComputedStyle(digits).fontSize}`,
+        `dial: ${Math.round(dial.getBoundingClientRect().width)} x ${Math.round(height(dial))}`
+      ];
+      output.textContent = lines.join('\n');
+      Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
+        const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
+        output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.28';
+        stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
+      }).catch(() => { stateLine.textContent = english ? 'Version unavailable.' : '버전을 확인하지 못했어요.'; });
+    }, { capture: true });
+    copy.addEventListener('click', () => {
+      const result = diagnostics.querySelector('.pwa-copy-state');
+      const fallback = () => { result.textContent = english ? 'Press and hold the diagnostic text to copy it.' : '진단 문장을 길게 눌러 복사해 주세요.'; };
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { fallback(); return; }
+      navigator.clipboard.writeText(output.textContent).then(() => { result.textContent = english ? 'Copied.' : '복사했어요.'; }).catch(fallback);
+    });
+  }
   schedule();
 })();
