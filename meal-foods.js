@@ -10,11 +10,13 @@
   const MAX_AI_BYTES = 1024 * 1024;
   const CODE_PATTERN = /^[A-Za-z0-9_-]{24,128}$/;
   const PAIR_LINK = 'https://mirsys1.github.io/dansik-pwa/#photo-connect=';
+  const TEXT_AUTO_KEY = 'dansik:meal-text-auto:v1';
   let cameraStream = null;
   let initialized = false;
   let transientGeneration = 0;
   let currentPhoto = null;
-  let photoRequest = null;
+  let analysisRequest = null;
+  let noteEdited = false;
   let endpoint = null;
   let photoCode = '';
   let quotaDay = '';
@@ -189,10 +191,18 @@
     );
     row.append(header, fields);
     container.append(row);
-    if (data.photoDraft) {
-      row.dataset.foodPhotoDraft = 'true';
+    if (data.photoDraft || data.textDraft) {
+      const draftKey = data.textDraft ? 'foodTextDraft' : 'foodPhotoDraft';
+      row.dataset[draftKey] = 'true';
       if (data.kcalPer100g) kcal.dataset.calculated = 'true';
-      row.addEventListener('input', () => { delete row.dataset.foodPhotoDraft; }, { once: true });
+      row.addEventListener('input', () => { delete row.dataset[draftKey]; }, { once: true });
+      if (data.estimated) {
+        const estimate = document.createElement('small');
+        estimate.className = 'food-ai-estimate';
+        estimate.textContent = copy(' · AI 열량 참고값', ' · AI calorie estimate');
+        heading.append(estimate);
+        [name, density, kcal].forEach((control) => control.addEventListener('input', () => estimate.remove(), { once: true }));
+      }
       name.addEventListener('input', () => {
         density.value = '';
         if (kcal.hasAttribute('data-calculated')) kcal.value = '';
@@ -244,6 +254,9 @@
     byId('food-ai-code').value = '';
     byId('food-ai-setup').hidden = Boolean(code);
     byId('food-ai-disconnect').hidden = !code;
+    const textAuto = byId('food-text-auto');
+    if (textAuto) textAuto.disabled = !code;
+    setText(byId('food-text-status'), code ? '' : copy('섭취한 음식에서 분석 연결 코드를 등록하면 사용할 수 있어요.', 'Connect with your analysis code under Foods eaten.'));
   }
 
   function codeFromQrLink(link) {
@@ -383,12 +396,13 @@
   }
 
   function cancelAnalysis() {
-    photoRequest?.abort();
-    photoRequest = null;
+    if (analysisRequest?.kind === 'text') setText(byId('food-text-status'), '');
+    analysisRequest?.controller.abort();
+    analysisRequest = null;
   }
 
-  function discardPhotoDrafts() {
-    const rows = document.querySelectorAll('#food-items [data-food-photo-draft]');
+  function discardDrafts(kind) {
+    const rows = document.querySelectorAll(`#food-items [data-food-${kind}-draft]`);
     if (!rows.length) return;
     rows.forEach((row) => row.remove());
     if (rowCount() === 0) addRow();
@@ -411,18 +425,21 @@
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
   }
 
-  function insertPhotoFoods(result) {
-    if (!Array.isArray(result?.foods) || !Array.isArray(result.unmatched)) throw new Error('Invalid photo result');
-    const needsAmount = (food) => food?.grams === null && food.source === 'mfds' && Number.isFinite(food.kcalPer100g);
+  function insertAnalyzedFoods(result, kind, status) {
+    if (!Array.isArray(result?.foods) || !Array.isArray(result.unmatched)) throw new Error('Invalid analysis result');
+    const fromText = kind === 'text';
+    const allowedSource = (food) => food?.source === 'mfds' || (fromText && food?.source === 'ai');
+    const needsAmount = (food) => food?.grams === null && allowedSource(food) && Number.isFinite(food.kcalPer100g);
     const matches = [...result.foods, ...result.unmatched.filter(needsAmount)];
     const items = matches.slice(0, MAX_FOODS).flatMap((food) => {
-      if (!food || food.source !== 'mfds' || typeof food.name !== 'string') return [];
+      if (!allowedSource(food) || typeof food.name !== 'string') return [];
       const name = food.name.trim();
       const { grams, kcalPer100g } = food;
       if (!name || name.length > 100 || !Number.isFinite(kcalPer100g) || kcalPer100g < 0 || kcalPer100g > MAX_DENSITY) return [];
       if (grams !== null && (!Number.isFinite(grams) || grams <= 0 || grams > MAX_GRAMS)) return [];
       const kcal = grams === null ? null : roundKcal(grams * kcalPer100g / 100);
-      return kcal === null || kcal <= MAX_KCAL ? [{ name, grams, kcalPer100g, kcal, photoDraft: true }] : [];
+      return kcal === null || kcal <= MAX_KCAL ? [{ name, grams, kcalPer100g, kcal,
+        photoDraft: !fromText, textDraft: fromText, estimated: food.source === 'ai' }] : [];
     });
     const needsReview = result.unmatched.slice(0, MAX_FOODS).flatMap((item) => {
       if (!Array.isArray(item?.choices)) return [];
@@ -434,6 +451,8 @@
     const unmatched = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, 3).map((item) => typeof item?.name === 'string' ? item.name.slice(0, 60) : '').filter(Boolean).join(', ');
     items.push(...needsReview);
     if (items.length) {
+      discardDrafts('photo');
+      discardDrafts('text');
       document.querySelectorAll('#food-items [data-food-row]').forEach((row) => {
         if ([...row.querySelectorAll('input')].every((control) => !control.value.trim() && !control.validity.badInput)) row.remove();
       });
@@ -442,78 +461,106 @@
     const inserted = items.slice(0, room);
     inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
-      setStatus(unmatched
+      status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
         : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'));
       return;
     }
-    const message = copy('사진만으로는 양을 정확히 알 수 없어요. 음식과 먹은 양을 확인한 뒤 저장해 주세요.', 'A photo cannot determine exact portions. Check the food and amounts before saving.');
+    if (fromText) byId('meal-foods').open = true;
+    const message = fromText
+      ? copy('음식 목록을 채웠어요. 먹은 양과 AI 열량 참고값을 확인한 뒤 저장해 주세요.', 'Check the filled foods, portions, and AI calorie estimates before saving.')
+      : copy('사진만으로는 양을 정확히 알 수 없어요. 음식과 먹은 양을 확인한 뒤 저장해 주세요.', 'A photo cannot determine exact portions. Check the food and amounts before saving.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
       ? copy(' 양이 비어 있는 음식은 먹은 양(g)을 입력하면 칼로리가 계산돼요.', 'Enter the amount eaten (g) for any blank portion to calculate its calories.') : '';
     const review = needsReview.length ? copy(' 국·찌개는 실제로 먹은 종류를 골라 주세요.', ' Select the soup or stew you ate.') : '';
     const manual = unmatched ? copy(` 직접 입력: ${unmatched}`, ` Enter manually: ${unmatched}`) : '';
     const limited = items.length > room ? copy(' 입력 칸이 부족해 일부만 추가했어요.', ' Only some items fit in the form.') : '';
-    setStatus(message + amount + review + manual + limited);
+    status(message + amount + review + manual + limited);
   }
 
-  function analysisError(code) {
+  function analysisError(code, kind) {
     switch (code) {
       case 'AUTH':
         setPhotoCode('');
         return copy('연결 코드가 맞지 않아요. 다시 연결해 주세요.', 'The access code is invalid. Please reconnect.');
       case 'QUOTA':
         quotaDay = new Date().toISOString().slice(0, 10);
-        return copy('오늘 무료 분석 한도에 도달했어요. 음식은 직접 입력할 수 있어요.', 'Today’s free photo limit is reached. You can still enter food manually.');
+        return copy('오늘 무료 분석 한도에 도달했어요. 음식은 직접 입력할 수 있어요.', 'Today’s free analysis limit is reached. You can still enter food manually.');
+      case 'TEXT':
+        return copy('음식 이름과 양을 200자 이내로 적어 주세요.', 'Enter food names and amounts in up to 200 characters.');
       case 'IMAGE':
         return copy('사진을 분석할 수 없어요. 다른 사진을 선택해 주세요.', 'This photo could not be analyzed. Try a different photo.');
       case 'NO_FOOD':
+        if (kind === 'text') return copy('입력에서 음식 이름을 찾지 못했어요. 예: 두부 150g.', 'No food name was found. Example: 150 g tofu.');
         return copy('사진에서 음식을 찾지 못했어요. 직접 입력하거나 다른 사진을 선택해 주세요.', 'No food was found. Enter it manually or choose a different photo.');
       default:
-        return copy('지금은 사진 분석을 할 수 없어요. 음식은 직접 입력할 수 있어요.', 'Photo analysis is unavailable. You can still enter food manually.');
+        return copy('지금은 음식 분석을 할 수 없어요. 음식은 직접 입력할 수 있어요.', 'Food analysis is unavailable. You can still enter food manually.');
     }
   }
 
-  async function analyzePhoto() {
-    const photo = currentPhoto;
-    if (!endpoint || !photoCode || !photo || !isCurrentGeneration(photo.generation) || !byId('meal-dialog').open) return;
+  async function analyze(kind, input) {
+    if (!endpoint || !photoCode || !byId('meal-dialog').open) return;
+    const fromText = kind === 'text';
+    const status = fromText ? (message) => setText(byId('food-text-status'), message) : setStatus;
     if (quotaDay === new Date().toISOString().slice(0, 10)) {
-      setStatus(analysisError('QUOTA'));
+      status(analysisError('QUOTA', kind));
       return;
     }
     cancelAnalysis();
-    const request = new AbortController();
-    photoRequest = request;
-    const isActive = () => photoRequest === request && isCurrentGeneration(photo.generation) && byId('meal-dialog').open;
-    const timeout = root.setTimeout(() => request.abort(), 30000);
-    setStatus(copy('사진 속 음식과 양을 확인하고 있어요…', 'Identifying food and portions…'));
+    const controller = new AbortController();
+    const request = { kind, controller };
+    analysisRequest = request;
+    const isActive = () => analysisRequest === request && byId('meal-dialog').open;
+    const timeout = root.setTimeout(() => controller.abort(), 30000);
+    status(fromText ? copy('입력한 음식의 칼로리를 계산하고 있어요…', 'Calculating calories from your note…')
+      : copy('사진 속 음식과 양을 확인하고 있어요…', 'Identifying food and portions…'));
     try {
-      const blob = await photoJpeg(photo.preview);
+      const body = fromText ? input : await photoJpeg(input);
       if (!isActive()) return;
-      if (!blob || blob.type !== 'image/jpeg' || !blob.size || blob.size > MAX_AI_BYTES) {
-        setStatus(analysisError('IMAGE'));
+      if (!fromText && (!body || body.type !== 'image/jpeg' || !body.size || body.size > MAX_AI_BYTES)) {
+        status(analysisError('IMAGE', kind));
         return;
       }
-      const response = await fetch(endpoint.href, {
-        method: 'POST', body: blob,
-        headers: { Authorization: `Bearer ${photoCode}`, 'Content-Type': 'image/jpeg' },
-        credentials: 'omit', cache: 'no-store', redirect: 'error', signal: request.signal
+      const url = fromText ? new URL('/meal-text/analyze', endpoint).href : endpoint.href;
+      const response = await fetch(url, {
+        method: 'POST', body,
+        headers: { Authorization: `Bearer ${photoCode}`, 'Content-Type': fromText ? 'text/plain;charset=UTF-8' : 'image/jpeg' },
+        credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal
       });
       const result = await response.json();
       if (!isActive()) return;
-      if (response.ok) insertPhotoFoods(result);
-      else setStatus(analysisError(result?.code));
+      if (response.ok) insertAnalyzedFoods(result, kind, status);
+      else status(analysisError(result?.code, kind));
     } catch {
-      if (isActive()) setStatus(analysisError('UNAVAILABLE'));
+      if (isActive()) status(analysisError('UNAVAILABLE', kind));
     } finally {
       root.clearTimeout(timeout);
-      if (photoRequest === request) photoRequest = null;
+      if (analysisRequest === request) analysisRequest = null;
     }
+  }
+
+  function analyzePhoto() {
+    const photo = currentPhoto;
+    if (photo && isCurrentGeneration(photo.generation)) return analyze('photo', photo.preview);
+  }
+
+  function analyzeNote() {
+    if (!noteEdited || !photoCode || !byId('food-text-auto')?.checked) return;
+    const note = byId('meal-note').value.trim();
+    if (!note) return;
+    noteEdited = false;
+    return analyze('text', note);
+  }
+
+  function prepareSave() {
+    analyzeNote();
+    return analysisRequest?.kind !== 'text';
   }
 
   function clearPhoto(showStatus, invalidate) {
     if (invalidate !== false) nextTransientGeneration();
     currentPhoto = null;
-    discardPhotoDrafts();
+    discardDrafts('photo');
     const preview = byId('food-photo-preview');
     const remove = byId('food-photo-remove');
     if (preview) {
@@ -697,6 +744,8 @@
     const container = byId('food-items');
     if (!container) return;
     nextTransientGeneration();
+    noteEdited = false;
+    if (photoCode) setText(byId('food-text-status'), '');
     stopCamera(false);
     clearPhoto(false, false);
     setStatus('');
@@ -719,6 +768,30 @@
       let saved = '';
       try { saved = root.localStorage.getItem(codeKey()) || ''; } catch { /* optional persistence */ }
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
+      const textAuto = byId('food-text-auto');
+      if (textAuto) {
+        byId('food-text-options').hidden = false;
+        try { textAuto.checked = root.localStorage.getItem(TEXT_AUTO_KEY) === '1'; } catch { /* optional persistence */ }
+        textAuto.addEventListener('change', () => {
+          try { root.localStorage.setItem(TEXT_AUTO_KEY, textAuto.checked ? '1' : '0'); } catch { /* optional persistence */ }
+          if (textAuto.checked) analyzeNote();
+          else if (analysisRequest?.kind === 'text') cancelAnalysis();
+        });
+        const note = byId('meal-note');
+        note.addEventListener('input', () => {
+          noteEdited = true;
+          if (analysisRequest?.kind === 'text') cancelAnalysis();
+          discardDrafts('text');
+          if (photoCode) setText(byId('food-text-status'), '');
+        });
+        note.addEventListener('blur', analyzeNote);
+        note.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && !event.isComposing && textAuto.checked && !textAuto.disabled) {
+            event.preventDefault();
+            analyzeNote();
+          }
+        });
+      }
       const qrInput = byId('food-ai-qr-file');
       const qrButton = byId('food-ai-scan');
       if (qrInput && qrButton && typeof root.jsQR === 'function') {
@@ -780,7 +853,7 @@
     root.addEventListener('pagehide', stopQrScan);
   }
 
-  root.MealFoods = { open, read };
+  root.MealFoods = { open, read, prepareSave };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
   else initialize();
 }(window));

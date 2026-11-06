@@ -87,6 +87,11 @@
     <div id="meal-other-date" hidden><label for="meal-date" data-i18n="meal.chooseDate">날짜 선택</label><input id="meal-date" type="date" min="2000-01-01" disabled></div>
     <div class="meal-time-heading"><label for="meal-clock" data-i18n="meal.timeOnly">식사 시간</label><button type="button" id="meal-last-time" disabled><span data-i18n="meal.lastTime">마지막 식사</span><span id="meal-last-value"></span></button></div><input id="meal-clock" class="meal-clock" type="time" required step="60">
     <div class="quick-times" aria-label="식사 시각 빠른 보정" data-i18n-attr="aria-label=meal.quickAria"><button type="button" data-offset="0" data-i18n="meal.now">방금</button><button type="button" data-offset="15" data-i18n="meal.min15">15분 전</button><button type="button" data-offset="30" data-i18n="meal.min30">30분 전</button><button type="button" data-offset="120" data-i18n="meal.hour2">2시간 전</button></div><label for="meal-note" data-i18n-text="meal.note">한 줄 메모 <span class="optional" data-i18n="meal.optional">선택</span></label><input id="meal-note" maxlength="200" placeholder="무엇을 드셨나요?" data-i18n-attr="placeholder=meal.notePlaceholder">
+      <div id="food-text-options" hidden>
+        <label><input id="food-text-auto" type="checkbox" aria-describedby="food-text-help"><span data-i18n="intake.textAuto">음식 자동 계산</span></label>
+        <p id="food-text-help" class="field-help" data-i18n="intake.textHelp">예: 두부 150g, 잡채 100g. 자동 계산을 켜면 입력 칸을 나올 때 내용을 Cloudflare AI로 보내요.</p>
+        <p id="food-text-status" class="field-help" role="status"></p>
+      </div>
       <details id="meal-foods" class="meal-foods">
         <summary data-i18n="intake.foods">섭취한 음식</summary>
         <p class="field-help" data-i18n="intake.foodHelp">먹은 양과 100g당 열량으로 계산하거나 칼로리를 직접 입력할 수 있어요.</p>

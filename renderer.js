@@ -627,6 +627,7 @@ $('import-confirm').addEventListener('click',async()=>{
 });
 $('meal-form').addEventListener('submit',async event=>{
   event.preventDefault();
+  if (window.MealFoods.prepareSave?.() === false) return;
   const original = editingId ? state.events.find(item => item.id === editingId) : null;
   if (!$('meal-date').value) { showOtherMealDate(true); $('meal-error').textContent=t('meal.dateMissing'); $('meal-date').focus(); return; }
   const local = mealLocalValue();
