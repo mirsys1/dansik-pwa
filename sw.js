@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'dansik-pwa-v1.0.40';
+const CACHE_NAME = 'dansik-pwa-v1.0.41';
 const ASSETS = [
   './',
   './index.html',
