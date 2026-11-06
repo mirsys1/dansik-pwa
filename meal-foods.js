@@ -18,6 +18,7 @@
   let endpoint = null;
   let photoCode = '';
   let quotaDay = '';
+  let qrSession = null;
 
   const byId = (id) => document.getElementById(id);
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
@@ -44,6 +45,7 @@
 
   function nextTransientGeneration() {
     cancelAnalysis();
+    stopQrScan();
     transientGeneration += 1;
     return transientGeneration;
   }
@@ -221,6 +223,7 @@
   function codeKey() { return `dansik:food-photo-code:v1:${endpoint.origin}`; }
 
   function setPhotoCode(code) {
+    if (code) stopQrScan();
     photoCode = code;
     try {
       if (code) root.localStorage.setItem(codeKey(), code);
@@ -253,6 +256,88 @@
     else root.dispatchEvent(new CustomEvent('dansik:photo-pair', { detail: message }));
   }
 
+  function readQrFrame(source, width, height, canvas, fraction, maxSize) {
+    const side = Math.round(Math.min(width, height) * fraction);
+    const cropWidth = fraction === 1 ? width : side;
+    const cropHeight = fraction === 1 ? height : side;
+    const scale = Math.min(1, maxSize / Math.max(cropWidth, cropHeight));
+    canvas.width = Math.max(1, Math.round(cropWidth * scale));
+    canvas.height = Math.max(1, Math.round(cropHeight * scale));
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(source, (width - cropWidth) / 2, (height - cropHeight) / 2, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    return root.jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' });
+  }
+
+  function stopQrScan() {
+    if (!qrSession) return;
+    const session = qrSession;
+    qrSession = null;
+    root.clearTimeout(session.timer);
+    session.stream?.getTracks().forEach((track) => track.stop());
+    session.video.pause();
+    session.video.srcObject = null;
+    session.preview.hidden = true;
+    session.button.disabled = false;
+  }
+
+  async function startQrScan(input, button) {
+    const video = byId('food-ai-qr-video');
+    const preview = byId('food-ai-qr-preview');
+    if (!video || !preview || !navigator.mediaDevices?.getUserMedia) {
+      input.click();
+      return;
+    }
+    if (qrSession) return;
+    stopCamera(false);
+    const session = { button, video, preview, stream: null, timer: null };
+    qrSession = session;
+    button.disabled = true;
+    setStatus(copy('카메라를 여는 중이에요.', 'Opening the camera.'));
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
+      if (qrSession !== session || !byId('meal-dialog').open) {
+        stream.getTracks().forEach((track) => track.stop());
+        if (qrSession === session) stopQrScan();
+        return;
+      }
+      session.stream = stream;
+      video.srcObject = stream;
+      preview.hidden = false;
+      preview.scrollIntoView({ block: 'nearest' });
+      const canvas = document.createElement('canvas');
+      const deadline = Date.now() + 30000;
+      const fail = () => {
+        if (qrSession !== session) return;
+        stopQrScan();
+        setStatus(copy('카메라로 읽지 못했어요. QR 사진 찍기를 눌러 다시 시도해 주세요.', 'Could not scan with the camera. Try Take QR photo.'));
+      };
+      const read = () => {
+        if (qrSession !== session) return;
+        if (Date.now() >= deadline) { fail(); return; }
+        if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+          let result;
+          try { result = readQrFrame(video, video.videoWidth, video.videoHeight, canvas, 0.95, 800); }
+          catch { fail(); return; }
+          if (result) {
+            stopQrScan();
+            setStatus(connectFromQr(codeFromQrLink(result.data)));
+            return;
+          }
+        }
+        session.timer = root.setTimeout(read, 220);
+      };
+      setStatus('');
+      video.play().catch(fail);
+      read();
+    } catch {
+      if (qrSession === session) {
+        stopQrScan();
+        setStatus(copy('카메라 권한을 확인하거나 QR 사진 찍기를 눌러 주세요.', 'Check camera permission or tap Take QR photo.'));
+      }
+    }
+  }
+
   async function scanPhotoPairQr(file) {
     const button = byId('food-ai-scan');
     const generation = transientGeneration;
@@ -267,17 +352,15 @@
         reader.readAsDataURL(file);
       });
       const qrImage = new Image();
-      qrImage.src = dataUrl;
-      await qrImage.decode();
+      await new Promise((resolve, reject) => {
+        qrImage.onload = resolve;
+        qrImage.onerror = reject;
+        qrImage.src = dataUrl;
+      });
       if (!active()) return;
-      const scale = Math.min(1, 1600 / Math.max(qrImage.naturalWidth, qrImage.naturalHeight));
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(qrImage.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(qrImage.naturalHeight * scale));
-      const context = canvas.getContext('2d');
-      context.drawImage(qrImage, 0, 0, canvas.width, canvas.height);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      const result = root.jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'dontInvert' });
+      const result = readQrFrame(qrImage, qrImage.naturalWidth, qrImage.naturalHeight, canvas, 0.48, 1600)
+        || readQrFrame(qrImage, qrImage.naturalWidth, qrImage.naturalHeight, canvas, 1, 1600);
       if (!result) throw new Error('QR code not found');
       setStatus(connectFromQr(codeFromQrLink(result.data)));
     } catch {
@@ -496,6 +579,7 @@
   }
 
   async function startCamera() {
+    stopQrScan();
     if (isMobileDevice()) {
       const capture = byId('food-photo-capture');
       if (capture) {
@@ -621,7 +705,13 @@
       const qrButton = byId('food-ai-scan');
       if (qrInput && qrButton && typeof root.jsQR === 'function') {
         qrButton.hidden = false;
-        qrButton.addEventListener('click', () => qrInput.click());
+        qrButton.addEventListener('click', () => startQrScan(qrInput, qrButton));
+        const qrPhoto = byId('food-ai-qr-photo');
+        if (qrPhoto) {
+          qrPhoto.hidden = false;
+          qrPhoto.addEventListener('click', () => { stopQrScan(); qrInput.click(); });
+        }
+        byId('food-ai-qr-stop')?.addEventListener('click', stopQrScan);
         qrInput.addEventListener('change', () => {
           const file = qrInput.files?.[0];
           qrInput.value = '';
@@ -669,6 +759,7 @@
     const dialog = byId('meal-dialog');
     if (dialog) dialog.addEventListener('close', () => { nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
     root.addEventListener('beforeunload', () => { nextTransientGeneration(); stopCamera(false); }, { once: true });
+    root.addEventListener('pagehide', stopQrScan);
   }
 
   root.MealFoods = { open, read };

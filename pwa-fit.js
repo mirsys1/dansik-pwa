@@ -174,7 +174,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-48';
+  const fitBuild = 'PWA-49';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -225,7 +225,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.48';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.49';
         stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
       }).catch(() => { stateLine.textContent = english ? 'Version unavailable.' : '버전을 확인하지 못했어요.'; });
     }, { capture: true });

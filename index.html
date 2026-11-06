@@ -108,7 +108,13 @@
             <label for="food-ai-code" data-i18n="intake.aiCode">사진 분석 연결 코드</label>
             <p class="field-help" data-i18n="intake.aiDisclosure">연결하면 사진을 선택할 때 Cloudflare AI로 보내요. 음식과 양을 확인하고 저장해 주세요.</p>
             <button type="button" class="outline-button" id="food-ai-scan" data-i18n="intake.aiScan" hidden>QR 코드 스캔</button>
+            <button type="button" class="text-button" id="food-ai-qr-photo" data-i18n="intake.aiQrPhoto" hidden>QR 사진 찍기</button>
             <input type="file" id="food-ai-qr-file" accept="image/*" capture="environment" hidden>
+            <div id="food-ai-qr-preview" class="food-qr-preview" hidden>
+              <p class="field-help" data-i18n="intake.aiQrAim">PC 화면의 QR을 사각형 안에 맞춰 주세요.</p>
+              <div class="food-qr-frame"><video id="food-ai-qr-video" autoplay playsinline muted></video></div>
+              <button type="button" class="text-button" id="food-ai-qr-stop" data-i18n="intake.stopCamera">카메라 끄기</button>
+            </div>
             <div class="food-ai-actions">
               <input id="food-ai-code" type="password" maxlength="128" autocomplete="off" autocapitalize="none" spellcheck="false">
               <button type="button" class="outline-button" id="food-ai-connect" data-i18n="intake.aiConnect">연결</button>
