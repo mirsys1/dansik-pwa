@@ -41,7 +41,7 @@
     'intake.takePhoto': '사진 찍기', 'intake.stopCamera': '카메라 끄기', 'intake.removePhoto': '사진 지우기',
     'intake.photoHelp': '사진을 보면서 음식 이름과 먹은 양을 입력할 수 있어요.',
     'energy.homeAria': '오늘 소비 칼로리 {amount}, 내역 보기',
-    'energy.todayRange': '오늘 0시부터 {time}까지', 'energy.basal': '기초대사량 소비',
+    'energy.todayRange': '오늘 0시부터 {time}까지', 'energy.basal': '기초 대사량',
     'energy.activity': '운동·활동 소비', 'energy.todayTotal': '오늘 소비 합계', 'energy.noActivity': '기록 없음',
     'energy.workout': '운동 칼로리 입력', 'energy.profile': '신체 정보 설정',
     'energy.fasting': '단식 중 소비', 'energy.fastingHelp': '현재 단식 구간의 소비를 따로 보여줘요. 단식이 어제 시작됐다면 어제 소비도 포함돼요.',
