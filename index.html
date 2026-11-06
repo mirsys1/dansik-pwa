@@ -10,7 +10,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="app-icon.png">
   <link rel="apple-touch-icon" href="app-icon.png">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://dansik-food-photo.mirsys.workers.dev; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="dansik-food-photo-endpoint" content="https://dansik-food-photo.mirsys.workers.dev/meal-photo/analyze">
   <title>단식 타이머</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="compact.css">
@@ -95,14 +96,25 @@
           <input type="file" id="food-photo-capture" accept="image/*" capture="environment" hidden>
           <button type="button" class="text-button" id="food-photo-remove" hidden data-i18n="intake.removePhoto">사진 지우기</button>
         </div>
-        <p class="field-help" data-i18n="intake.photoHelp">사진을 보면서 음식 이름과 먹은 양을 입력할 수 있어요.</p>
+        <p class="field-help" id="food-photo-manual-help" data-i18n="intake.photoHelp">사진을 보면서 음식 이름과 먹은 양을 입력할 수 있어요.</p>
         <video id="food-camera-video" class="food-media" autoplay playsinline muted hidden></video>
         <div id="food-camera-actions" class="food-media-actions" hidden>
           <button type="button" class="primary-button" id="food-camera-snap" data-i18n="intake.takePhoto">사진 찍기</button>
           <button type="button" class="outline-button" id="food-camera-stop" data-i18n="intake.stopCamera">카메라 끄기</button>
         </div>
-        <img id="food-photo-preview" class="food-media" alt="" hidden>
+        <div id="food-ai-panel" class="food-ai-panel" hidden>
+          <div id="food-ai-setup">
+            <label for="food-ai-code" data-i18n="intake.aiCode">사진 분석 연결 코드</label>
+            <p class="field-help" data-i18n="intake.aiDisclosure">연결하면 사진을 선택할 때 Cloudflare AI로 보내요. 음식과 양을 확인하고 저장해 주세요.</p>
+            <div class="food-ai-actions">
+              <input id="food-ai-code" type="password" maxlength="128" autocomplete="off" autocapitalize="none" spellcheck="false">
+              <button type="button" class="outline-button" id="food-ai-connect" data-i18n="intake.aiConnect">연결</button>
+            </div>
+          </div>
+          <button type="button" class="text-button" id="food-ai-disconnect" data-i18n="intake.aiDisconnect" hidden>사진 분석 끄기</button>
+        </div>
         <p id="food-photo-status" class="field-help" role="status"></p>
+        <img id="food-photo-preview" class="food-media" alt="" hidden>
         <div id="food-items"></div>
         <div class="food-total-row">
           <button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">음식 추가</button>
