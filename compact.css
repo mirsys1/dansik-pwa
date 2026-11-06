@@ -223,6 +223,30 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .history-edit-copy strong, .history-edit-copy span { display: block; }
 .history-edit-copy span { color: var(--muted); font-size: var(--type-meta); overflow-wrap: anywhere; }
 .history-edit-copy:hover strong { color: var(--accent-dark); }
+
+/* Long dialogs keep their title and close control visible while content scrolls.
+   Meal, activity and workout dialogs already have dedicated fixed layouts. */
+dialog:not(#meal-dialog):not(#activity-dialog):not(#workout-dialog) .dialog-heading {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  margin: -20px -20px 10px;
+  padding: 12px 20px 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+#settings-form > .dialog-actions,
+#weight-dialog form > .dialog-actions,
+#delete-dialog > .dialog-actions,
+#import-dialog > .dialog-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 12px -20px 0;
+  padding: 8px 20px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
 .history-row .row-icon { width: 28px; height: 28px; }
 .history-row .icon-button { min-width: 28px; }
 .history-empty { padding: 40px 18px; }
