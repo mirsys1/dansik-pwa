@@ -730,10 +730,12 @@ body.is-pwa[data-page="insights"]:not(.mini) #page-insights > .toast {
 body:not(.mini) #toast-close { min-width: 36px; min-height: 36px; }
 
 /* Long Korean titles need room to stay readable beside the fixed 44px close
-   target on narrow PWA dialogs. */
+   target on narrow PWA dialogs. Keep ordinary dialog headers compact; forms
+   with their own fixed header below retain their dedicated scroll layout. */
 body.is-pwa dialog .dialog-heading {
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+  margin-bottom: 10px;
 }
 body.is-pwa dialog .dialog-heading h2 {
   flex: 1 1 auto;
@@ -744,28 +746,32 @@ body.is-pwa dialog .dialog-heading h2 {
   word-break: keep-all;
 }
 body.is-pwa dialog .dialog-heading .icon-button {
-  flex: 0 0 44px;
-  align-self: flex-start;
-}
-body.is-pwa #settings-dialog .dialog-heading { align-items: center; }
-body.is-pwa #settings-dialog .dialog-heading .icon-button { align-self: center; }
-/* Keep the fasting-record close control easy to tap, without letting its
-   decorative border compete with the record title. The button remains a
-   44px keyboard/touch target; only the visible close glyph and frame shrink. */
-body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"] {
   position: relative;
-  width: 44px;
-  height: 44px;
+  flex: 0 0 44px;
+  align-self: center;
   min-width: 44px;
   min-height: 44px;
   padding: 0;
   color: transparent;
   background: transparent;
 }
-body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"]::before {
+body.is-pwa #settings-dialog .dialog-heading { align-items: center; }
+body.is-pwa #settings-dialog .dialog-heading .icon-button { align-self: center; }
+/* These dialogs own a fixed header and a separately scrolling body. Their
+   border is the header/body divider, so they deliberately have no extra gap. */
+body.is-pwa #meal-form > .dialog-heading,
+body.is-pwa #activity-dialog .dialog-heading,
+body.is-pwa #workout-dialog .dialog-heading { margin-bottom: 0; }
+/* Every modal uses the same 32px visual close frame inside a 44px-or-larger
+   touch target. Absolute centering also keeps the X optically centered when a
+   dynamic activity/workout header reserves a 48px target. */
+body.is-pwa dialog .dialog-heading .icon-button:is([data-close], #activity-close, #workout-close)::before {
   content: "×";
   position: absolute;
-  inset: 6px;
+  width: 32px;
+  height: 32px;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
   display: grid;
   place-items: center;
   border: 1.5px solid var(--accent);
@@ -779,7 +785,7 @@ body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dia
 /* Touch-driven modal focus should not leave a large outer frame. Keep the
    small close frame, hit target, and keyboard focus indicators intact. */
 body.is-pwa.touch-focus #weekly-chart .chart-day:focus-visible,
-body.is-pwa.touch-focus #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"]:focus-visible {
+body.is-pwa.touch-focus dialog .dialog-heading .icon-button:is([data-close], #activity-close, #workout-close):focus-visible {
   outline: none;
 }
 body.is-pwa #meal-form > .dialog-heading { padding-inline: 14px; }
