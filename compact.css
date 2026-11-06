@@ -406,6 +406,8 @@ body.is-pwa #settings-desktop { display: none; }
 .settings-profile-only #settings-profile > summary { display: none; }
 .settings-profile-only #settings-profile > .settings-group-content { border-top: 0; }
 #settings-dialog .form-error:empty { display: none; }
+#settings-dialog .dialog-heading { align-items: center; margin-bottom: 8px; }
+#settings-dialog .dialog-heading .icon-button { align-self: center; }
 #settings-dialog .dialog-actions { margin-top: 12px; }
 #settings-diagnostics:not(:empty) { margin-top: 12px; }
 #settings-diagnostics .pwa-diagnostics { margin-bottom: 0; }
@@ -741,6 +743,8 @@ body.is-pwa dialog .dialog-heading .icon-button {
   flex: 0 0 44px;
   align-self: flex-start;
 }
+body.is-pwa #settings-dialog .dialog-heading { align-items: center; }
+body.is-pwa #settings-dialog .dialog-heading .icon-button { align-self: center; }
 /* Keep the fasting-record close control easy to tap, without letting its
    decorative border compete with the record title. The button remains a
    44px keyboard/touch target; only the visible close glyph and frame shrink. */
