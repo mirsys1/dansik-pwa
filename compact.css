@@ -768,6 +768,12 @@ body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dia
   line-height: 1;
   pointer-events: none;
 }
+/* Touch-driven modal focus should not leave a large outer frame. Keep the
+   small close frame, hit target, and keyboard focus indicators intact. */
+body.is-pwa.touch-focus #weekly-chart .chart-day:focus-visible,
+body.is-pwa.touch-focus #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"]:focus-visible {
+  outline: none;
+}
 body.is-pwa #meal-form > .dialog-heading { padding-inline: 14px; }
 
 body.is-pwa .sidebar { min-height: 50px; padding-block: 2px; }

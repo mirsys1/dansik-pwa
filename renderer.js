@@ -2,6 +2,12 @@
 const C = window.FastingCore;
 const I18N = window.FastingI18n;
 const $ = id => document.getElementById(id);
+// iOS can retain :focus-visible after a touch opens or closes a dialog.
+// Keep keyboard focus styling available as soon as keyboard input resumes.
+document.addEventListener('pointerdown', event => {
+  document.body.classList.toggle('touch-focus', event.pointerType === 'touch');
+}, true);
+document.addEventListener('keydown', () => document.body.classList.remove('touch-focus'), true);
 const MEALS = { breakfast: { icon: 'sunrise' }, lunch: { icon: 'sun' }, dinner: { icon: 'moon' }, snack: { icon: 'cup' } };
 // Korean until the first snapshot says otherwise; translateDom() swaps the static text.
 let L = I18N.create('ko');
