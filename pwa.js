@@ -113,7 +113,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.14 (PWA-35)', build: 'PWA-35' },
+      app: { version: '1.0.15 (PWA-36)', build: 'PWA-36' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },
@@ -204,7 +204,7 @@
           return result;
         }
         case 'add': {
-          const patch = checkPatch(payload.patch, ['type', 'at', 'note']);
+          const patch = checkPatch(payload.patch, ['type', 'at', 'note', 'foods']);
           const id = newId();
           const prevNewest = state.events[0];
           const next = Core.recordMeal(state, patch.type, now, id);
@@ -214,7 +214,7 @@
           }
           return persist(updated, true, resetTimerControl());
         }
-        case 'update': return persist(Core.updateMeal(state, payload.id, checkPatch(payload.patch, ['type', 'at', 'note']), now));
+        case 'update': return persist(Core.updateMeal(state, payload.id, checkPatch(payload.patch, ['type', 'at', 'note', 'foods']), now));
         case 'delete': return persist(Core.deleteMeal(state, payload.id, now));
         case 'settings': {
           const patch = checkPatch(payload.patch, ['goalHours', 'goalEnabled', 'notifications', 'theme', 'themeAuto']);

@@ -96,17 +96,35 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .segmented { flex-wrap: wrap; justify-content: center; gap: 0; padding: 3px; }
 .segmented button { font-size: calc(var(--type-meta) + 2pt); padding: 5px 6px; }
 .timer-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; row-gap: 2px; padding: 10px 0 8px; text-align: center; }
-.timer-meta > .energy-summary { min-width: 0; width: 100%; min-height: 44px; padding: 2px 4px; border-left: 1px solid var(--line); border-radius: 0 7px 7px 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; background: transparent; }
+.timer-meta > .energy-summary { min-width: 0; width: 100%; min-height: 44px; padding: 2px 4px; border-radius: 7px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; background: transparent; }
+.timer-meta > .energy-summary + .energy-summary { border-left: 1px solid var(--line); border-radius: 0 7px 7px 0; }
 .timer-meta > .energy-summary:hover { background: var(--accent-soft); }
-.timer-meta .energy-line { display: flex; align-items: baseline; justify-content: center; gap: 4px; white-space: nowrap; }
-.timer-meta .energy-line .energy-label { display: inline; }
-.timer-meta .energy-line strong { overflow-wrap: normal; white-space: nowrap; }
-.timer-meta .energy-trend { color: var(--muted); white-space: nowrap; }
-.timer-meta [data-fat-trend="rising"] .energy-trend { color: var(--accent-dark); font-weight: 600; }
+.timer-meta .energy-line { font-variant-numeric: tabular-nums; }
+#intake-summary[data-empty] .energy-line { color: var(--accent-dark); }
 .timer-meta > .goal-status { grid-column: 1 / -1; text-align: center; color: var(--accent-dark); }
 .timer-meta span { font-size: var(--type-meta); line-height: 1.15; }
 .timer-meta strong { font-size: var(--type-body); line-height: 1.15; margin-top: 0; overflow-wrap: anywhere; }
 .timer-meta small { display: block; margin-top: 0; color: var(--muted); font-size: var(--type-meta); line-height: 1.15; white-space: nowrap; }
+
+.meal-foods { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.meal-foods summary { cursor: pointer; font-weight: 650; }
+.meal-foods .field-help { margin: 4px 0; }
+.food-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.food-row-head, .food-total-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.food-row-head .icon-button { min-width: 36px; min-height: 36px; }
+.food-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
+.food-fields label { min-width: 0; margin: 0; }
+.food-fields input { display: block; width: 100%; min-width: 0; }
+.food-media-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.food-media { display: block; width: 100%; max-height: 185px; object-fit: contain; border-radius: 8px; background: var(--bg); }
+#food-photo-status:empty { display: none; }
+#food-total { font-variant-numeric: tabular-nums; font-weight: 650; }
+.energy-breakdown { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.energy-breakdown dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; margin: 6px 0; }
+.energy-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.energy-breakdown .energy-total { font-weight: 700; color: var(--accent-dark); }
+#energy-fasting-note { margin: 8px 0; }
+
 .empty-recent { font-size: var(--type-body); padding: 9px 0 7px; }
 .rhythm-strip, .main-footer { display: none; }
 .history-toolbar { font-size: var(--type-body); margin-bottom: 10px; }
@@ -434,7 +452,7 @@ body.is-pwa[data-fit-landscape] .timer-panel > .panel-header { grid-column: 1 / 
 body.is-pwa[data-fit-landscape] .dial-wrap { grid-column: 1; grid-row: 2 / 4; align-self: center; margin: 6px auto; }
 body.is-pwa[data-fit-landscape] .autophagy-stages { grid-column: 2; grid-row: 2; align-self: end; margin: 0; }
 body.is-pwa[data-fit-landscape] .timer-meta { grid-column: 2; grid-row: 3; grid-template-columns: 1fr; gap: 6px; }
-body.is-pwa[data-fit-landscape] .timer-meta > .energy-summary { border-left: 0; }
+body.is-pwa[data-fit-landscape] .timer-meta > .energy-summary + .energy-summary { border-left: 0; }
 body.is-pwa[data-fit-reading] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }
 body.is-pwa[data-fit-reading] .timer-digits span { display: block; }
 body.is-pwa .dial-wrap[data-clock-wrap] .timer-digits { max-width: 90%; white-space: normal; overflow-wrap: anywhere; }

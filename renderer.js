@@ -44,15 +44,6 @@ function intervalPoint(at) {
   const full = t('date.year', { y: C.tzParts(at, tz()).year, rest: dateTime(at) });
   return `<time datetime="${new Date(at).toISOString()}" title="${esc(full)}" aria-label="${esc(full)}">${esc(intervalTime(at))}</time>`;
 }
-function compactDateTime(at) {
-
-  const p = C.tzParts(at, tz()), todayP = C.tzParts(Date.now(), tz());
-  const yd = new Date(Date.UTC(todayP.year, todayP.month - 1, todayP.day - 1));
-  const yestP = { year: yd.getUTCFullYear(), month: yd.getUTCMonth() + 1, day: yd.getUTCDate() };
-  const sameDay = (a, b) => a.year === b.year && a.month === b.month && a.day === b.day;
-  const label = sameDay(p, todayP) ? t('date.today') : sameDay(p, yestP) ? t('date.yesterday') : `${p.year === todayP.year ? '' : p.year+'.'}${p.month}.${p.day}`;
-  return `${label} ${time(at)}`;
-}
 function localInput(at) { return C.formatLocalInput(at, tz()); }
 function shortDuration(ms) { const minutes = Math.floor(ms / 60000); return t('dur.hm', { h: Math.floor(minutes / 60), m: minutes % 60 }); }
 function kcalText(value, compact = false) { return t('timer.kcalValue', { kcal: new Intl.NumberFormat(L.locale, { maximumFractionDigits: 1, notation: compact && value >= 10000 ? 'compact' : 'standard' }).format(value) }); }
@@ -76,6 +67,7 @@ let firstRunShown = false;
 let pinBusy = false;
 let effectOpener = null;
 let fastingSelection = null;
+let dailyCaloriesView = null;
 
 // Static text carries data-i18n (text), data-i18n-html (trusted catalog markup), data-i18n-text (first text node only)
 // and data-i18n-attr ("attr=key;attr=key"). Dynamic text is written by render()/tick() through t().
@@ -156,6 +148,30 @@ function stageColor(elapsedMs) {
   const f = b[0] === a[0] ? 0 : Math.min(1, (h - a[0]) / (b[0] - a[0]));
   return `rgb(${a[1].map((v, k) => Math.round(v + (b[1][k] - v) * f)).join(',')})`;
 }
+function renderDailyCalories(now) {
+  const minute = Math.floor(now / 60000);
+  if (dailyCaloriesView?.minute === minute && dailyCaloriesView.prefs === prefs && dailyCaloriesView.events === state.events) return;
+
+  const burned = window.FastingEnergy.today(prefs, now);
+  let intake = 0;
+  let hasFoods = false;
+  for (const meal of state.events) {
+    if (meal.at < burned.from) break;
+    if (meal.at <= now && meal.foods?.length) {
+      intake += C.foodKcalTotal(meal.foods);
+      hasFoods = true;
+    }
+  }
+  const intakeButton = $('intake-summary');
+  const energyButton = $('energy-summary');
+  $('intake-value').textContent = hasFoods ? kcalText(intake, true) : t('intake.add');
+  intakeButton.toggleAttribute('data-empty', !hasFoods);
+  intakeButton.setAttribute('aria-label', hasFoods ? t('intake.aria', { amount: kcalText(intake) }) : t('intake.emptyAria'));
+  $('goal-time').textContent = kcalText(burned.totalKcal, true);
+  energyButton.setAttribute('aria-label', t('energy.homeAria', { amount: kcalText(burned.totalKcal) }));
+  intakeButton.disabled = energyButton.disabled = false;
+  dailyCaloriesView = { minute, prefs, events: state.events };
+}
 function tick() {
   if (!ready) return;
   const now = Date.now();
@@ -192,15 +208,7 @@ function tick() {
   $('dial-tip').setAttribute('cx', 180 + 170 * Math.cos(angle));
   $('dial-tip').setAttribute('cy', 180 + 170 * Math.sin(angle));
   $('mini-progress-bar').style.width = `${timer.progress * 100}%`;
-  $('last-meal').textContent = latest ? `${mealName(latest.type)} · ${compactDateTime(latest.at)}` : t('timer.noRecord');
-  const end = timer.paused ? prefs.timerPausedAt : now;
-  const kcal = window.FastingEnergy.estimate(active && !timer.clockSkew ? {from:latest.at,to:end,durationMs:timer.elapsedMs} : null, prefs, !(prefs.timerPausedMs > 0));
-  $('goal-time').textContent = kcalText(kcal.totalKcal, true);
-  const trend = fatTrendKey(active && !timer.clockSkew ? timer.elapsedMs : null);
-  $('energy-trend').textContent = t(trend);
-  $('energy-summary').dataset.fatTrend = trend === 'effects.trendFat' ? 'rising' : 'mixed';
-  $('energy-summary').disabled = false;
-  $('energy-summary').setAttribute('aria-label', t('effects.homeAria', { energy: kcalText(kcal.totalKcal), trend: t(trend) }));
+  renderDailyCalories(now);
   const remaining = !active || timer.clockSkew ? '' : timer.paused ? t('timer.paused') : state.settings.goalEnabled ? (timer.reached ? t('mini.reached') : t('mini.remaining', { d: shortDuration(timer.remainingMs) })) : '';
   $('goal-remaining').textContent = remaining;
   $('goal-remaining').hidden = !remaining;
@@ -211,7 +219,8 @@ function tick() {
 function row(event) {
   const meal = MEALS[event.type], name = mealName(event.type);
   const symbol = `<span class="row-icon ${event.type}">${icon(meal.icon)}</span>`;
-  return `<div class="history-row">${symbol}<div><strong>${name}</strong><p>${esc(event.note || t('history.noNote'))}</p></div><time datetime="${new Date(event.at).toISOString()}">${time(event.at)}</time><button class="icon-button" data-edit="${esc(event.id)}" aria-label="${esc(t('history.editAria', { when: dateTime(event.at), meal: name }))}">${icon('edit')}</button></div>`;
+  const description = [event.note, event.foods?.length ? kcalText(C.foodKcalTotal(event.foods)) : ''].filter(Boolean).join(' · ');
+  return `<div class="history-row">${symbol}<div><strong>${name}</strong><p>${esc(description || t('history.noNote'))}</p></div><time datetime="${new Date(event.at).toISOString()}">${time(event.at)}</time><button class="icon-button" data-edit="${esc(event.id)}" aria-label="${esc(t('history.editAria', { when: dateTime(event.at), meal: name }))}">${icon('edit')}</button></div>`;
 }
 function renderHistory() {
   $('history-count').textContent = t('history.count', { n: state.events.length });
@@ -244,11 +253,25 @@ function renderStats() {
   $('weekly-chart').setAttribute('aria-label', t('stats.weekAria', { list: stats.daily.map(d => t('stats.weekItem', { date: d.date, duration: d.longestInterval ? shortDuration(d.maxIntervalMs) : t('stats.dayNoData') })).join(', ') }));
   $('interval-list').innerHTML = stats.mealIntervals.length ? stats.mealIntervals.slice(0,7).map(interval => `<button type="button" class="interval-row" data-effect-from="${interval.from}" data-effect-to="${interval.to}" aria-haspopup="dialog" aria-controls="fasting-dialog" aria-label="${esc(t('effects.intervalAria', { from: intervalTime(interval.from), to: intervalTime(interval.to), duration: shortDuration(interval.durationMs) }))}"><span>${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</span><strong>${shortDuration(interval.durationMs)} <span aria-hidden="true">›</span></strong></button>`).join('') : `<p class="empty-recent">${t('stats.intervalsEmpty')}</p>`;
 }
+function renderEnergyBreakdown(show, now) {
+  const section = $('energy-today');
+  section.hidden = $('energy-actions').hidden = !show;
+  if (!show) return;
+  const daily = window.FastingEnergy.today(prefs, now);
+  const activity = daily.activeKcal == null ? t('energy.noActivity') : kcalText(daily.activeKcal);
+  section.innerHTML = `<p class="effect-caption">${t('energy.todayRange', { time: time(now) })}</p>
+    <dl>
+      <dt>${t('energy.basal')}</dt><dd data-energy-basal>${kcalText(daily.basalKcal)}</dd>
+      <dt>${t('energy.activity')}</dt><dd data-energy-activity>${activity}</dd>
+      <dt class="energy-total">${t('energy.todayTotal')}</dt><dd class="energy-total" data-energy-total>${kcalText(daily.totalKcal)}</dd>
+    </dl>
+    <p class="field-help">${esc(window.FastingEnergy.activityNote(daily, prefs))}</p>`;
+}
 function openFastingDetail(selection = {}, opener = null) {
   fastingSelection = selection;
   if (!$('fasting-dialog').open) effectOpener = opener || document.activeElement;
   const now = Date.now();
-  const stats = C.weeklyStats(state, now, tz());
+  const stats = selection.live ? null : C.weeklyStats(state, now, tz());
   let interval, date, records = [];
   if (selection.live) {
     const timer = C.getTimer(state, now, prefs);
@@ -264,16 +287,37 @@ function openFastingDetail(selection = {}, opener = null) {
     date = interval ? C.localDay(interval.to, tz()) : '';
     records = stats.daily.find(d => d.date === date)?.intervals || [];
   }
-  $('fasting-title').textContent = selection.live ? t('effects.liveTitle') : t('effects.dayTitle', { date: date ? new Date(date+'T12:00:00Z').toLocaleDateString(L.locale, { month: 'long', day: 'numeric', timeZone: 'UTC' }) : '' });
+  $('fasting-title').textContent = selection.live ? t('timer.goalArrival') : t('effects.dayTitle', { date: date ? new Date(date+'T12:00:00Z').toLocaleDateString(L.locale, { month: 'long', day: 'numeric', timeZone: 'UTC' }) : '' });
+  renderEnergyBreakdown(selection.live, now);
+  $('energy-fasting-note').hidden = !selection.live || !interval;
   if (!interval) {
     $('fasting-detail').innerHTML = `<div class="effect-empty">${icon('leaf')}<strong>${t('effects.emptyTitle')}</strong><p>${t(selection.live ? 'effects.emptyLive' : 'effects.emptyDay')}</p></div>`;
   } else {
     const trend = fatTrendKey(interval.durationMs);
     const rising = trend === 'effects.trendFat';
-    const kcal = window.FastingEnergy.estimate(interval, prefs, !selection.live || !(prefs.timerPausedMs > 0));
-    $('fasting-detail').innerHTML = `<p class="effect-caption">${t(selection.live ? 'effects.atOpen' : 'effects.recordedInterval')}</p><strong class="effect-duration">${shortDuration(interval.durationMs)}</strong><p class="effect-period">${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</p><section class="effect-state" data-fat-trend="${rising?'rising':'mixed'}"><div>${icon('leaf')}<strong>${t(rising?'effects.fatTitle':'effects.mixedTitle')}</strong></div><div class="effect-flow" aria-hidden="true"><span class="${rising?'':'is-current'}">${t('effects.mixedLabel')}</span><b>→</b><span class="${rising?'is-current':''}">${t('effects.fatLabel')}</span></div><p>${t(rising?'effects.fatDescription':'effects.mixedDescription')}</p></section><div class="effect-energy"><span>${t('effects.energyTitle')}</span><strong>${kcalText(kcal.totalKcal)}</strong></div>${records.length>1?`<section class="effect-records"><h3>${t('effects.otherRecords', { n: records.length })}</h3><div class="effect-record-list">${records.map(x=>`<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from===interval.from&&x.to===interval.to}"><span>${time(x.from)} → ${time(x.to)}</span><strong>${shortDuration(x.durationMs)}</strong></button>`).join('')}</div></section>`:''}`;
+    const modelPrefs = selection.live ? { ...prefs, energyMode: 'activity' } : prefs;
+    const kcal = window.FastingEnergy.estimate(interval, modelPrefs, !selection.live || !(prefs.timerPausedMs > 0));
+    const history = records.length > 1 ? `<section class="effect-records">
+      <h3>${t('effects.otherRecords', { n: records.length })}</h3>
+      <div class="effect-record-list">${records.map(x => `<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from === interval.from && x.to === interval.to}">
+        <span>${time(x.from)} → ${time(x.to)}</span><strong>${shortDuration(x.durationMs)}</strong>
+      </button>`).join('')}</div></section>` : '';
+    $('fasting-detail').innerHTML = `<p class="effect-caption">${t(selection.live ? 'effects.atOpen' : 'effects.recordedInterval')}</p>
+      <strong class="effect-duration">${shortDuration(interval.durationMs)}</strong>
+      <p class="effect-period">${intervalPoint(interval.from)} → ${intervalPoint(interval.to)}</p>
+      <section class="effect-state" data-fat-trend="${rising ? 'rising' : 'mixed'}">
+        <div>${icon('leaf')}<strong>${t(rising ? 'effects.fatTitle' : 'effects.mixedTitle')}</strong></div>
+        <div class="effect-flow" aria-hidden="true"><span class="${rising ? '' : 'is-current'}">${t('effects.mixedLabel')}</span><b>→</b><span class="${rising ? 'is-current' : ''}">${t('effects.fatLabel')}</span></div>
+        <p>${t(rising ? 'effects.fatDescription' : 'effects.mixedDescription')}</p>
+      </section>
+      <div class="effect-energy"><span>${t(selection.live ? 'energy.fasting' : 'effects.energyTitle')}</span><strong>${kcalText(kcal.totalKcal)}</strong></div>${history}`;
+    if (modelPrefs.energyMode === 'activity') {
+      const note = document.createElement('p');
+      note.className = 'effect-note';
+      note.textContent = window.FastingEnergy.describe(kcal, modelPrefs);
+      $('fasting-detail').append(note);
+    }
   }
-  if (interval && prefs.energyMode === 'activity') { const note = document.createElement('p'); note.className='effect-note'; const value=window.FastingEnergy.estimate(interval,prefs,!selection.live || !(prefs.timerPausedMs>0));note.textContent=window.FastingEnergy.describe(value,prefs);$('fasting-detail').append(note); }
   if (!$('fasting-dialog').open) $('fasting-dialog').showModal();
   else if (interval) $('fasting-detail').querySelector('.effect-record-list [aria-pressed="true"]')?.focus({ preventScroll: true });
 }
@@ -393,7 +437,7 @@ function goPage(page) {
     if (gesture && gesture.kind === 'touch' && (!event.changedTouches || Array.from(event.changedTouches).some(touch => touch.identifier === gesture.id))) gesture = null;
   });
 })();
-function openMeal(id = null) {
+function openMeal(id = null, showFoods = false) {
   editingId = id;
   const event = state.events.find(item => item.id === id);
   $('meal-dialog-title').textContent = event ? t('meal.dialogEdit') : t('meal.dialogNew');
@@ -403,7 +447,14 @@ function openMeal(id = null) {
   $('meal-note').value = event?.note || '';
   $('meal-error').textContent = '';
   $('delete-meal').hidden = !event;
+  window.MealFoods.open(event?.foods, showFoods);
   $('meal-dialog').showModal();
+}
+function openIntake() {
+  const now = Date.now();
+  const today = C.localDay(now, tz());
+  const meal = state.events.find(event => event.at <= now);
+  openMeal(meal && C.localDay(meal.at, tz()) === today ? meal.id : null, true);
 }
 function openSettings() { $('sex-input').value = prefs.sex || 'male'; $('age-input').value = prefs.age || 35; $('height-input').value = prefs.heightCm || 170; $('weight-input').value = prefs.weightKg || 68; $('activity-input').value = prefs.activityLevel || 'light'; $('tray-input').checked = prefs.tray; $('autostart-input').checked = prefs.autoStartActive || prefs.autoStart; $('autostart-label').hidden = !prefs.canAutoStart; $('language-input').value = prefs.language || 'auto'; $('timezone-input').value = prefs.timeZone || 'auto'; $('color-theme-input').value = prefs.colorTheme || 'sage'; $('theme-auto-input').checked = state.settings.themeAuto; $('goal-enabled').checked = state.settings.goalEnabled; $('goal-input').value = state.settings.goalHours; $('notifications-input').checked = state.settings.notifications; $('settings-error').textContent = ''; $('settings-dialog').showModal(); }
 async function exportData() { const result = await action({type:'export'}, null, false); if(result?.exported)toast(t('toast.exported')); }
@@ -418,6 +469,7 @@ document.addEventListener('click', event => {
   else if(button.dataset.page)goPage(button.dataset.page);
   else if(button.dataset.goto)goPage(button.dataset.goto);
   else if(button.dataset.edit)openMeal(button.dataset.edit);
+  else if(button.id==='intake-summary')openIntake();
   else if(button.id==='energy-summary')openFastingDetail({live:true},button);
   else if(button.dataset.effectDate)openFastingDetail({date:button.dataset.effectDate},button);
   else if(button.dataset.effectFrom)openFastingDetail({from:Number(button.dataset.effectFrom),to:Number(button.dataset.effectTo)},button);
@@ -426,14 +478,22 @@ document.addEventListener('click', event => {
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
 $('past-meal').addEventListener('click',()=>openMeal());
+$('food-photo-pick').addEventListener('click', () => $('food-photo-file').click());
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
 $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
 $('add-history').addEventListener('click',()=>openMeal());
 
 
 $('settings-button').addEventListener('click',openSettings);
+$('energy-profile').addEventListener('click', () => {
+  openSettings();
+  $('sex-input').focus();
+});
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
-$('settings-dialog').addEventListener('close',()=>applyColorTheme(prefs.colorTheme));
+$('settings-dialog').addEventListener('close', () => {
+  applyColorTheme(prefs.colorTheme);
+  if ($('fasting-dialog').open && fastingSelection?.live) openFastingDetail(fastingSelection);
+});
 $('activity-dialog').addEventListener('close',()=>{if($('fasting-dialog').open && fastingSelection)openFastingDetail(fastingSelection);});
 $('fasting-dialog').addEventListener('close',()=>{
   const origin = effectOpener;
@@ -488,7 +548,11 @@ $('meal-form').addEventListener('submit',async event=>{
   const timeUntouched = !!original && $('meal-at').value === localInput(original.at);
   const at = C.parseLocalInput($('meal-at').value, tz());
   if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){$('meal-error').textContent=t('meal.timeRange');return;}
-  const patch=timeUntouched?{type:$('meal-type').value,note:$('meal-note').value.trim()}:{type:$('meal-type').value,at,note:$('meal-note').value.trim()};
+  let foods;
+  try { foods = window.MealFoods.read(); }
+  catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
+  const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
+  if (!timeUntouched) patch.at = at;
   const result=await action(editingId?{type:'update',id:editingId,patch}:{type:'add',patch},t('toast.mealSaved'));
   if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
 });

@@ -10,8 +10,10 @@
   // Practical upper ceiling keeps Date/Intl rendering and a 24-hour goal safe.
   const MAX_DATE = Date.UTC(2100, 0, 1);
   const MAX_EVENTS = 100000;
+  const MAX_FOODS_PER_MEAL = 24;
   const MAX_BACKUP_CHARS = 64 * 1024 * 1024;
   const HOUR = 60 * 60 * 1000;
+  const INVALID_FOOD_MESSAGE = '음식 이름, 양과 칼로리를 확인해 주세요.';
 
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function assert(condition, message) { if (!condition) throw new TypeError(message); }
@@ -21,13 +23,32 @@
   function validTimestamp(at, now) {
     return Number.isSafeInteger(at) && at >= MIN_DATE && at <= MAX_DATE && at <= now;
   }
+  function normalizeFoods(foods) {
+    if (foods === undefined) return [];
+    assert(Array.isArray(foods) && foods.length <= MAX_FOODS_PER_MEAL, INVALID_FOOD_MESSAGE);
+    return Array.from(foods, (food) => {
+      assert(food && typeof food === 'object' && !Array.isArray(food), INVALID_FOOD_MESSAGE);
+      assert(typeof food.name === 'string', INVALID_FOOD_MESSAGE);
+      const name = food.name.trim();
+      assert(name.length >= 1 && name.length <= 100, INVALID_FOOD_MESSAGE);
+      assert(Number.isFinite(food.kcal) && food.kcal >= 0 && food.kcal <= 20000, INVALID_FOOD_MESSAGE);
+      const normalized = { name, kcal: food.kcal };
+      if (food.grams !== undefined) {
+        assert(Number.isFinite(food.grams) && food.grams > 0 && food.grams <= 10000, INVALID_FOOD_MESSAGE);
+        normalized.grams = food.grams;
+      }
+      return normalized;
+    });
+  }
+  function foodKcalTotal(foods) { return normalizeFoods(foods).reduce((total, food) => total + food.kcal, 0); }
   function validateEvent(event, now) {
     assert(event && typeof event === 'object', '식사 기록 형식이 올바르지 않습니다.');
     assert(typeof event.id === 'string' && event.id.length >= 1 && event.id.length <= 160, '식사 기록 ID가 올바르지 않습니다.');
     assert(TYPES.includes(event.type), '식사 종류가 올바르지 않습니다.');
     assert(validTimestamp(event.at, now), '식사 시각은 2000년 이후이고 현재 시각보다 미래가 아니어야 합니다.');
     assert(typeof event.note === 'string' && event.note.length <= 200, '메모는 200자 이하여야 합니다.');
-    return { id: event.id, type: event.type, at: event.at, note: event.note };
+    const foods = normalizeFoods(event.foods);
+    return foods.length ? { id: event.id, type: event.type, at: event.at, note: event.note, foods } : { id: event.id, type: event.type, at: event.at, note: event.note };
   }
   function validateState(raw, now) {
     const checkedNow = Number.isSafeInteger(now) ? now : Date.now();
@@ -309,5 +330,5 @@
     let raw; try { raw = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new TypeError('JSON 형식의 단식 기록 백업 파일이 아니에요.'); }
     return normalizedPersisted(raw, Date.now());
   }
-  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, defaultState, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, parseBackup, mergeBackup, recordMeal, updateMeal, deleteMeal, updateSettings, latestMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
+  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, parseBackup, mergeBackup, recordMeal, updateMeal, deleteMeal, updateSettings, latestMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
 });
