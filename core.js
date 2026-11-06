@@ -203,6 +203,8 @@
   }
   const COLOR_THEMES = Object.freeze(['sage', 'ocean', 'terracotta', 'lavender', 'amber', 'slate']);
   function validColorTheme(value) { return COLOR_THEMES.includes(value); }
+  const TIMER_GRADIENTS = Object.freeze(['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p07', 'p08']);
+  function validTimerGradient(value) { return TIMER_GRADIENTS.includes(value); }
   const TIMEZONES = Object.freeze([
     'auto', 'America/Toronto', 'Asia/Seoul', 'America/Vancouver', 'America/New_York',
     'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris',
@@ -405,5 +407,5 @@
     let raw; try { raw = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new TypeError('JSON 형식의 단식 기록 백업 파일이 아니에요.'); }
     return normalizedPersisted(raw, Date.now());
   }
-  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, foodCalorieSummary, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, dayRange, parseBackup, mergeBackup, replaceBackup, recordMeal, updateMeal, deleteMeal, recordWeight, deleteWeight, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
+  return { TYPES, COLOR_THEMES, TIMER_GRADIENTS, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, foodCalorieSummary, validateEvent, validateState, validColorTheme, validTimerGradient, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, dayRange, parseBackup, mergeBackup, replaceBackup, recordMeal, updateMeal, deleteMeal, recordWeight, deleteWeight, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
 });

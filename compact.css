@@ -92,8 +92,11 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .autophagy-stage .stage-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .autophagy-stage .stage-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .autophagy-stage.is-done { color: var(--text); opacity: .78; }
-.dial-progress { stroke: var(--stage-color, var(--accent-dark)); transition: stroke-dasharray .6s linear, stroke 1s linear; }
-#dial-tip { stroke: var(--stage-color, var(--accent-dark)); }
+.dial-progress { display: none; }
+.dial-progress-segment, .dial-progress-partial { fill: none; stroke-width: 13; }
+.dial-progress-segment { stroke-linecap: butt; }
+.dial-progress-partial { stroke-linecap: round; }
+#dial-tip { stroke: var(--timer-gradient-current, var(--stage-color, var(--accent-dark))); transition: stroke .3s linear; }
 .autophagy-stage.is-current { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
 .autophagy-stage.is-current .stage-title { font-weight: 700; }
 .goal-control { gap: 0; margin: auto 0 8px; }
@@ -400,6 +403,9 @@ body.mini .toast { top: auto; bottom: 13px; font-size: var(--type-meta); }
 .settings-group-content { border-top: 1px solid var(--line); padding: 4px 12px 12px; }
 .settings-group-content .settings-data { border: 0; padding-top: 8px; }
 .settings-group-content > .check-label { margin: 12px 0; }
+.timer-gradient-control { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; align-items: stretch; }
+.timer-gradient-control select { min-width: 0; }
+#timer-gradient-preview { min-height: 42px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(90deg, var(--accent), var(--accent-dark)); }
 .settings-profile > .field-help { margin-top: 4px; }
 .settings-profile-only #settings-form > :is(.settings-group:not(#settings-profile), .settings-link, #settings-diagnostics),
 body.is-pwa #settings-desktop { display: none; }
@@ -419,7 +425,7 @@ body.is-pwa #settings-desktop { display: none; }
   .meal-button,.meal-day-options button,.nav-item,.outline-button,.primary-button,.danger-button,.icon-button,.text-button,.segmented button,.titlebar-pin,.mini-meals button{border:1px solid ButtonText}
   .meal-day-options button[aria-pressed=true],.segmented button[aria-pressed=true],.nav-item.active,.titlebar-pin[aria-pressed=true]{border:2px solid Highlight;outline:1px solid Highlight}
   .dial-track{stroke:ButtonBorder;fill:Canvas}
-  .dial-progress,.dial-tip{stroke:Highlight;fill:none}
+  .dial-progress,.dial-progress-segment,.dial-progress-partial,.dial-tip{stroke:Highlight;fill:none}
   .dial-tip{fill:Highlight}
   .chart-bar,.mini-progress span{background:Highlight;forced-color-adjust:none}
   .hl,.toast{border:1px solid CanvasText}

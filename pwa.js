@@ -16,7 +16,7 @@
   const RECORDS_UNREADABLE = '저장된 식사 기록을 읽지 못했어요. 원본은 그대로 보관했어요. 기록 백업에서 복구해 주세요.';
   const PREFS_UNREADABLE = '저장된 설정을 읽지 못했어요. 설정을 덮어쓰지 않았어요.';
   const STORAGE_UNAVAILABLE = '저장소를 사용할 수 없어요. 브라우저의 사이트 데이터 설정을 확인한 뒤 다시 시도해 주세요.';
-  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'language', 'timeZone', 'colorTheme', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
+  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'language', 'timeZone', 'colorTheme', 'timerGradient', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
   const SETTINGS_KEYS = ['goalHours', 'goalEnabled', 'notifications', 'theme', 'themeAuto'];
   const BOOLEAN_PREFS = ['tray', 'autoStart', 'firstRunDone'];
   const LANGUAGE_SETTINGS = ['auto', ...I18n.LANGS];
@@ -39,12 +39,13 @@
   }
 
   function loadPrefs(raw) {
-    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
+    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', timerGradient: 'p05', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
     if (raw) {
       for (const key of BOOLEAN_PREFS) if (typeof raw[key] === 'boolean') prefs[key] = raw[key];
       if (LANGUAGE_SETTINGS.includes(raw.language)) prefs.language = raw.language;
       if (Core.validTimeZone(raw.timeZone)) prefs.timeZone = raw.timeZone;
       if (Core.validColorTheme(raw.colorTheme)) prefs.colorTheme = raw.colorTheme;
+      if (Core.validTimerGradient(raw.timerGradient)) prefs.timerGradient = raw.timerGradient;
       if (typeof raw.timerAnchorId === 'string' && raw.timerAnchorId.length > 0 && raw.timerAnchorId.length <= 160) prefs.timerAnchorId = raw.timerAnchorId;
       if (typeof raw.timerMealId === 'string' && raw.timerMealId) prefs.timerMealId = raw.timerMealId;
       if (Number.isSafeInteger(raw.timerPausedAt) && raw.timerPausedAt > 0) prefs.timerPausedAt = raw.timerPausedAt;
@@ -154,7 +155,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.33 (PWA-64)', build: 'PWA-64' },
+      app: { version: '1.0.33 (PWA-65)', build: 'PWA-65' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },
@@ -388,6 +389,7 @@
           if ('language' in patch && !LANGUAGE_SETTINGS.includes(patch.language)) throw new TypeError('언어 설정이 올바르지 않습니다.');
           if ('timeZone' in patch && !Core.validTimeZone(patch.timeZone)) throw new TypeError('시간대 설정이 올바르지 않습니다.');
           if ('colorTheme' in patch && !Core.validColorTheme(patch.colorTheme)) throw new TypeError('색상 테마 설정이 올바르지 않습니다.');
+          if ('timerGradient' in patch && !Core.validTimerGradient(patch.timerGradient)) throw new TypeError('타이머 진행 색상 설정이 올바르지 않습니다.');
           if ('sex' in patch && !['male', 'female'].includes(patch.sex)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');
           if ('age' in patch && (!Number.isInteger(patch.age) || patch.age < 10 || patch.age > 120)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');
           if ('heightCm' in patch && (!Number.isFinite(patch.heightCm) || patch.heightCm < 100 || patch.heightCm > 250)) throw new TypeError('신체 정보 설정이 올바르지 않습니다.');

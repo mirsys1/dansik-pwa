@@ -72,8 +72,9 @@ let ready = false;
 let lastActionError = '';
 let windowInfo = null;
 let theme = 'light';
-let prefs = { tray: false, autoStart: false, firstRunDone: true, canAutoStart: false, autoStartActive: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', sex: 'male', age: 35, heightCm: 170, weightKg: 68, activityLevel: 'light' };
+let prefs = { tray: false, autoStart: false, firstRunDone: true, canAutoStart: false, autoStartActive: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', timerGradient: 'p05', sex: 'male', age: 35, heightCm: 170, weightKg: 68, activityLevel: 'light' };
 function applyColorTheme(name) { document.body.dataset.colorTheme = C.validColorTheme(name) ? name : 'sage'; }
+function applyTimerGradient(name) { document.body.dataset.timerGradient = C.validTimerGradient(name) ? name : 'p05'; }
 let appInfo = { version: '' };
 let pinBusy = false;
 let effectOpener = null;
@@ -130,6 +131,7 @@ function applySnapshot(snapshot) {
   if (snapshot.app) appInfo = snapshot.app;
   document.body.dataset.theme = theme;
   applyColorTheme(prefs.colorTheme);
+  applyTimerGradient(prefs.timerGradient);
   $('theme-button').setAttribute('aria-label', theme === 'light' ? t('theme.toDark') : t('theme.toLight'));
   $('save-status').textContent = t('footer.saved', { time: time(Date.now()) });
   if (snapshot.warning || document.body.classList.contains('is-pwa')) showWarning(snapshot.warning);
@@ -162,6 +164,82 @@ async function action(payload, message, undo = true) {
   }
 }
 const DIAL_MS = 24 * 3600000;
+const TIMER_GRADIENTS = Object.freeze({
+  p01: ['#a8cc91', '#38b76d', '#137d83'], p02: ['#a8cc91', '#2dcdb6', '#55ade4'],
+  p03: ['#79b942', '#ffd34e', '#d8881c'], p04: ['#abc896', '#ff967b', '#bb5d48'],
+  p05: ['#176b5a', '#26c6b4', '#314c93'], p06: ['#55b7b5', '#3b76d8', '#8759d9'],
+  p07: ['#a7cb98', '#f481a6', '#a775d6'], p08: ['#236943', '#19cc69', '#efd27d']
+});
+// One-degree slices keep an angular gradient visually continuous while the DOM is rebuilt only when a palette changes.
+const DIAL_SEGMENTS = 360;
+const DIAL_SEGMENT_OVERLAP = Math.PI / 720;
+let dialGradientName = '';
+let dialGradientVisible = 0;
+let timerGradientPreview = null;
+let dialGradientProgress = 0;
+let dialGradientActive = false;
+const rgb = hex => [1, 3, 5].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16));
+function gradientColor(name, progress) {
+  const colors = TIMER_GRADIENTS[name] || TIMER_GRADIENTS.p05;
+  const scaled = Math.max(0, Math.min(1, progress)) * (colors.length - 1);
+  const index = Math.min(colors.length - 2, Math.floor(scaled));
+  const fraction = scaled - index, from = rgb(colors[index]), to = rgb(colors[index + 1]);
+  return `rgb(${from.map((value, position) => Math.round(value + (to[position] - value) * fraction)).join(',')})`;
+}
+function dialArc(start, end) {
+  const point = angle => [180 + 170 * Math.cos(angle), 180 + 170 * Math.sin(angle)];
+  const [x1, y1] = point(start), [x2, y2] = point(end);
+  return `M ${x1.toFixed(3)} ${y1.toFixed(3)} A 170 170 0 0 1 ${x2.toFixed(3)} ${y2.toFixed(3)}`;
+}
+function prepareDialGradient(name) {
+  const selected = TIMER_GRADIENTS[name] ? name : 'p05';
+  if (dialGradientName === selected) return;
+  const group = $('dial-progress-gradient');
+  group.innerHTML = Array.from({ length: DIAL_SEGMENTS }, (_, index) => {
+    const start = index / DIAL_SEGMENTS * Math.PI * 2 - Math.PI / 2;
+    // A slight forward overlap prevents anti-alias seams between adjacent SVG strokes (notably in WebKit).
+    const end = (index + 1) / DIAL_SEGMENTS * Math.PI * 2 - Math.PI / 2 + DIAL_SEGMENT_OVERLAP;
+    return `<path class="dial-progress-segment" data-dial-segment="${index}" d="${dialArc(start, end)}" stroke="${gradientColor(selected, (index + .5) / DIAL_SEGMENTS)}" hidden/>`;
+  }).join('');
+  dialGradientName = selected;
+  dialGradientVisible = 0;
+}
+function selectedTimerGradient() {
+  const value = timerGradientPreview || prefs.timerGradient;
+  return C.validTimerGradient(value) ? value : 'p05';
+}
+function renderTimerGradientPreview(name = selectedTimerGradient()) {
+  const colors = TIMER_GRADIENTS[name] || TIMER_GRADIENTS.p05;
+  const preview = $('timer-gradient-preview');
+  if (preview) preview.style.background = `linear-gradient(90deg, ${colors.join(', ')})`;
+}
+function discardTimerGradientPreview() {
+  timerGradientPreview = null;
+  applyTimerGradient(prefs.timerGradient);
+  renderDialGradient(dialGradientProgress, dialGradientActive);
+}
+function renderDialGradient(progress, active) {
+  dialGradientProgress = progress;
+  dialGradientActive = active;
+  const selected = selectedTimerGradient();
+  prepareDialGradient(selected);
+  const full = active ? Math.floor(Math.max(0, Math.min(1, progress)) * DIAL_SEGMENTS) : 0;
+  const group = $('dial-progress-gradient');
+  if (full > dialGradientVisible) for (let index = dialGradientVisible; index < full; index += 1) group.children[index].removeAttribute('hidden');
+  if (full < dialGradientVisible) for (let index = full; index < dialGradientVisible; index += 1) group.children[index].setAttribute('hidden', '');
+  dialGradientVisible = full;
+  const partial = $('dial-progress-partial');
+  const remainder = active ? progress * DIAL_SEGMENTS - full : 0;
+  if (remainder > 0 && full < DIAL_SEGMENTS) {
+    const start = full / DIAL_SEGMENTS * Math.PI * 2 - Math.PI / 2;
+    const end = progress * Math.PI * 2 - Math.PI / 2;
+    partial.setAttribute('d', dialArc(start, end));
+    partial.setAttribute('stroke', gradientColor(selected, (full + remainder / 2) / DIAL_SEGMENTS));
+    partial.removeAttribute('hidden');
+  } else partial.setAttribute('hidden', '');
+  const current = gradientColor(selected, active ? progress : 0);
+  document.querySelector('.dial-wrap').style.setProperty('--timer-gradient-current', current);
+}
 const STAGE_COLORS = [[0, [127, 157, 107]], [12, [95, 160, 138]], [16, [63, 155, 176]], [24, [79, 127, 208]], [36, [122, 98, 200]], [48, [176, 72, 159]]];
 function stageColor(elapsedMs) {
   const h = elapsedMs == null ? 0 : elapsedMs / 3600000;
@@ -240,6 +318,7 @@ function tick() {
   const dialProgress = active && !timer.clockSkew ? (timer.elapsedMs % DIAL_MS) / DIAL_MS : 0;
   document.querySelector('.dial-wrap').style.setProperty('--stage-color', stageColor(active && !timer.clockSkew && !laterMeal ? timer.elapsedMs : null));
   $('dial-progress').setAttribute('stroke-dasharray', `${dialProgress * 100} 100`);
+  renderDialGradient(dialProgress, active && !timer.clockSkew && !laterMeal);
   const angle = dialProgress * Math.PI * 2 - Math.PI / 2;
   $('dial-tip').setAttribute('cx', 180 + 170 * Math.cos(angle));
   $('dial-tip').setAttribute('cy', 180 + 170 * Math.sin(angle));
@@ -732,6 +811,9 @@ function openSettings(profileOnly = false) {
   $('language-input').value = prefs.language || 'auto';
   $('timezone-input').value = prefs.timeZone || 'auto';
   $('color-theme-input').value = prefs.colorTheme || 'sage';
+  $('timer-gradient-input').value = C.validTimerGradient(prefs.timerGradient) ? prefs.timerGradient : 'p05';
+  timerGradientPreview = null;
+  renderTimerGradientPreview();
   $('theme-auto-input').checked = state.settings.themeAuto;
   $('goal-enabled').checked = state.settings.goalEnabled;
   $('goal-input').value = state.settings.goalHours;
@@ -740,7 +822,7 @@ function openSettings(profileOnly = false) {
   settingsBaseline = {
     prefs: {
       ...profile, tray: $('tray-input').checked, autoStart: $('autostart-input').checked,
-      language: $('language-input').value, timeZone: $('timezone-input').value, colorTheme: $('color-theme-input').value
+      language: $('language-input').value, timeZone: $('timezone-input').value, colorTheme: $('color-theme-input').value, timerGradient: $('timer-gradient-input').value
     },
     settings: { ...state.settings }
   };
@@ -785,7 +867,10 @@ document.addEventListener('click', event => {
     openFastingDetail({ date, from: Number(button.dataset.effectFrom), to: Number(button.dataset.effectTo) }, button);
   }
   else if(button.hasAttribute('data-add'))openMeal();
-  else if(button.dataset.close)$(button.dataset.close).close();
+  else if(button.dataset.close) {
+    if (button.dataset.close === 'settings-dialog') discardTimerGradientPreview();
+    $(button.dataset.close).close();
+  }
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
 $('past-meal').addEventListener('click',()=>openMeal(null, false, true));
@@ -837,8 +922,15 @@ $('meal-dialog').addEventListener('close', () => {
 $('settings-button').addEventListener('click', () => openSettings());
 $('energy-profile').addEventListener('click', () => openSettings(true));
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
+$('timer-gradient-input').addEventListener('change',()=>{
+  timerGradientPreview = $('timer-gradient-input').value;
+  applyTimerGradient(timerGradientPreview);
+  renderTimerGradientPreview();
+  renderDialGradient(dialGradientProgress, dialGradientActive);
+});
 $('settings-dialog').addEventListener('close', () => {
   applyColorTheme(prefs.colorTheme);
+  discardTimerGradientPreview();
   if ($('fasting-dialog').open && fastingSelection?.live) openFastingDetail(fastingSelection);
 });
 for (const id of ['activity-dialog', 'workout-dialog']) {
@@ -957,7 +1049,8 @@ $('settings-form').addEventListener('submit', async event => {
       tray: $('tray-input').checked,
       language: $('language-input').value,
       timeZone: $('timezone-input').value,
-      colorTheme: $('color-theme-input').value
+      colorTheme: $('color-theme-input').value,
+      timerGradient: $('timer-gradient-input').value
     });
     if (prefs.canAutoStart) wanted.autoStart = $('autostart-input').checked;
     const themeAuto = $('theme-auto-input').checked;
