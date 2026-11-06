@@ -84,6 +84,7 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .autophagy-stages { list-style: none; margin: auto 0; padding: 8px 0; display: grid; gap: 0; }
 .autophagy-stage { display: flex; justify-self: center; width: fit-content; max-width: 100%; align-items: center; justify-content: center; gap: 5px; padding: 0 .5em; border: 1px solid transparent; border-radius: 4px; font-size: var(--type-meta); line-height: 1.06; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .autophagy-stage[hidden] { display: none; }
+.timer-anchor-note { text-align: center; font-size: var(--type-meta); line-height: 1.2; color: var(--muted); }
 .autophagy-stage .stage-time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .autophagy-stage .stage-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .autophagy-stage.is-done { color: var(--text); opacity: .78; }

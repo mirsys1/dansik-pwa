@@ -261,11 +261,15 @@
     return { active: true, stage: current.stage, dots: current.dots, current, next, stageProgress, nextRemainingMs };
   }
   function latestMeal(state, now) { return readOnlyState(state, now).events[0] || null; }
+  function selectedTimerMeal(state, control) {
+    return (control && control.timerAnchorId && state.events.find(event => event.id === control.timerAnchorId)) || state.events[0] || null;
+  }
+  function timerMeal(state, now, control) { return selectedTimerMeal(readOnlyState(state, now), control); }
   function getTimer(state, now, control) {
     const checkedNow = Number.isSafeInteger(now) ? now : Date.now();
     // A system clock can move backward after a saved meal. Validate persisted records
     // against their newest timestamp, then render a zero elapsed timer with clockSkew.
-    const next = readOnlyState(state, checkedNow); const meal = next.events[0];
+    const next = readOnlyState(state, checkedNow); const meal = selectedTimerMeal(next, control);
     if (!meal) return { elapsedMs: null, remainingMs: null, progress: 0, reached: false, goalAt: null, clockSkew: false, paused: false, reset: false };
     const active = control && control.timerMealId === meal.id ? control : null;
     if (active && active.timerReset) {
@@ -330,5 +334,5 @@
     let raw; try { raw = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new TypeError('JSON 형식의 단식 기록 백업 파일이 아니에요.'); }
     return normalizedPersisted(raw, Date.now());
   }
-  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, parseBackup, mergeBackup, recordMeal, updateMeal, deleteMeal, updateSettings, latestMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
+  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, parseBackup, mergeBackup, recordMeal, updateMeal, deleteMeal, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
 });

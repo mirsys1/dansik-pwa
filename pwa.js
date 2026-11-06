@@ -33,7 +33,7 @@
   }
 
   function loadPrefs() {
-    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
+    const prefs = { tray: false, autoStart: false, firstRunDone: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
     let raw = null;
     try {
       raw = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
@@ -41,6 +41,7 @@
       if (LANGUAGE_SETTINGS.includes(raw.language)) prefs[key_lang()] = raw.language;
       if (Core.validTimeZone(raw.timeZone)) prefs.timeZone = raw.timeZone;
       if (Core.validColorTheme(raw.colorTheme)) prefs.colorTheme = raw.colorTheme;
+      if (typeof raw.timerAnchorId === 'string' && raw.timerAnchorId.length > 0 && raw.timerAnchorId.length <= 160) prefs.timerAnchorId = raw.timerAnchorId;
       if (typeof raw.timerMealId === 'string' && raw.timerMealId) prefs.timerMealId = raw.timerMealId;
       if (Number.isSafeInteger(raw.timerPausedAt) && raw.timerPausedAt > 0) prefs.timerPausedAt = raw.timerPausedAt;
       if (Number.isSafeInteger(raw.timerPausedMs) && raw.timerPausedMs >= 0) prefs.timerPausedMs = raw.timerPausedMs;
@@ -112,7 +113,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.23 (PWA-44)', build: 'PWA-44' },
+      app: { version: '1.0.24 (PWA-45)', build: 'PWA-45' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },
@@ -125,12 +126,25 @@
     stateListeners.forEach(fn => fn(snap));
   }
 
-  const timerSnap = () => ({ timerMealId: prefs.timerMealId, timerPausedAt: prefs.timerPausedAt, timerPausedMs: prefs.timerPausedMs, timerReset: prefs.timerReset });
-  const resetTimerControl = () => ({ timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false });
+  const timerSnap = () => ({ timerAnchorId: prefs.timerAnchorId, timerMealId: prefs.timerMealId, timerPausedAt: prefs.timerPausedAt, timerPausedMs: prefs.timerPausedMs, timerReset: prefs.timerReset });
+  const resetTimerControl = () => ({ timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false });
   function persist(next, remember = true, nextTimer = null) {
     const previous = { state, timer: timerSnap() };
-    const saved = saveStoredState(next);
-    if (nextTimer) { Object.assign(prefs, nextTimer); savePrefs(prefs); }
+    if (!nextTimer && prefs.timerAnchorId && !next.events.some(event => event.id === prefs.timerAnchorId)) nextTimer = resetTimerControl();
+    let saved;
+    if (nextTimer) {
+      const previousPrefs = localStorage.getItem(PREFS_KEY);
+      savePrefs({ ...prefs, ...nextTimer });
+      try { saved = saveStoredState(next); }
+      catch (error) {
+        try {
+          if (previousPrefs === null) localStorage.removeItem(PREFS_KEY);
+          else localStorage.setItem(PREFS_KEY, previousPrefs);
+        } catch (_) { Object.assign(prefs, loadPrefs()); broadcast(); }
+        throw error;
+      }
+      Object.assign(prefs, nextTimer);
+    } else saved = saveStoredState(next);
     if (remember) {
       undoStack.push(previous);
       if (undoStack.length > 20) undoStack.shift();
@@ -203,15 +217,18 @@
           return result;
         }
         case 'add': {
+          if (payload.startTimer !== undefined && typeof payload.startTimer !== 'boolean') throw new TypeError('입력 형식이 올바르지 않습니다.');
           const patch = checkPatch(payload.patch, ['type', 'at', 'note', 'foods']);
           const id = newId();
           const prevNewest = state.events[0];
           const next = Core.recordMeal(state, patch.type, now, id);
           const updated = Core.updateMeal(next, id, patch, now);
-          if (prevNewest && updated.events[0] && updated.events[0].id === prevNewest.id && updated.events[0].at === prevNewest.at) {
+          const newestUnchanged = prevNewest && updated.events[0] && updated.events[0].id === prevNewest.id && updated.events[0].at === prevNewest.at;
+          if (newestUnchanged && !payload.startTimer) {
             updated.notifiedKey = state.notifiedKey;
           }
-          return persist(updated, true, resetTimerControl());
+          const nextTimer = payload.startTimer ? { ...resetTimerControl(), timerAnchorId: id } : newestUnchanged ? null : resetTimerControl();
+          return persist(updated, true, nextTimer);
         }
         case 'update': return persist(Core.updateMeal(state, payload.id, checkPatch(payload.patch, ['type', 'at', 'note', 'foods']), now));
         case 'delete': return persist(Core.deleteMeal(state, payload.id, now));
@@ -231,7 +248,7 @@
           return snapshot();
         }
         case 'timer-pause': {
-          const meal = state.events[0], cur = Core.getTimer(state, now, prefs);
+          const meal = Core.timerMeal(state, now, prefs), cur = Core.getTimer(state, now, prefs);
           if (!meal || cur.reset) throw new TypeError('진행 중인 타이머가 없어요.');
           const prevTimer = timerSnap();
           const baseMs = prefs.timerMealId === meal.id && Number.isSafeInteger(prefs.timerPausedMs) && prefs.timerPausedMs > 0 ? prefs.timerPausedMs : 0;
@@ -246,7 +263,7 @@
           return { ...snapshot(), paused: !cur.paused };
         }
         case 'timer-reset': {
-          const meal = state.events[0], cur = Core.getTimer(state, now, prefs);
+          const meal = Core.timerMeal(state, now, prefs), cur = Core.getTimer(state, now, prefs);
           if (!meal || cur.reset) throw new TypeError('진행 중인 타이머가 없어요.');
           const prevTimer = timerSnap();
           const nextTimer = { timerMealId: meal.id, timerPausedAt: null, timerPausedMs: 0, timerReset: true };
@@ -358,8 +375,11 @@
 
   setInterval(() => {
     if (!state.settings.goalEnabled || !state.settings.notifications || !state.events.length) return;
-    const timer = Core.getTimer(state, Date.now(), prefs);
-    const key = `${state.events[0].id}:${state.events[0].at}:${state.settings.goalHours}`;
+    const now = Date.now();
+    const meal = Core.timerMeal(state, now, prefs);
+    const timer = Core.getTimer(state, now, prefs);
+    if (!meal || state.events[0].at > meal.at) return;
+    const key = `${meal.id}:${meal.at}:${state.settings.goalHours}`;
     if (!timer.reached || state.notifiedKey === key) return;
     try {
       state = saveStoredState({ ...state, notifiedKey: key });

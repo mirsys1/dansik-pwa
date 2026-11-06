@@ -54,6 +54,7 @@ function fatTrendKey(elapsedMs) {
 let state = C.defaultState();
 let busy = false;
 let editingId = null;
+let mealStartsTimer = false;
 let mealDateDay = '';
 let mealLastKey = '';
 let mealExactPreset = null;
@@ -180,14 +181,20 @@ function tick() {
   if (!ready) return;
   const now = Date.now();
   if ($('meal-dialog').open && (mealDateDay !== C.localDay(now, tz()) || mealLastKey !== mealLastStateKey(now))) updateMealDateControls();
-  const latest = state.events[0];
+  const meal = C.timerMeal(state, now, prefs);
   const timer = C.getTimer(state, now, prefs);
-  const active = Boolean(latest) && !timer.reset;
-  const autophagy = C.getAutophagyStage(active && !timer.clockSkew ? timer.elapsedMs : null);
+  const active = Boolean(meal) && !timer.reset;
+  const laterMeal = active && state.events[0] && state.events[0].at > meal.at;
+  const anchorNote = $('timer-anchor-note');
+  const showAnchor = active && prefs.timerAnchorId === meal.id;
+  const anchorText = showAnchor ? t('timer.startAt', { when: intervalTime(meal.at) }) + (laterMeal ? ` · ${t('timer.mealAfter')}` : '') : '';
+  if (anchorNote.textContent !== anchorText) anchorNote.textContent = anchorText;
+  if (anchorNote.hidden === showAnchor) anchorNote.hidden = !showAnchor;
+  const autophagy = C.getAutophagyStage(active && !timer.clockSkew && !laterMeal ? timer.elapsedMs : null);
   $('autophagy-dial').classList.toggle('is-active', autophagy.active);
   $('autophagy-dial-dots').textContent = autophagy.dots;
   $('autophagy-dial-label').textContent = t(autophagy.current.titleKey);
-  document.querySelectorAll('#autophagy-stages .autophagy-stage').forEach(el => { const s = Number(el.dataset.stage), cur = autophagy.active && s === autophagy.stage; el.hidden = s !== autophagy.stage; el.classList.toggle('is-current', cur); el.classList.toggle('is-done', autophagy.active && s < autophagy.stage); if (cur) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current'); });
+  document.querySelectorAll('#autophagy-stages .autophagy-stage').forEach(el => { const s = Number(el.dataset.stage), cur = autophagy.active && s === autophagy.stage; el.hidden = laterMeal || s !== autophagy.stage; el.classList.toggle('is-current', cur); el.classList.toggle('is-done', autophagy.active && s < autophagy.stage); if (cur) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current'); });
   const pauseBtn = $('timer-pause'), resetBtn = $('timer-reset');
   if (pauseBtn) { pauseBtn.disabled = busy || !active; pauseBtn.textContent = timer.paused ? t('timer.resume') : t('timer.pause'); pauseBtn.setAttribute('aria-label', timer.paused ? t('timer.resumeAria') : t('timer.pauseAria')); pauseBtn.setAttribute('aria-pressed', String(Boolean(timer.paused))); }
   if (resetBtn) resetBtn.disabled = busy || !active;
@@ -202,19 +209,19 @@ function tick() {
   $('mini-elapsed').textContent = duration;
   $('mini-elapsed').classList.toggle('long-duration', parts[0].length > 2);
   $('mini-elapsed').classList.toggle('extra-long-duration', parts[0].length > 4);
-  const sub = !active ? '' : timer.paused ? t('timer.paused') : timer.clockSkew ? t('mini.checkTime') : !state.settings.goalEnabled ? t('mini.ownRhythm') : timer.reached ? t('mini.reached') : t('mini.untilGoal', { d: shortDuration(timer.remainingMs) });
+  const sub = !active ? '' : timer.paused ? t('timer.paused') : timer.clockSkew ? t('mini.checkTime') : laterMeal ? t('timer.mealAfter') : !state.settings.goalEnabled ? t('mini.ownRhythm') : timer.reached ? t('mini.reached') : t('mini.untilGoal', { d: shortDuration(timer.remainingMs) });
   $('mini-remaining').textContent = sub;
   $('mini-remaining').hidden = !sub;
   $('clock-warning').hidden = !timer.clockSkew;
   const dialProgress = active && !timer.clockSkew ? (timer.elapsedMs % DIAL_MS) / DIAL_MS : 0;
-  document.querySelector('.dial-wrap').style.setProperty('--stage-color', stageColor(active && !timer.clockSkew ? timer.elapsedMs : null));
+  document.querySelector('.dial-wrap').style.setProperty('--stage-color', stageColor(active && !timer.clockSkew && !laterMeal ? timer.elapsedMs : null));
   $('dial-progress').setAttribute('stroke-dasharray', `${dialProgress * 100} 100`);
   const angle = dialProgress * Math.PI * 2 - Math.PI / 2;
   $('dial-tip').setAttribute('cx', 180 + 170 * Math.cos(angle));
   $('dial-tip').setAttribute('cy', 180 + 170 * Math.sin(angle));
-  $('mini-progress-bar').style.width = `${timer.progress * 100}%`;
+  $('mini-progress-bar').style.width = `${laterMeal ? 0 : timer.progress * 100}%`;
   renderDailyCalories(now);
-  const remaining = !active || timer.clockSkew ? '' : timer.paused ? t('timer.paused') : state.settings.goalEnabled ? (timer.reached ? t('mini.reached') : t('mini.remaining', { d: shortDuration(timer.remainingMs) })) : '';
+  const remaining = !active || timer.clockSkew || laterMeal ? '' : timer.paused ? t('timer.paused') : state.settings.goalEnabled ? (timer.reached ? t('mini.reached') : t('mini.remaining', { d: shortDuration(timer.remainingMs) })) : '';
   $('goal-remaining').textContent = remaining;
   $('goal-remaining').hidden = !remaining;
   const nowP = C.tzParts(now, tz()), nowW = new Date(now).toLocaleDateString(L.locale, { weekday: 'long', ...tzOpt() });
@@ -277,10 +284,12 @@ function openFastingDetail(selection = {}, opener = null) {
   if (!$('fasting-dialog').open) effectOpener = opener || document.activeElement;
   const now = Date.now();
   const stats = selection.live ? null : C.weeklyStats(state, now, tz());
-  let interval, date, records = [];
+  let interval, date, records = [], laterMeal = false;
   if (selection.live) {
+    const meal = C.timerMeal(state, now, prefs);
     const timer = C.getTimer(state, now, prefs);
-    if (state.events.length && !timer.reset && !timer.clockSkew) interval = { from: state.events[0].at, to: timer.paused ? prefs.timerPausedAt : now, durationMs: timer.elapsedMs };
+    laterMeal = Boolean(meal && state.events[0] && state.events[0].at > meal.at);
+    if (meal && !timer.reset && !timer.clockSkew && !laterMeal) interval = { from: meal.at, to: timer.paused ? prefs.timerPausedAt : now, durationMs: timer.elapsedMs };
     date = C.localDay(now, tz());
   } else if (selection.date) {
     date = selection.date;
@@ -296,7 +305,7 @@ function openFastingDetail(selection = {}, opener = null) {
   renderEnergyBreakdown(selection.live, now);
   $('energy-fasting-note').hidden = !selection.live || !interval;
   if (!interval) {
-    $('fasting-detail').innerHTML = `<div class="effect-empty">${icon('leaf')}<strong>${t('effects.emptyTitle')}</strong><p>${t(selection.live ? 'effects.emptyLive' : 'effects.emptyDay')}</p></div>`;
+    $('fasting-detail').innerHTML = `<div class="effect-empty">${icon('leaf')}<strong>${t(laterMeal ? 'effects.mealAfterTitle' : 'effects.emptyTitle')}</strong><p>${t(laterMeal ? 'effects.mealAfter' : selection.live ? 'effects.emptyLive' : 'effects.emptyDay')}</p></div>`;
   } else {
     const trend = fatTrendKey(interval.durationMs);
     const rising = trend === 'effects.trendFat';
@@ -496,8 +505,9 @@ function setMealDateTime(at, exactMeal = null) {
   showOtherMealDate($('meal-date').value !== days.today && $('meal-date').value !== days.yesterday);
   updateMealDateControls();
 }
-function openMeal(id = null, showFoods = false) {
+function openMeal(id = null, showFoods = false, startTimer = false) {
   editingId = id;
+  mealStartsTimer = !id && startTimer;
   const event = state.events.find(item => item.id === id);
   $('meal-dialog-title').textContent = event ? t('meal.dialogEdit') : t('meal.dialogNew');
   $('meal-type').value = event?.type || 'breakfast';
@@ -535,7 +545,7 @@ document.addEventListener('click', event => {
   else if(button.dataset.close)$(button.dataset.close).close();
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
-$('past-meal').addEventListener('click',()=>openMeal());
+$('past-meal').addEventListener('click',()=>openMeal(null, false, true));
 document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventListener('click', () => {
   $('meal-date').value = mealDayOptions()[button.dataset.mealDay];
   showOtherMealDate(false);
@@ -632,7 +642,7 @@ $('meal-form').addEventListener('submit',async event=>{
   catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
   if (!timeUntouched) patch.at = at;
-  const result=await action(editingId?{type:'update',id:editingId,patch}:{type:'add',patch},t('toast.mealSaved'));
+  const result=await action(editingId?{type:'update',id:editingId,patch}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
   if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
 });
 $('delete-meal').addEventListener('click',()=>{$('delete-error').textContent='';$('delete-dialog').showModal();});
