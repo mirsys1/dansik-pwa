@@ -95,7 +95,7 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .goal-control > span { display: none; }
 .segmented { flex-wrap: wrap; justify-content: center; gap: 0; padding: 3px; }
 .segmented button { font-size: calc(var(--type-meta) + 2pt); padding: 5px 6px; }
-.timer-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; row-gap: 2px; padding: 10px 0 8px; text-align: center; }
+.timer-meta { --energy-label-size: calc(var(--type-meta) + 1pt); grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; row-gap: 2px; padding: 10px 0 8px; text-align: center; }
 .timer-meta > .energy-summary { min-width: 0; width: 100%; min-height: 44px; padding: 2px 4px; border-radius: 7px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; background: transparent; }
 .timer-meta > .energy-summary + .energy-summary { border-left: 1px solid var(--line); border-radius: 0 7px 7px 0; }
 .timer-meta > .energy-summary:hover { background: var(--accent-soft); }
@@ -103,7 +103,9 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 #intake-summary[data-empty] .energy-line { color: var(--accent-dark); }
 .timer-meta > .goal-status { grid-column: 1 / -1; text-align: center; color: var(--accent-dark); }
 .timer-meta span { font-size: var(--type-meta); line-height: 1.15; }
-.timer-meta .energy-label { font-size: calc(var(--type-meta) + 1pt); font-weight: 700; }
+.timer-meta .energy-label { font-size: var(--energy-label-size); font-weight: 700; }
+.timer-meta #intake-summary:not([data-empty]) .energy-line,
+.timer-meta #energy-summary .energy-line { font-size: calc(var(--energy-label-size) + 2px); }
 .timer-meta strong { font-size: var(--type-body); line-height: 1.15; margin-top: 0; overflow-wrap: anywhere; }
 .timer-meta small { display: block; margin-top: 0; color: var(--muted); font-size: var(--type-meta); line-height: 1.15; white-space: nowrap; }
 
