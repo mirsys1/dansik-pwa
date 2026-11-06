@@ -55,6 +55,8 @@ let state = C.defaultState();
 let busy = false;
 let editingId = null;
 let mealDateDay = '';
+let mealLastKey = '';
+let mealExactPreset = null;
 let toastTimeout;
 let historyLimit = 60;
 let ready = false;
@@ -113,6 +115,7 @@ function applySnapshot(snapshot) {
   $('theme-button').setAttribute('aria-label', theme === 'light' ? t('theme.toDark') : t('theme.toLight'));
   $('save-status').textContent = t('footer.saved', { time: time(Date.now()) });
   if (snapshot.warning) showWarning(snapshot.warning);
+  if ($('meal-dialog').open) updateMealDateControls();
   render();
 }
 async function action(payload, message, undo = true) {
@@ -176,7 +179,7 @@ function renderDailyCalories(now) {
 function tick() {
   if (!ready) return;
   const now = Date.now();
-  if ($('meal-dialog').open && mealDateDay !== C.localDay(now, tz())) updateMealDateControls();
+  if ($('meal-dialog').open && (mealDateDay !== C.localDay(now, tz()) || mealLastKey !== mealLastStateKey(now))) updateMealDateControls();
   const latest = state.events[0];
   const timer = C.getTimer(state, now, prefs);
   const active = Boolean(latest) && !timer.reset;
@@ -445,6 +448,19 @@ function mealDayOptions(now = Date.now()) {
   previous.setUTCDate(previous.getUTCDate() - 1);
   return { today, yesterday: previous.toISOString().slice(0, 10) };
 }
+function mealLastStateKey(now = Date.now()) {
+  const last = state.events[0];
+  return last ? `${last.id}|${last.at}|${last.at <= now}` : '';
+}
+function mealLocalValue() {
+  const clock = $('meal-clock').value;
+  const minute = /^\d{2}:\d{2}:00(?:\.0+)?$/.test(clock) ? clock.slice(0, 5) : clock;
+  return `${$('meal-date').value}T${minute}`;
+}
+function clearChangedMealPreset() {
+  const last = state.events[0];
+  if (mealExactPreset && (!last || last.id !== mealExactPreset.id || last.at !== mealExactPreset.at || localInput(last.at) !== mealExactPreset.local || mealLocalValue() !== mealExactPreset.local)) mealExactPreset = null;
+}
 function showOtherMealDate(show) {
   $('meal-other-date').hidden = !show;
   $('meal-date').disabled = !show;
@@ -453,6 +469,7 @@ function showOtherMealDate(show) {
 function updateMealDateControls() {
   const days = mealDayOptions();
   mealDateDay = days.today;
+  mealLastKey = mealLastStateKey();
   const selected = $('meal-date').value;
   $('meal-today-date').textContent = days.today.slice(5).replace('-', '.');
   $('meal-yesterday-date').textContent = days.yesterday.slice(5).replace('-', '.');
@@ -460,9 +477,19 @@ function updateMealDateControls() {
   $('meal-other-current').textContent = selected && selected !== days.today && selected !== days.yesterday ? ` · ${selected}` : '';
   const original = editingId ? state.events.find(item => item.id === editingId) : null;
   $('meal-date').max = localInput(Math.max(Date.now(), original?.at || 0)).slice(0, 10);
+  const last = state.events[0];
+  const available = !!last && last.at <= Date.now();
+  const button = $('meal-last-time');
+  button.disabled = !available;
+  $('meal-last-value').textContent = available ? time(last.at) : last ? t('meal.lastFutureShort') : t('meal.lastNone');
+  const label = available ? t('meal.lastUseAria', { when: dateTime(last.at) }) : last ? t('meal.lastFutureAria') : t('meal.lastNoneAria');
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  clearChangedMealPreset();
 }
-function setMealDateTime(at) {
+function setMealDateTime(at, exactMeal = null) {
   const local = localInput(at);
+  mealExactPreset = exactMeal ? { id: exactMeal.id, at: exactMeal.at, local } : null;
   $('meal-date').value = local.slice(0, 10);
   $('meal-clock').value = local.slice(11, 16);
   const days = mealDayOptions();
@@ -518,7 +545,13 @@ document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventLi
 $('meal-other-toggle').addEventListener('click', () => showOtherMealDate($('meal-other-date').hidden));
 $('meal-date').addEventListener('input', () => { updateMealDateControls(); $('meal-error').textContent = ''; });
 $('meal-date').addEventListener('change', updateMealDateControls);
-$('meal-clock').addEventListener('input', () => { $('meal-error').textContent = ''; });
+$('meal-clock').addEventListener('input', () => { clearChangedMealPreset(); $('meal-error').textContent = ''; });
+$('meal-last-time').addEventListener('click', () => {
+  const last = state.events[0];
+  if (!last || last.at > Date.now()) return;
+  setMealDateTime(last.at, last);
+  $('meal-error').textContent = '';
+});
 $('food-photo-pick').addEventListener('click', () => $('food-photo-file').click());
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
 $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
@@ -586,12 +619,12 @@ $('meal-form').addEventListener('submit',async event=>{
   event.preventDefault();
   const original = editingId ? state.events.find(item => item.id === editingId) : null;
   if (!$('meal-date').value) { showOtherMealDate(true); $('meal-error').textContent=t('meal.dateMissing'); $('meal-date').focus(); return; }
-  const clock = $('meal-clock').value;
-  const minute = /^\d{2}:\d{2}:00(?:\.0+)?$/.test(clock) ? clock.slice(0, 5) : clock;
-  const local = `${$('meal-date').value}T${minute}`;
+  const local = mealLocalValue();
+  clearChangedMealPreset();
+  const exact = mealExactPreset ? mealExactPreset.at : null;
   // Leaving the time field alone keeps the stored time (including its seconds) untouched.
-  const timeUntouched = !!original && local === localInput(original.at);
-  const at = C.parseLocalInput(local, tz());
+  const timeUntouched = !!original && local === localInput(original.at) && (exact === null || exact === original.at);
+  const at = exact === null ? C.parseLocalInput(local, tz()) : exact;
   if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){$('meal-error').textContent=t('meal.timeRange');return;}
   if(!timeUntouched&&localInput(at)!==local){$('meal-error').textContent=t('meal.invalidLocal');return;}
   let foods;

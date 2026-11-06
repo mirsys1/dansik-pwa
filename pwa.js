@@ -68,15 +68,14 @@
     try {
       const raw = localStorage.getItem(STATE_KEY);
       if (!raw) return { state: Core.defaultState(), warning: null };
-      const parsed = JSON.parse(raw);
-      return { state: Core.validateState(parsed, Date.now(), { allowFutureMeals: true }), warning: null };
+      return { state: Core.parseBackup(raw), warning: null };
     } catch (_) {
       return { state: Core.defaultState(), warning: '저장된 기록을 읽지 못해 새 기록으로 시작했어요.' };
     }
   }
 
   function saveStoredState(next) {
-    const validated = Core.validateState(next, Date.now(), { allowFutureMeals: true });
+    const validated = Core.parseBackup(JSON.stringify(next));
     localStorage.setItem(STATE_KEY, JSON.stringify(validated));
     return validated;
   }
@@ -113,7 +112,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.22 (PWA-43)', build: 'PWA-43' },
+      app: { version: '1.0.23 (PWA-44)', build: 'PWA-44' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },

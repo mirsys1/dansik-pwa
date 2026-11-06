@@ -206,8 +206,14 @@ dialog label:not(.check-label) { font-size: var(--type-body); margin-top: 13px; 
 .meal-day-options small { color: var(--muted); font-size: var(--type-meta); font-variant-numeric: tabular-nums; }
 .meal-day-options button[aria-pressed="true"] small { color: inherit; }
 #meal-other-date input { width: 100%; font-size: 16px; }
-#meal-dialog label[for="meal-clock"] { margin-top: 10px; }
+.meal-time-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 4px; }
+#meal-dialog .meal-time-heading label { margin: 0; }
+#meal-last-time { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--accent-dark); font-size: var(--type-meta); font-weight: 600; white-space: nowrap; }
+#meal-last-time:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
+#meal-last-time:disabled { color: var(--muted); cursor: default; }
 #meal-dialog .meal-clock { width: 100%; min-height: 54px; padding: 7px 12px; font-size: 24px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
+#meal-dialog .quick-times { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+#meal-dialog .quick-times button { min-width: 0; min-height: 40px; padding: 5px 2px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
 .dialog-description, .check-label { font-size: var(--type-body); }
 .check-label { margin: 18px 0; }
 .check-label small, .field-help, .optional, .form-error, .quick-times button { font-size: var(--type-meta); }
