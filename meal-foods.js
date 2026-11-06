@@ -85,12 +85,23 @@
     const output = byId('food-total');
     const rows = document.querySelectorAll('#food-items [data-food-kcal]');
     let total = 0;
+    let calculated = 0;
+    let missingAmount = false;
     rows.forEach((control) => {
       const kcal = finiteNumber(control.value.trim());
-      if (Number.isFinite(kcal) && kcal >= 0) total += kcal;
+      if (Number.isFinite(kcal) && kcal >= 0) {
+        total += kcal;
+        calculated++;
+      } else {
+        const row = control.closest('[data-food-row]');
+        if (row.querySelector('[data-food-name]').value.trim() && row.querySelector('[data-food-density]').value !== '') missingAmount = true;
+      }
     });
     const formatted = roundKcal(total).toLocaleString(isEnglish() ? 'en-US' : 'ko-KR', { maximumFractionDigits: 1 });
-    setText(output, copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`));
+    if (missingAmount) {
+      setText(output, calculated ? copy(`계산된 합계 ${formatted} kcal · 양 입력 필요`, `Calculated subtotal ${formatted} kcal · amount needed`)
+        : copy('먹은 양을 입력하면 합계가 표시돼요.', 'Enter the amount eaten to show the total.'));
+    } else setText(output, copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`));
   }
 
   function computeKcal(row) {
@@ -144,7 +155,8 @@
     const name = input('text', '', data.name, copy('예: 현미밥', 'e.g. brown rice'));
     name.maxLength = 100;
     name.dataset.foodName = 'true';
-    const grams = input('number', '', data.grams, copy('선택', 'Optional'));
+    const grams = input('number', '', data.grams, data.photoDraft && data.grams === null && Number.isFinite(data.kcalPer100g)
+      ? copy('먹은 양 입력', 'Enter amount') : copy('선택', 'Optional'));
     grams.inputMode = 'decimal';
     grams.min = '0';
     grams.max = String(MAX_GRAMS);
@@ -401,14 +413,16 @@
 
   function insertPhotoFoods(result) {
     if (!Array.isArray(result?.foods) || !Array.isArray(result.unmatched)) throw new Error('Invalid photo result');
-    const items = result.foods.slice(0, MAX_FOODS).flatMap((food) => {
+    const needsAmount = (food) => food?.grams === null && food.source === 'mfds' && Number.isFinite(food.kcalPer100g);
+    const matches = [...result.foods, ...result.unmatched.filter(needsAmount)];
+    const items = matches.slice(0, MAX_FOODS).flatMap((food) => {
       if (!food || food.source !== 'mfds' || typeof food.name !== 'string') return [];
       const name = food.name.trim();
       const { grams, kcalPer100g } = food;
-      const kcal = roundKcal(grams * kcalPer100g / 100);
-      return name && name.length <= 100 && Number.isFinite(grams) && grams > 0 && grams <= MAX_GRAMS &&
-        Number.isFinite(kcalPer100g) && kcalPer100g > 0 && kcalPer100g <= MAX_DENSITY && kcal <= MAX_KCAL
-        ? [{ name, grams, kcalPer100g, kcal, photoDraft: true }] : [];
+      if (!name || name.length > 100 || !Number.isFinite(kcalPer100g) || kcalPer100g < 0 || kcalPer100g > MAX_DENSITY) return [];
+      if (grams !== null && (!Number.isFinite(grams) || grams <= 0 || grams > MAX_GRAMS)) return [];
+      const kcal = grams === null ? null : roundKcal(grams * kcalPer100g / 100);
+      return kcal === null || kcal <= MAX_KCAL ? [{ name, grams, kcalPer100g, kcal, photoDraft: true }] : [];
     });
     const needsReview = result.unmatched.slice(0, MAX_FOODS).flatMap((item) => {
       if (!Array.isArray(item?.choices)) return [];
@@ -417,7 +431,7 @@
       const grams = Number.isFinite(item.grams) && item.grams > 0 && item.grams <= MAX_GRAMS ? item.grams : null;
       return choices.length ? [{ grams, choices, photoDraft: true }] : [];
     });
-    const unmatched = result.unmatched.filter((item) => !item?.choices?.length).slice(0, 3).map((item) => typeof item?.name === 'string' ? item.name.slice(0, 60) : '').filter(Boolean).join(', ');
+    const unmatched = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, 3).map((item) => typeof item?.name === 'string' ? item.name.slice(0, 60) : '').filter(Boolean).join(', ');
     items.push(...needsReview);
     if (items.length) {
       document.querySelectorAll('#food-items [data-food-row]').forEach((row) => {
@@ -425,7 +439,8 @@
       });
     }
     const room = MAX_FOODS - rowCount();
-    items.slice(0, room).forEach((item) => addRow(item));
+    const inserted = items.slice(0, room);
+    inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
       setStatus(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
@@ -433,10 +448,12 @@
       return;
     }
     const message = copy('사진만으로는 양을 정확히 알 수 없어요. 음식과 먹은 양을 확인한 뒤 저장해 주세요.', 'A photo cannot determine exact portions. Check the food and amounts before saving.');
+    const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
+      ? copy(' 양이 비어 있는 음식은 먹은 양(g)을 입력하면 칼로리가 계산돼요.', 'Enter the amount eaten (g) for any blank portion to calculate its calories.') : '';
     const review = needsReview.length ? copy(' 국·찌개는 실제로 먹은 종류를 골라 주세요.', ' Select the soup or stew you ate.') : '';
     const manual = unmatched ? copy(` 직접 입력: ${unmatched}`, ` Enter manually: ${unmatched}`) : '';
     const limited = items.length > room ? copy(' 입력 칸이 부족해 일부만 추가했어요.', ' Only some items fit in the form.') : '';
-    setStatus(message + review + manual + limited);
+    setStatus(message + amount + review + manual + limited);
   }
 
   function analysisError(code) {
@@ -659,6 +676,7 @@
       const kcalRaw = row.querySelector('[data-food-kcal]').value.trim();
       const densityRaw = row.querySelector('[data-food-density]').value.trim();
       if (row.hasAttribute('data-food-review') && !name) throw new Error(copy('국·찌개 종류를 고르거나 해당 음식 칸을 삭제해 주세요.', 'Choose the soup or stew, or remove that row.'));
+      if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 먹은 양(g)이나 칼로리를 입력해 주세요.`, `Enter the amount eaten (g) or calories for ${name}.`));
       if (!name && !gramsRaw && !kcalRaw && !densityRaw) continue;
       const grams = finiteNumber(gramsRaw);
       const kcal = finiteNumber(kcalRaw);
