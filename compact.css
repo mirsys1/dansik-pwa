@@ -280,11 +280,54 @@ body.mini .toast { top: auto; bottom: 13px; font-size: var(--type-meta); }
 .icon-button{position:relative}
 .icon-button::after{content:"";position:absolute;inset:-4px}
 .data-actions{display:flex;flex-wrap:wrap;gap:4px 16px}
-.settings-profile{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);margin-bottom:14px}
-.settings-profile > strong{display:block;font-size:var(--type-body);font-weight:650}
-.settings-profile > .field-help{margin-top:4px;font-size:var(--type-meta)}
-.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:8px}
-.profile-grid label,.settings-profile > label{margin:8px 0 4px !important;font-size:var(--type-meta) !important}
+.settings-group, .settings-link {
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.settings-group > summary, .settings-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 12px;
+  list-style: none;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-link { width: 100%; }
+.settings-group > summary::-webkit-details-marker { display: none; }
+.settings-group > summary::after, .settings-link::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border: solid var(--accent-dark);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-right: 3px;
+}
+.settings-link::after { transform: rotate(-45deg); }
+.settings-group[open] > summary::after { transform: rotate(225deg); }
+.settings-group > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; border-radius: 10px; }
+.settings-row-copy strong, .settings-row-copy small { display: block; line-height: 1.35; }
+.settings-row-copy strong { font-size: var(--type-body); font-weight: 750; }
+.settings-row-copy small { margin-top: 2px; font-size: var(--type-meta); color: var(--muted); }
+.settings-group-content { border-top: 1px solid var(--line); padding: 4px 12px 12px; }
+.settings-group-content .settings-data { border: 0; padding-top: 8px; }
+.settings-group-content > .check-label { margin: 12px 0; }
+.settings-profile > .field-help { margin-top: 4px; }
+.settings-profile-only #settings-form > :is(.settings-group:not(#settings-profile), .settings-link, #settings-diagnostics),
+body.is-pwa #settings-desktop { display: none; }
+.settings-profile-only #settings-profile > summary { display: none; }
+.settings-profile-only #settings-profile > .settings-group-content { border-top: 0; }
+#settings-dialog .form-error:empty { display: none; }
+#settings-dialog .dialog-actions { margin-top: 12px; }
+#settings-diagnostics:not(:empty) { margin-top: 12px; }
+#settings-diagnostics .pwa-diagnostics { margin-bottom: 0; }
+.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-top:8px}
+.profile-grid label,.settings-profile > label{margin:8px 0 4px !important}
 
 /* Windows high contrast: let system colors win and keep state visible without relying on fill color. */
 @media (forced-colors:active){

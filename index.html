@@ -146,7 +146,94 @@
     </div>
     <p id="energy-fasting-note" class="effect-note" hidden data-i18n="energy.fastingHelp">현재 단식 구간의 소비를 따로 보여줘요. 단식이 어제 시작됐다면 어제 소비도 포함돼요.</p>
     <div id="fasting-detail"></div><p id="fasting-estimate-note" class="effect-note" data-i18n="effects.estimateNote">시간·신체 정보를 사용해 모델로 계산한 값이에요. 실제 지방 사용량이나 체지방 감소를 측정한 값은 아니며, 식사 구성·활동 등에 따라 달라져요.</p><button type="button" class="text-button" data-open-activity data-i18n="activity.open">활동·건강 데이터</button><details class="effect-model"><summary data-i18n="effects.modelTitle">계산 기준 보기</summary><p data-i18n="effects.modelHelp">소비량은 현재 설정한 신체·활동 정보와 기록 시간을 사용해 계산해요. 지방 활용 표시는 시간 구간별 가정이며 개인의 대사 변화를 확인한 결과는 아니에요.</p><p data-i18n="effects.historyHelp">지난 기록도 현재 신체 설정으로 계산해요. 그래프는 식사 간격이 끝난 날짜의 최장 기록이며, 기록하지 않은 식사는 반영되지 않아요. 중지한 시간은 현재 타이머에서 제외돼요.</p></details></dialog>
-  <dialog id="settings-dialog" aria-labelledby="settings-title"><form id="settings-form"><div class="dialog-heading"><h2 id="settings-title" data-i18n="settings.title">나에게 맞는 단식</h2><button type="button" class="icon-button" data-close="settings-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div><button type="button" class="text-button" data-open-activity data-i18n="activity.open">활동·건강 데이터</button><div class="settings-profile"><strong data-i18n="settings.bodyTitle">신체 및 활동 정보 (칼로리 계산)</strong><p class="field-help" data-i18n="settings.bodyHelp">성별·나이·키·몸무게와 활동 수준에 맞춰 단식 단계별 소비 칼로리를 자동 계산해요.</p><div class="profile-grid"><div><label for="sex-input" data-i18n="settings.sex">성별</label><select id="sex-input"><option value="male" data-i18n="settings.sexMale">남성</option><option value="female" data-i18n="settings.sexFemale">여성</option></select></div><div><label for="age-input" data-i18n="settings.age">나이 (세)</label><input id="age-input" type="number" min="10" max="120" step="1" required></div><div><label for="height-input" data-i18n="settings.height">키 (cm)</label><input id="height-input" type="number" min="100" max="250" step="0.1" required></div><div><label for="weight-input" data-i18n="settings.weight">몸무게 (kg)</label><input id="weight-input" type="number" min="25" max="300" step="0.1" required></div></div><label for="activity-input" data-i18n="settings.activity">평소 활동 수준</label><select id="activity-input"><option value="sedentary" data-i18n="activity.sedentary">안정 · 주로 앉아서 생활</option><option value="light" data-i18n="activity.light">가벼운 활동 · 일상 이동</option><option value="moderate" data-i18n="activity.moderate">보통 활동 · 주 3~4회 운동</option><option value="active" data-i18n="activity.active">활발한 활동 · 매일 운동</option></select></div><label class="check-label"><input id="goal-enabled" type="checkbox"><span data-i18n-text="settings.goalEnabled">목표 시간 사용하기<small data-i18n="settings.goalEnabledHelp">목표 없이 경과 시간만 기록해도 좋아요.</small></span></label><label for="goal-input" data-i18n="settings.goalHours">목표 시간</label><div class="number-input"><input id="goal-input" type="number" min="8" max="24" step="1" required><span data-i18n="settings.unitHours">시간</span></div><p class="field-help" data-i18n="settings.goalRange">8~24시간 중 편안한 목표를 직접 정하세요.</p><label class="check-label"><input id="notifications-input" type="checkbox"><span data-i18n-text="settings.notify">목표에 도착하면 데스크톱 알림 받기<small data-i18n="settings.notifyHelp">앱이 실행 중일 때 알려드려요. 운영체제 알림 설정에 따라 표시가 제한될 수 있어요.</small></span></label><label class="check-label"><input id="tray-input" type="checkbox"><span data-i18n-text="settings.tray">닫기 버튼을 누르면 트레이에서 계속 실행<small data-i18n="settings.trayHelp">목표 알림은 앱이 실행 중일 때만 와요. 트레이 아이콘에서 식사를 바로 기록할 수 있어요.</small></span></label><label class="check-label" id="autostart-label"><input id="autostart-input" type="checkbox"><span data-i18n-text="settings.autostart">Windows 시작 시 자동 실행<small data-i18n="settings.autostartHelp">시작하면 트레이(또는 최소화) 상태로 열려요.</small></span></label><label class="check-label"><input id="theme-auto-input" type="checkbox"><span data-i18n-text="settings.themeAuto">화면 모드를 시스템 설정에 맞추기<small data-i18n="settings.themeAutoHelp">Windows의 밝은·어두운 모드를 그대로 따라가요. 위쪽 달 모양 버튼으로 직접 고르면 꺼져요.</small></span></label><label for="language-input" data-i18n="settings.language">언어</label><select id="language-input"><option value="auto" data-i18n="settings.languageAuto">자동 (시스템 언어)</option><option value="ko">한국어</option><option value="en">English</option></select><p class="field-help" data-i18n="settings.languageHelp">자동은 Windows 표시 언어를 따라요.</p><label for="timezone-input" data-i18n="settings.timezone">시간대</label><select id="timezone-input"><option value="auto" data-i18n="settings.timezoneAuto">자동 (시스템 시간대)</option><option value="America/Toronto" data-i18n="tz.toronto">토론토 (America/Toronto)</option><option value="Asia/Seoul" data-i18n="tz.seoul">서울 (Asia/Seoul)</option><option value="America/Vancouver" data-i18n="tz.vancouver">밴쿠버 (America/Vancouver)</option><option value="America/New_York" data-i18n="tz.newYork">뉴욕 (America/New_York)</option><option value="America/Chicago" data-i18n="tz.chicago">시카고 (America/Chicago)</option><option value="America/Los_Angeles" data-i18n="tz.losAngeles">로스앤젤레스 (America/Los_Angeles)</option><option value="Europe/London" data-i18n="tz.london">런던 (Europe/London)</option><option value="Europe/Paris" data-i18n="tz.paris">파리 (Europe/Paris)</option><option value="Asia/Tokyo" data-i18n="tz.tokyo">도쿄 (Asia/Tokyo)</option><option value="Australia/Sydney" data-i18n="tz.sydney">시드니 (Australia/Sydney)</option><option value="UTC" data-i18n="tz.utc">협정 세계시 (UTC)</option></select><p class="field-help" data-i18n="settings.timezoneHelp">Windows 시계가 다른 지역으로 되어 있어도 선택한 시간대의 날짜와 시각을 사용해요.</p><label for="color-theme-input" data-i18n="settings.colorTheme">색상 테마</label><select id="color-theme-input"><option value="sage" data-i18n="colorTheme.sage">포레스트 세이지 (기본)</option><option value="ocean" data-i18n="colorTheme.ocean">오션 블루</option><option value="terracotta" data-i18n="colorTheme.terracotta">웜 테라코타</option><option value="lavender" data-i18n="colorTheme.lavender">모브 라벤더</option><option value="amber" data-i18n="colorTheme.amber">앰버 샌드</option><option value="slate" data-i18n="colorTheme.slate">모노 슬레이트</option></select><p class="field-help" data-i18n="settings.colorThemeHelp">앱 전체의 배경과 강조 색상을 바꿔요.</p><div class="settings-data"><strong data-i18n="settings.dataTitle">기록은 이 컴퓨터에만 저장돼요.</strong><p data-i18n="settings.dataText">계정이나 인터넷 연결 없이 사용할 수 있어요.</p><div class="data-actions"><button type="button" class="text-button" id="export-settings"><span data-icon="download"></span><span data-i18n="settings.export">JSON 백업 / CSV 내보내기</span></button><button type="button" class="text-button" id="import-settings"><span data-icon="upload"></span><span data-i18n="settings.import">백업·CSV 불러오기</span></button></div></div><p class="form-error" id="settings-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="settings-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" type="submit" data-i18n="settings.save">설정 저장</button></div></form></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form">
+      <div class="dialog-heading">
+        <h2 id="settings-title" tabindex="-1" data-i18n="settings.title">설정</h2>
+        <button type="button" class="icon-button" data-close="settings-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button>
+      </div>
+      <details class="settings-group" id="settings-profile">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.profile">신체 정보</strong><small data-i18n="settings.group.profileHint">성별, 나이, 키, 몸무게, 활동 수준</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <div class="settings-profile"><p class="field-help" data-i18n="settings.bodyHelp">성별·나이·키·몸무게와 활동 수준에 맞춰 단식 단계별 소비 칼로리를 자동 계산해요.</p>
+          <div class="profile-grid"><div><label for="sex-input" data-i18n="settings.sex">성별</label>
+          <select id="sex-input"><option value="male" data-i18n="settings.sexMale">남성</option><option value="female" data-i18n="settings.sexFemale">여성</option></select>
+          </div>
+          <div><label for="age-input" data-i18n="settings.age">나이 (세)</label>
+          <input id="age-input" type="number" inputmode="numeric" min="10" max="120" step="1" required></div>
+          <div><label for="height-input" data-i18n="settings.height">키 (cm)</label>
+          <input id="height-input" type="number" inputmode="decimal" min="100" max="250" step="0.1" required></div>
+          <div><label for="weight-input" data-i18n="settings.weight">몸무게 (kg)</label>
+          <input id="weight-input" type="number" inputmode="decimal" min="25" max="300" step="0.1" required></div>
+          </div><label for="activity-input" data-i18n="settings.activity">평소 활동 수준</label>
+          <select id="activity-input"><option value="sedentary" data-i18n="activity.sedentary">안정 · 주로 앉아서 생활</option><option value="light" data-i18n="activity.light">가벼운 활동 · 일상 이동</option><option value="moderate" data-i18n="activity.moderate">보통 활동 · 주 3~4회 운동</option><option value="active" data-i18n="activity.active">활발한 활동 · 매일 운동</option></select>
+          </div>
+        </div>
+      </details>
+      <button type="button" class="settings-link" data-open-activity>
+        <span class="settings-row-copy"><strong data-i18n="activity.open">활동·건강 데이터</strong><small data-i18n="settings.group.healthHint">운동 기록, 건강 데이터 가져오기, 칼로리 계산 기준</small></span>
+      </button>
+      <details class="settings-group" id="settings-goals">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.goals">단식 목표·알림</strong><small data-i18n="settings.group.goalsHint">목표 시간과 도달 알림</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <label class="check-label"><input id="goal-enabled" type="checkbox"><span data-i18n-text="settings.goalEnabled">목표 시간 사용하기<small data-i18n="settings.goalEnabledHelp">목표 없이 경과 시간만 기록해도 좋아요.</small></span></label>
+          <label for="goal-input" data-i18n="settings.goalHours">목표 시간</label>
+          <div class="number-input"><input id="goal-input" type="number" inputmode="numeric" min="8" max="24" step="1" required><span data-i18n="settings.unitHours">시간</span></div>
+          <p class="field-help" data-i18n="settings.goalRange">8~24시간 중 편안한 목표를 직접 정하세요.</p>
+          <label class="check-label"><input id="notifications-input" type="checkbox"><span data-i18n-text="settings.notify">목표에 도착하면 알림 받기<small data-i18n="settings.notifyHelp">앱이 실행 중일 때 알려드려요. 운영체제 알림 설정에 따라 표시가 제한될 수 있어요.</small></span></label>
+        </div>
+      </details>
+      <details class="settings-group" id="settings-display">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.display">화면</strong><small data-i18n="settings.group.displayHint">밝기 모드와 색상 테마</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <label class="check-label"><input id="theme-auto-input" type="checkbox"><span data-i18n-text="settings.themeAuto">화면 모드를 시스템 설정에 맞추기<small data-i18n="settings.themeAutoHelp">기기의 밝은·어두운 모드를 그대로 따라가요. 위쪽 달 모양 버튼으로 직접 고르면 꺼져요.</small></span></label>
+          <label for="color-theme-input" data-i18n="settings.colorTheme">색상 테마</label>
+          <select id="color-theme-input"><option value="sage" data-i18n="colorTheme.sage">포레스트 세이지 (기본)</option><option value="ocean" data-i18n="colorTheme.ocean">오션 블루</option><option value="terracotta" data-i18n="colorTheme.terracotta">웜 테라코타</option><option value="lavender" data-i18n="colorTheme.lavender">모브 라벤더</option><option value="amber" data-i18n="colorTheme.amber">앰버 샌드</option><option value="slate" data-i18n="colorTheme.slate">모노 슬레이트</option></select>
+          <p class="field-help" data-i18n="settings.colorThemeHelp">앱 전체의 배경과 강조 색상을 바꿔요.</p>
+        </div>
+      </details>
+      <details class="settings-group" id="settings-region">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.region">언어·시간대</strong><small data-i18n="settings.group.regionHint">표시 언어와 날짜·시간 기준</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <label for="language-input" data-i18n="settings.language">언어</label>
+          <select id="language-input"><option value="auto" data-i18n="settings.languageAuto">자동 (시스템 언어)</option><option value="ko">한국어</option><option value="en">English</option></select>
+          <p class="field-help" data-i18n="settings.languageHelp">자동은 기기의 표시 언어를 따라요.</p>
+          <label for="timezone-input" data-i18n="settings.timezone">시간대</label>
+          <select id="timezone-input"><option value="auto" data-i18n="settings.timezoneAuto">자동 (시스템 시간대)</option><option value="America/Toronto" data-i18n="tz.toronto">토론토 (America/Toronto)</option><option value="Asia/Seoul" data-i18n="tz.seoul">서울 (Asia/Seoul)</option><option value="America/Vancouver" data-i18n="tz.vancouver">밴쿠버 (America/Vancouver)</option><option value="America/New_York" data-i18n="tz.newYork">뉴욕 (America/New_York)</option><option value="America/Chicago" data-i18n="tz.chicago">시카고 (America/Chicago)</option><option value="America/Los_Angeles" data-i18n="tz.losAngeles">로스앤젤레스 (America/Los_Angeles)</option><option value="Europe/London" data-i18n="tz.london">런던 (Europe/London)</option><option value="Europe/Paris" data-i18n="tz.paris">파리 (Europe/Paris)</option><option value="Asia/Tokyo" data-i18n="tz.tokyo">도쿄 (Asia/Tokyo)</option><option value="Australia/Sydney" data-i18n="tz.sydney">시드니 (Australia/Sydney)</option><option value="UTC" data-i18n="tz.utc">협정 세계시 (UTC)</option></select>
+          <p class="field-help" data-i18n="settings.timezoneHelp">선택한 시간대를 기준으로 기록의 날짜와 시각을 표시해요.</p>
+        </div>
+      </details>
+      <details class="settings-group" id="settings-backup">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.backup">기록 백업</strong><small data-i18n="settings.group.backupHint">JSON·CSV 내보내기 및 가져오기</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <div class="settings-data"><strong data-i18n="settings.dataTitle">기록은 이 기기에 저장돼요.</strong><p data-i18n="settings.dataText">계정이나 인터넷 연결 없이 사용할 수 있어요.</p>
+          <div class="data-actions"><button type="button" class="text-button" id="export-settings"><span data-icon="download"></span><span data-i18n="settings.export">JSON 백업 / CSV 내보내기</span></button><button type="button" class="text-button" id="import-settings"><span data-icon="upload"></span><span data-i18n="settings.import">백업·CSV 불러오기</span></button></div>
+          </div>
+        </div>
+      </details>
+      <details class="settings-group" id="settings-desktop">
+        <summary>
+          <span class="settings-row-copy"><strong data-i18n="settings.group.desktop">Windows 실행</strong><small data-i18n="settings.group.desktopHint">트레이에서 계속 실행, 자동 실행</small></span>
+        </summary>
+        <div class="settings-group-content">
+          <label class="check-label"><input id="tray-input" type="checkbox"><span data-i18n-text="settings.tray">닫기 버튼을 누르면 트레이에서 계속 실행<small data-i18n="settings.trayHelp">목표 알림은 앱이 실행 중일 때만 와요. 트레이 아이콘에서 식사를 바로 기록할 수 있어요.</small></span></label>
+          <label class="check-label" id="autostart-label"><input id="autostart-input" type="checkbox"><span data-i18n-text="settings.autostart">Windows 시작 시 자동 실행<small data-i18n="settings.autostartHelp">시작하면 트레이(또는 최소화) 상태로 열려요.</small></span></label>
+        </div>
+      </details>
+      <p class="form-error" id="settings-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="settings-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" type="submit" data-i18n="settings.save">설정 저장</button></div>
+      <div id="settings-diagnostics"></div>
+    </form>
+  </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title"><div class="dialog-heading"><h2 id="import-title" data-i18n="import.title">기록을 어떻게 가져올까요?</h2></div><p class="dialog-description" id="import-summary"></p><fieldset class="import-modes"><legend class="sr-only" data-i18n="import.modes">가져오기 방식</legend><label class="check-label"><input type="radio" name="import-mode" id="import-mode-merge" value="merge" checked><span id="import-merge-text" data-i18n-text="import.merge">합치기<small data-i18n="import.mergeHelp">지금 기록은 그대로 두고 새 기록만 더해요.</small></span></label><label class="check-label"><input type="radio" name="import-mode" id="import-mode-replace" value="replace"><span id="import-replace-text" data-i18n-text="import.replace">바꾸기<small data-i18n="import.replaceHelp">지금 기록을 모두 가져온 기록으로 바꿔요.</small></span></label></fieldset><p class="dialog-description" data-i18n="import.undoNote">바꾼 직후에는 되돌리기로 이전 기록을 복구할 수 있어요.</p><p class="form-error" id="import-error" role="alert"></p><div class="dialog-actions"><button class="outline-button" id="import-cancel" data-i18n="dialog.cancel">취소</button><button class="primary-button" id="import-confirm" data-i18n="import.confirm">가져오기</button></div></dialog>
   <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-heading"><h2 id="help-title" data-i18n="help.title">단식 타이머 사용 방법</h2><button type="button" class="icon-button" data-close="help-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="help-body">

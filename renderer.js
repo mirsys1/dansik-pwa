@@ -519,7 +519,37 @@ function openIntake() {
   const meal = state.events.find(event => event.at <= now);
   openMeal(meal && C.localDay(meal.at, tz()) === today ? meal.id : null, true);
 }
-function openSettings() { $('sex-input').value = prefs.sex || 'male'; $('age-input').value = prefs.age || 35; $('height-input').value = prefs.heightCm || 170; $('weight-input').value = prefs.weightKg || 68; $('activity-input').value = prefs.activityLevel || 'light'; $('tray-input').checked = prefs.tray; $('autostart-input').checked = prefs.autoStartActive || prefs.autoStart; $('autostart-label').hidden = !prefs.canAutoStart; $('language-input').value = prefs.language || 'auto'; $('timezone-input').value = prefs.timeZone || 'auto'; $('color-theme-input').value = prefs.colorTheme || 'sage'; $('theme-auto-input').checked = state.settings.themeAuto; $('goal-enabled').checked = state.settings.goalEnabled; $('goal-input').value = state.settings.goalHours; $('notifications-input').checked = state.settings.notifications; $('settings-error').textContent = ''; $('settings-dialog').showModal(); }
+function openSettings(profileOnly = false) {
+  const dialog = $('settings-dialog');
+  const title = $('settings-title');
+  title.dataset.i18n = profileOnly ? 'settings.group.profile' : 'settings.title';
+  title.textContent = t(title.dataset.i18n);
+  dialog.classList.toggle('settings-profile-only', profileOnly);
+  dialog.querySelectorAll('.settings-group').forEach(group => {
+    group.open = profileOnly && group.id === 'settings-profile';
+  });
+  const profile = C.normalizeProfile(prefs);
+  $('sex-input').value = profile.sex;
+  $('age-input').value = profile.age;
+  $('height-input').value = profile.heightCm;
+  $('weight-input').value = profile.weightKg;
+  $('activity-input').value = profile.activityLevel;
+  $('tray-input').checked = prefs.tray;
+  $('autostart-input').checked = prefs.autoStartActive || prefs.autoStart;
+  $('autostart-label').hidden = !prefs.canAutoStart;
+  $('language-input').value = prefs.language || 'auto';
+  $('timezone-input').value = prefs.timeZone || 'auto';
+  $('color-theme-input').value = prefs.colorTheme || 'sage';
+  $('theme-auto-input').checked = state.settings.themeAuto;
+  $('goal-enabled').checked = state.settings.goalEnabled;
+  $('goal-input').value = state.settings.goalHours;
+  $('goal-input').disabled = profileOnly;
+  $('notifications-input').checked = state.settings.notifications;
+  $('settings-error').textContent = '';
+  dialog.showModal();
+  title.focus({ preventScroll: true });
+  dialog.scrollTop = 0;
+}
 async function exportData() { const result = await action({type:'export'}, null, false); if(result?.exported)toast(t('toast.exported')); }
 
 icons();
@@ -563,11 +593,8 @@ $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toa
 $('add-history').addEventListener('click',()=>openMeal());
 
 
-$('settings-button').addEventListener('click',openSettings);
-$('energy-profile').addEventListener('click', () => {
-  openSettings();
-  $('sex-input').focus();
-});
+$('settings-button').addEventListener('click', () => openSettings());
+$('energy-profile').addEventListener('click', () => openSettings(true));
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
 $('settings-dialog').addEventListener('close', () => {
   applyColorTheme(prefs.colorTheme);
@@ -643,18 +670,68 @@ $('meal-form').addEventListener('submit',async event=>{
 });
 $('delete-meal').addEventListener('click',()=>{$('delete-error').textContent='';$('delete-dialog').showModal();});
 $('confirm-delete').addEventListener('click',async()=>{const result=await action({type:'delete',id:editingId},t('toast.mealDeleted'));if(result){$('delete-dialog').close();$('meal-dialog').close();}else $('delete-error').textContent=lastActionError||t('delete.failed');});
-$('settings-form').addEventListener('submit',async event=>{
-  event.preventDefault();const goalHours=Number($('goal-input').value);
-  if(!Number.isInteger(goalHours)||goalHours<8||goalHours>24){$('settings-error').textContent=t('settings.goalInvalid');return;}
+$('settings-form').addEventListener('invalid', event => {
+  const group = event.target.closest('.settings-group');
+  if (group) group.open = true;
+}, true);
+$('settings-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const dialog = $('settings-dialog');
+  const error = $('settings-error');
+  const submit = event.currentTarget.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  error.textContent = '';
+  const profileOnly = dialog.classList.contains('settings-profile-only');
+  const goalHours = Number($('goal-input').value);
+  if (!profileOnly && (!Number.isInteger(goalHours) || goalHours < 8 || goalHours > 24)) {
+    error.textContent = t('settings.goalInvalid');
+    return;
+  }
   const age = Number($('age-input').value), heightCm = Math.round(Number($('height-input').value) * 10) / 10, weightKg = Math.round(Number($('weight-input').value) * 10) / 10;
-  if (!Number.isInteger(age) || age < 10 || age > 120 || !Number.isFinite(heightCm) || heightCm < 100 || heightCm > 250 || !Number.isFinite(weightKg) || weightKg < 25 || weightKg > 300) { $('settings-error').textContent = t('settings.bodyInvalid'); return; }
-  const wanted = { tray: $('tray-input').checked, autoStart: $('autostart-input').checked, language: $('language-input').value, timeZone: $('timezone-input').value, colorTheme: $('color-theme-input').value, sex: $('sex-input').value, age, heightCm, weightKg, activityLevel: $('activity-input').value };
-  const changed = Object.fromEntries(Object.entries(wanted).filter(([key, value]) => (key === 'autoStart' ? (!prefs.canAutoStart ? false : value !== Boolean(prefs.autoStartActive || prefs.autoStart)) : value !== prefs[key])));
-  if (Object.keys(changed).length) { const saved = await window.desktop.action({type:'prefs',patch:changed}); if (!saved.ok) { $('settings-error').textContent = saved.error; return; } prefs = saved.prefs; if (saved.state) applySnapshot(saved); }
-  const themeAuto = $('theme-auto-input').checked;
-  const settingsPatch = { goalEnabled: $('goal-enabled').checked, goalHours, notifications: $('notifications-input').checked, themeAuto };
-  if (!themeAuto && state.settings.themeAuto) settingsPatch.theme = theme;
-  const result=await action({type:'settings',patch:settingsPatch},t('toast.settingsSaved'));if(result)$('settings-dialog').close();else $('settings-error').textContent=lastActionError||t('settings.saveFailed');
+  if (!Number.isInteger(age) || age < 10 || age > 120 || heightCm < 100 || heightCm > 250 || weightKg < 25 || weightKg > 300 || !Number.isFinite(heightCm) || !Number.isFinite(weightKg)) {
+    error.textContent = t('settings.bodyInvalid');
+    return;
+  }
+  const wanted = { sex: $('sex-input').value, age, heightCm, weightKg, activityLevel: $('activity-input').value };
+  if (!profileOnly) {
+    Object.assign(wanted, {
+      tray: $('tray-input').checked,
+      language: $('language-input').value,
+      timeZone: $('timezone-input').value,
+      colorTheme: $('color-theme-input').value
+    });
+  }
+  const changed = Object.fromEntries(Object.entries(wanted).filter(([key, value]) => value !== prefs[key]));
+  if (!profileOnly && prefs.canAutoStart && $('autostart-input').checked !== Boolean(prefs.autoStartActive || prefs.autoStart)) {
+    changed.autoStart = $('autostart-input').checked;
+  }
+  submit.disabled = true;
+  try {
+    if (Object.keys(changed).length) {
+      const saved = await window.desktop.action({ type: 'prefs', patch: changed });
+      if (!saved.ok) throw new Error(saved.error || t('settings.saveFailed'));
+      prefs = saved.prefs;
+      if (saved.state) applySnapshot(saved);
+    }
+    let canUndo = false;
+    if (!profileOnly) {
+      const themeAuto = $('theme-auto-input').checked;
+      const options = { goalEnabled: $('goal-enabled').checked, goalHours, notifications: $('notifications-input').checked, themeAuto };
+      const settingsPatch = Object.fromEntries(Object.entries(options).filter(([key, value]) => value !== state.settings[key]));
+      if (Object.keys(settingsPatch).length) {
+        if (!themeAuto && state.settings.themeAuto) settingsPatch.theme = theme;
+        const result = await action({ type: 'settings', patch: settingsPatch }, null);
+        if (!result) throw new Error(lastActionError || t('settings.saveFailed'));
+        canUndo = result.canUndo;
+      }
+    }
+    dialog.close();
+    toast(t('toast.settingsSaved'), canUndo);
+  } catch (cause) {
+    error.textContent = cause.message || t('settings.saveFailed');
+  } finally {
+    submit.disabled = false;
+  }
 });
 function openHelp(scrollToShortcuts) {
   $('about-version').textContent = appInfo.version ? t('help.version', { version: appInfo.version }) : '';
