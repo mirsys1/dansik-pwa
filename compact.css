@@ -127,6 +127,7 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .food-ai-actions { display: flex; align-items: stretch; gap: 8px; }
 .food-ai-actions input { flex: 1 1 0; min-width: 0; }
 .food-ai-actions button { flex: 0 0 auto; }
+#food-ai-scan { margin-bottom: 8px; }
 #food-photo-status:empty { display: none; }
 #food-total { font-variant-numeric: tabular-nums; font-weight: 650; }
 .energy-breakdown { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }

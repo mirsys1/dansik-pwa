@@ -679,6 +679,7 @@ document.addEventListener('keydown',event=>{
   else if(key===','){event.preventDefault();openSettings();}
 });
 window.addEventListener('focus',()=>{tick();renderStats();});
+window.addEventListener('dansik:photo-pair',event=>toast(event.detail));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick();renderStats();}});
 document.querySelectorAll('[data-meal]').forEach(button=>{button.disabled=true;});
 if(window.desktop){

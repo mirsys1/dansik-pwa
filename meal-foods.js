@@ -1,5 +1,4 @@
-/* Food entry and temporary meal-photo controls.  This file intentionally has
- * no storage or image-analysis dependency: the caller persists read() data. */
+/* Food entry, photo analysis, and pairing. The caller saves meal data returned by read(). */
 (function mealFoodsModule(root) {
   'use strict';
 
@@ -10,6 +9,7 @@
   const MAX_DENSITY = 20000;
   const MAX_AI_BYTES = 1024 * 1024;
   const CODE_PATTERN = /^[A-Za-z0-9_-]{24,128}$/;
+  const PAIR_LINK = 'https://mirsys1.github.io/dansik-pwa/#photo-connect=';
   let cameraStream = null;
   let initialized = false;
   let transientGeneration = 0;
@@ -229,6 +229,62 @@
     byId('food-ai-code').value = '';
     byId('food-ai-setup').hidden = Boolean(code);
     byId('food-ai-disconnect').hidden = !code;
+  }
+
+  function codeFromQrLink(link) {
+    if (!link.startsWith(PAIR_LINK)) return '';
+    const code = link.slice(PAIR_LINK.length);
+    return CODE_PATTERN.test(code) ? code : '';
+  }
+
+  function connectFromQr(code) {
+    if (!code) return copy('단식 타이머 연결용 QR을 찍어 주세요.', 'Scan the QR code for Dansik Timer.');
+    if (photoCode && photoCode !== code) return copy('이미 연결되어 있어요. 바꾸려면 기존 연결을 먼저 꺼 주세요.', 'Already connected. Turn off the current connection to replace it.');
+    setPhotoCode(code);
+    return copy('사진 분석을 연결했어요. 음식 사진을 찍거나 올려 보세요.', 'Photo analysis is connected. Take or add a food photo.');
+  }
+
+  function consumePhotoPairLink() {
+    const link = root.location.href;
+    if (!link.startsWith(PAIR_LINK)) return;
+    root.history.replaceState(root.history.state, '', root.location.pathname);
+    const message = connectFromQr(codeFromQrLink(link));
+    if (byId('meal-dialog').open) setStatus(message);
+    else root.dispatchEvent(new CustomEvent('dansik:photo-pair', { detail: message }));
+  }
+
+  async function scanPhotoPairQr(file) {
+    const button = byId('food-ai-scan');
+    const generation = transientGeneration;
+    const active = () => isCurrentGeneration(generation) && byId('meal-dialog').open;
+    button.disabled = true;
+    try {
+      if (file.size > MAX_IMAGE_BYTES || typeof root.jsQR !== 'function') throw new Error('QR image unavailable');
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reader.onabort = reject;
+        reader.readAsDataURL(file);
+      });
+      const qrImage = new Image();
+      qrImage.src = dataUrl;
+      await qrImage.decode();
+      if (!active()) return;
+      const scale = Math.min(1, 1600 / Math.max(qrImage.naturalWidth, qrImage.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(qrImage.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(qrImage.naturalHeight * scale));
+      const context = canvas.getContext('2d');
+      context.drawImage(qrImage, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      const result = root.jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'dontInvert' });
+      if (!result) throw new Error('QR code not found');
+      setStatus(connectFromQr(codeFromQrLink(result.data)));
+    } catch {
+      if (active()) setStatus(copy('QR을 읽지 못했어요. PC 화면의 QR 전체가 보이게 다시 찍어 주세요.', 'Could not read the QR code. Capture the entire code on your PC screen.'));
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function cancelAnalysis() {
@@ -561,6 +617,16 @@
       let saved = '';
       try { saved = root.localStorage.getItem(codeKey()) || ''; } catch { /* optional persistence */ }
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
+      const qrInput = byId('food-ai-qr-file');
+      byId('food-ai-scan').addEventListener('click', () => qrInput.click());
+      qrInput.addEventListener('change', () => {
+        const file = qrInput.files?.[0];
+        qrInput.value = '';
+        if (file) scanPhotoPairQr(file);
+      });
+      if (document.readyState === 'complete') consumePhotoPairLink();
+      else document.addEventListener('DOMContentLoaded', consumePhotoPairLink, { once: true });
+      root.addEventListener('hashchange', consumePhotoPairLink);
       const codeInput = byId('food-ai-code');
       const connect = () => {
         const code = codeInput.value.trim();

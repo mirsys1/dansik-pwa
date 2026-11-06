@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'dansik-pwa-v1.0.46';
+const CACHE_NAME = 'dansik-pwa-v1.0.47';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   './core.js',
   './activity.js',
   './activity-ui.js',
+  './vendor/jsQR.js',
   './meal-foods.js',
   './i18n.js',
   './csv.js',

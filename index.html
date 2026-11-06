@@ -21,6 +21,7 @@
   <script src="activity.js" defer></script>
   <script src="pwa.js" defer></script>
   <script src="activity-ui.js" defer></script>
+  <script src="vendor/jsQR.js" defer></script>
   <script src="meal-foods.js" defer></script>
   <script src="renderer.js" defer></script>
   <script src="pwa-fit.js" defer></script>
@@ -106,6 +107,8 @@
           <div id="food-ai-setup">
             <label for="food-ai-code" data-i18n="intake.aiCode">사진 분석 연결 코드</label>
             <p class="field-help" data-i18n="intake.aiDisclosure">연결하면 사진을 선택할 때 Cloudflare AI로 보내요. 음식과 양을 확인하고 저장해 주세요.</p>
+            <button type="button" class="outline-button" id="food-ai-scan" data-i18n="intake.aiScan">QR 코드 스캔</button>
+            <input type="file" id="food-ai-qr-file" accept="image/*" capture="environment" hidden>
             <div class="food-ai-actions">
               <input id="food-ai-code" type="password" maxlength="128" autocomplete="off" autocapitalize="none" spellcheck="false">
               <button type="button" class="outline-button" id="food-ai-connect" data-i18n="intake.aiConnect">연결</button>
