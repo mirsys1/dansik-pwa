@@ -192,6 +192,14 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .day-energy-balance { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }
 .day-energy-balance span { min-width: 0; font-size: var(--type-label); font-weight: 700; white-space: nowrap; }
 .day-energy-balance strong { flex-shrink: 0; font-size: calc(var(--type-label) + 2px); font-variant-numeric: tabular-nums; text-align: right; }
+/* A Korean system text-size increase can make the label and a long kcal value
+   wider than one small iPhone row. Keep them as one result, but give each a
+   dedicated line before their glyphs can collide. */
+@media (max-width: 390px) {
+  .day-energy-balance { align-items: stretch; flex-direction: column; gap: 2px; }
+  .day-energy-balance span { white-space: normal; word-break: keep-all; overflow-wrap: break-word; }
+  .day-energy-balance strong { max-width: 100%; overflow-wrap: anywhere; }
+}
 .day-energy-reference { margin-top: 7px; border-top: 1px solid var(--line); }
 .day-energy-reference summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; color: var(--accent-dark); font-size: var(--type-meta); font-weight: 650; }
 .day-energy-reference p { margin: 0 0 8px; font-size: var(--type-meta); line-height: 1.45; color: var(--muted); }
@@ -732,6 +740,33 @@ body.is-pwa dialog .dialog-heading h2 {
 body.is-pwa dialog .dialog-heading .icon-button {
   flex: 0 0 44px;
   align-self: flex-start;
+}
+/* Keep the fasting-record close control easy to tap, without letting its
+   decorative border compete with the record title. The button remains a
+   44px keyboard/touch target; only the visible close glyph and frame shrink. */
+body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"] {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  color: transparent;
+  background: transparent;
+}
+body.is-pwa #fasting-dialog .dialog-heading .icon-button[data-close="fasting-dialog"]::before {
+  content: "×";
+  position: absolute;
+  inset: 6px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
 }
 body.is-pwa #meal-form > .dialog-heading { padding-inline: 14px; }
 
