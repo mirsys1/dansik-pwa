@@ -788,6 +788,14 @@ body.is-pwa.touch-focus #weekly-chart .chart-day:focus-visible,
 body.is-pwa.touch-focus dialog .dialog-heading .icon-button:is([data-close], #activity-close, #workout-close):focus-visible {
   outline: none;
 }
+/* The settings title receives programmatic focus when its dialog opens so a
+   screen reader announces the dialog. iOS can draw its native blue ring after
+   a tap, even for tabindex=-1. Suppress only that touch-only decoration; a
+   keyboard event removes .touch-focus and restores the normal focus cue. */
+body.is-pwa.touch-focus #settings-title:focus {
+  outline: none;
+  box-shadow: none;
+}
 body.is-pwa #meal-form > .dialog-heading { padding-inline: 14px; }
 
 body.is-pwa .sidebar { min-height: 50px; padding-block: 2px; }

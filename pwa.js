@@ -154,7 +154,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.32 (PWA-62)', build: 'PWA-62' },
+      app: { version: '1.0.33 (PWA-63)', build: 'PWA-63' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },

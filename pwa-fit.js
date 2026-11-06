@@ -15,6 +15,7 @@
   const meta = panel.querySelector('.timer-meta');
   const digits = panel.querySelector('.timer-digits');
   const nav = document.querySelector('.sidebar nav');
+  const settingsDialog = document.querySelector('#settings-dialog');
   const viewport = window.visualViewport;
   const rail = matchMedia('(min-width: 920px) and (min-height: 540px)');
   let pending = 0;
@@ -57,8 +58,37 @@
       dial.toggleAttribute('data-clock-wrap', fitted < 24);
     }
   }
+  function fitSettingsDialog() {
+    if (!settingsDialog) return;
+    if (!settingsDialog.open) {
+      settingsDialog.style.removeProperty('zoom');
+      settingsDialog.style.removeProperty('width');
+      settingsDialog.style.removeProperty('max-width');
+      settingsDialog.style.removeProperty('max-height');
+      return;
+    }
+    settingsDialog.style.removeProperty('zoom');
+    // A CSS page zoom is separate from visualViewport scale. Preserve enlarged
+    // text and a user's pinch zoom; only reduce the dialog's layout box so the
+    // enlarged, scrollable dialog stays inside the physical PWA viewport.
+    const cssZoom = number(getComputedStyle(body).zoom) || 1;
+    if (cssZoom <= 1.01) {
+      settingsDialog.style.removeProperty('width');
+      settingsDialog.style.removeProperty('max-width');
+      settingsDialog.style.removeProperty('max-height');
+      return;
+    }
+    const visibleHeight = viewport && viewport.height > 0 ? viewport.height : innerHeight;
+    const visibleWidth = viewport && viewport.width > 0 ? viewport.width : innerWidth;
+    const safeTop = number(getComputedStyle(body).paddingTop);
+    const width = `${Math.max(160, (visibleWidth - 24) / cssZoom).toFixed(2)}px`;
+    settingsDialog.style.setProperty('width', width);
+    settingsDialog.style.setProperty('max-width', width);
+    settingsDialog.style.setProperty('max-height', `${Math.max(100, (visibleHeight - safeTop - 24) / cssZoom).toFixed(2)}px`);
+  }
   function fit() {
     if (viewport && !(viewport.scale > 0)) return;
+    fitSettingsDialog();
     const currentScale = viewport && viewport.scale > 0 ? viewport.scale : 1;
     // A standalone iPhone can start at a persisted scale such as 1.5. Fit that
     // initial viewport, then preserve additional pinch zoom relative to it.
@@ -73,8 +103,14 @@
     if (active && active.matches('input, textarea, select, [contenteditable="true"]') && active.closest('dialog[open]')) {
       const keyboardHeight = viewport && viewport.height > 0 ? viewport.height : innerHeight;
       const safeTop = number(getComputedStyle(body).paddingTop);
-      variable('--fit-dialog-height', `${Math.max(100, Math.floor(keyboardHeight - safeTop - 24))}px`);
-      variable('--fit-dialog-top', `${number(viewport && viewport.offsetTop) + safeTop + 12}px`);
+      // These variables position a top-layer dialog in CSS coordinates. When
+      // an accessibility/page CSS zoom is active, keep its enlarged text but
+      // convert the physical keyboard viewport back to those coordinates.
+      const cssZoom = number(getComputedStyle(body).zoom) || 1;
+      const availableHeight = Math.max(100, Math.floor((keyboardHeight - safeTop - 24) / cssZoom));
+      const top = (number(viewport && viewport.offsetTop) + safeTop + 12) / cssZoom;
+      variable('--fit-dialog-height', `${availableHeight}px`);
+      variable('--fit-dialog-top', `${top.toFixed(2)}px`);
       body.dataset.fitStatus = 'keyboard';
       lastKey = '';
       return;
@@ -177,11 +213,21 @@
   // Refit translated/long metadata without observing the once-per-second clock.
   changes.observe(stage, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
   changes.observe(meta, { childList: true, characterData: true, subtree: true });
+  if (settingsDialog) {
+    new MutationObserver(() => {
+      // `showModal()` changes [open] synchronously. Apply the small dialog-only
+      // constraint in this microtask so a very fast first tap cannot land before
+      // the debounced full-page fitting pass runs.
+      fitSettingsDialog();
+      schedule();
+    }).observe(settingsDialog, { attributes: true, attributeFilter: ['open'] });
+    settingsDialog.addEventListener('close', schedule);
+  }
   if (document.fonts) document.fonts.ready.then(() => { lastKey = ''; schedule(); });
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-62';
+  const fitBuild = 'PWA-63';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -234,7 +280,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.62';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.63';
         if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
           stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';
         } else {
