@@ -16,6 +16,7 @@
   const digits = panel.querySelector('.timer-digits');
   const nav = document.querySelector('.sidebar nav');
   const viewport = window.visualViewport;
+  const rail = matchMedia('(min-width: 920px) and (min-height: 540px)');
   let pending = 0;
   let lastKey = '';
   let previousHeight = 0;
@@ -97,9 +98,13 @@
     if (!body.dataset.fitMode) body.dataset.fitMode = 'comfortable';
     // Measure the actual nav content, including enlarged type. Safe padding is
     // included by CSS exactly once; shell reserves the same measured height.
-    variable('--pwa-nav-height', '54px');
-    const safeBottom = number(getComputedStyle(nav).paddingBottom) - 3;
-    variable('--pwa-nav-height', `${Math.max(54, Math.ceil(height(nav) - safeBottom))}px`);
+    if (rail.matches) {
+      variable('--pwa-nav-height', '0px');
+    } else {
+      variable('--pwa-nav-height', '54px');
+      const safeBottom = number(getComputedStyle(nav).paddingBottom) - 3;
+      variable('--pwa-nav-height', `${Math.max(54, Math.ceil(height(nav) - safeBottom))}px`);
+    }
     if (page.hidden) {
       lastKey = '';
       return;
@@ -174,7 +179,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-53';
+  const fitBuild = 'PWA-57';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -227,8 +232,12 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.53';
-        stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.57';
+        if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
+          stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';
+        } else {
+          stateLine.textContent = consistent ? (english ? 'App, layout and offline versions match.' : '앱·화면·오프라인 버전이 일치해요.') : (english ? 'Update check incomplete. Close and reopen the app.' : '버전 확인이 끝나지 않았어요. 앱을 닫았다가 다시 열어주세요.');
+        }
       }).catch(() => { stateLine.textContent = english ? 'Version unavailable.' : '버전을 확인하지 못했어요.'; });
     }, { capture: true });
     copy.addEventListener('click', () => {

@@ -8,6 +8,10 @@
 }
 :root { --type-meta: 13px; --type-body: 14px; --type-label: 16px; --type-title: 22px; }
 body { --window-chrome-height: 0px; font-family: 'Pretendard Variable', 'Malgun Gothic', system-ui, sans-serif; font-size: var(--type-body); line-height: 1.45; }
+.skip-link { position: fixed; z-index: 20; top: calc(var(--window-chrome-height) + 8px); left: 50%; transform: translate(-50%, -160%); padding: 8px 12px; border: 2px solid var(--accent-dark); border-radius: 8px; background: var(--surface); color: var(--accent-dark); font-size: var(--type-body); font-weight: 700; line-height: 1.2; text-decoration: none; white-space: nowrap; box-shadow: 0 3px 10px color-mix(in srgb, var(--text) 20%, transparent); transition: transform .15s ease; }
+.skip-link:focus { transform: translate(-50%, 0); outline: 3px solid var(--focus); outline-offset: 2px; }
+body.is-pwa .skip-link { top: calc(var(--pwa-safe-top) + 8px); }
+body.mini .skip-link { top: 8px; }
 body.has-window-chrome { --titlebar-height: env(titlebar-area-height, 32px); --window-menu-height: 22px; --window-chrome-height: calc(var(--titlebar-height) + var(--window-menu-height)); padding-top: var(--window-chrome-height); }
 body.has-window-chrome.mini { --window-menu-height: 0px; }
 .window-chrome { display: none; position: fixed; z-index: 10; top: 0; left: 0; right: 0; height: var(--window-chrome-height); background: var(--bg); }
@@ -108,20 +112,57 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .timer-meta strong { font-size: var(--type-body); line-height: 1.15; margin-top: 0; overflow-wrap: anywhere; }
 .timer-meta small { display: block; margin-top: 0; color: var(--muted); font-size: var(--type-meta); line-height: 1.15; white-space: nowrap; }
 
-.meal-foods { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
-.meal-foods summary { cursor: pointer; font-weight: 650; }
+.meal-details { margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.meal-details-summary { min-height: 44px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; color: var(--accent-dark); font-size: var(--type-body); font-weight: 700; list-style: none; }
+.meal-details-summary::-webkit-details-marker { display: none; }
+.meal-details-summary::marker { content: ''; }
+.meal-details-summary:hover { background: var(--accent-soft); border-radius: 9px; }
+.meal-details-summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 9px; }
+.meal-details-chevron { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; background: var(--accent-soft); font-size: 18px; line-height: 1; transition: transform .15s ease; }
+.meal-details[open] .meal-details-summary { border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; }
+.meal-details[open] .meal-details-chevron { transform: rotate(180deg); }
+.meal-details > label, .meal-details > input, .meal-details > .meal-foods { margin-inline: 12px; }
+.meal-details > label { display: block; margin-top: 10px; }
+.meal-details > input { width: calc(100% - 24px); }
+.meal-details > .meal-foods { margin-top: 12px; margin-bottom: 12px; }
+.meal-foods { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
+.meal-foods summary { cursor: pointer; font-weight: 700; }
+.meal-details[open] .meal-foods { margin-top: 10px; border-color: color-mix(in srgb, var(--line) 80%, var(--accent-soft)); }
+.meal-foods > summary { min-height: 44px; display: flex; align-items: center; padding: 8px 10px; margin: -2px -2px 4px; border-radius: 8px; color: var(--accent-dark); background: var(--accent-soft); list-style: none; }
+.meal-foods > summary::-webkit-details-marker { display: none; }
+.meal-foods > summary::marker { content: ''; }
+.meal-foods > summary::after { content: '⌄'; margin-left: auto; font-size: 18px; line-height: 1; transition: transform .15s ease; }
+.meal-foods[open] > summary::after { transform: rotate(180deg); }
+.meal-foods > summary:hover { filter: brightness(.98); }
+.meal-foods > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .meal-foods .field-help { margin: 4px 0; }
+.meal-details[open] { background: transparent; }
+/* Once calorie entry is open, its own controls provide the visual grouping.
+   Removing the two surrounding card borders keeps the small-screen form from
+   looking like a stack of nested panels. */
+.meal-details[open]:has(.meal-foods[open]) { border-color: transparent; }
+.meal-details[open] .meal-foods[open] { padding: 0; border-color: transparent; background: transparent; }
+.meal-details[open] .meal-foods[open] > summary { margin-inline: 0; }
 .food-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.food-row:first-child:only-child .food-row-head { display: none; }
 .food-row-head, .food-total-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .food-row-head .icon-button { min-width: 36px; min-height: 36px; }
 .food-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
 .food-fields label { min-width: 0; margin: 0; }
 .food-fields input { display: block; width: 100%; min-width: 0; }
+.food-row-more { margin-top: 7px; }
+.food-row-more summary { color: var(--accent-dark); font-size: var(--type-meta); font-weight: 650; }
+.food-fields-more { margin-top: 7px; }
+.food-tools { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 9px; }
+.food-tools > summary { color: var(--accent-dark); font-size: var(--type-meta); }
 .food-photo-choice { display: block; width: 100%; margin: 3px 0 6px; }
 .food-media-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
 .food-media { display: block; width: 100%; max-height: 185px; object-fit: contain; border-radius: 8px; background: var(--bg); }
 .food-ai-panel { margin: 6px 0; }
 .food-ai-panel:not([hidden]) ~ #food-photo-preview { max-height: 118px; }
+.food-ai-disclosure { display: grid; gap: 2px; margin: 8px 0; padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-left: 3px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent-soft) 74%, var(--surface)); color: var(--text); font-size: var(--type-meta); line-height: 1.45; }
+.food-ai-disclosure strong { color: var(--accent-dark); font-size: var(--type-meta); font-weight: 750; }
+.food-ai-disclosure span { color: var(--muted); }
 .food-ai-actions { display: flex; align-items: stretch; gap: 8px; }
 .food-ai-actions input { flex: 1 1 0; min-width: 0; }
 .food-ai-actions button { flex: 0 0 auto; }
@@ -142,6 +183,18 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 #energy-today dl { font-size: var(--type-label); line-height: 1.45; }
 .energy-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .energy-breakdown .energy-total { font-weight: 700; color: var(--accent-dark); }
+.day-calories { margin-bottom: 12px; }
+.day-calories h3 { margin: 0 0 2px; font-size: var(--type-label); }
+.day-calories dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+.day-calories dd { overflow-wrap: anywhere; }
+/* Keep the difference as one compact, aligned outcome instead of splitting its
+   Korean label and value across two unrelated grid rows. */
+.day-energy-balance { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }
+.day-energy-balance span { min-width: 0; font-size: var(--type-label); font-weight: 700; white-space: nowrap; }
+.day-energy-balance strong { flex-shrink: 0; font-size: calc(var(--type-label) + 2px); font-variant-numeric: tabular-nums; text-align: right; }
+.day-energy-reference { margin-top: 7px; border-top: 1px solid var(--line); }
+.day-energy-reference summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; color: var(--accent-dark); font-size: var(--type-meta); font-weight: 650; }
+.day-energy-reference p { margin: 0 0 8px; font-size: var(--type-meta); line-height: 1.45; color: var(--muted); }
 #energy-actions [data-activity-manual] { font-size: var(--type-label); }
 #energy-fasting-note { margin: 8px 0; }
 
@@ -220,7 +273,29 @@ dialog label:not(.check-label) { font-size: var(--type-body); margin-top: 13px; 
 .meal-day-options button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-weight: 700; }
 .meal-day-options small { color: var(--muted); font-size: var(--type-meta); font-variant-numeric: tabular-nums; }
 .meal-day-options button[aria-pressed="true"] small { color: inherit; }
-#meal-other-date input { width: 100%; font-size: 16px; }
+#meal-other-date {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+#meal-dialog #meal-other-date > label {
+  margin: 0;
+}
+#meal-other-date .field-help {
+  margin: 0;
+  line-height: 1.35;
+}
+#meal-other-date input {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  font-size: 16px;
+}
+#meal-other-date .field-error {
+  min-height: 0;
+  margin: 0;
+  line-height: 1.35;
+}
 .meal-time-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 4px; }
 #meal-dialog .meal-time-heading label { margin: 0; }
 #meal-last-time { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--accent-dark); font-size: var(--type-meta); font-weight: 600; white-space: nowrap; }
@@ -517,6 +592,11 @@ body.is-pwa[data-fit-mode] .stage-title { text-overflow: clip; overflow: visible
 body.is-pwa[data-fit-mode] .timer-meta { flex: none; padding: 6px 0 3px; }
 body.is-pwa[data-fit-mode] .timer-meta strong { font-size: 16px; }
 body.is-pwa[data-fit-mode] .timer-meta small { flex-basis: 100%; white-space: normal; }
+body.is-pwa[data-fit-mode="compact"] .dashboard-grid { padding-bottom: 0; }
+body.is-pwa[data-fit-mode="compact"] .timer-panel { padding-bottom: 0; }
+body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 2px; }
+body.is-pwa[data-fit-mode="compact"] .autophagy-stages { padding: 0 0 2px; }
+body.is-pwa[data-fit-mode="compact"] .timer-meta { padding: 2px 0 0; }
 body.is-pwa[data-fit-mode="compact"] .autophagy-stages { padding-bottom: 4px; }
 body.is-pwa[data-fit-landscape] .sidebar,
 body.is-pwa[data-fit-landscape] .shell > main { max-width: 960px; }
@@ -552,6 +632,229 @@ body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var
 /* Horizontal paging belongs to the app; vertical scrolling and pinch stay native. */
 #main-content { touch-action: pan-y pinch-zoom; }
 
+/* Keep form actions within reach while only the editable content scrolls. */
+#meal-dialog:has(.meal-form-body) { padding: 0; overflow: hidden; }
+#meal-form:has(> .meal-form-body) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(90vh - 2px);
+  max-height: calc(90dvh - 2px);
+}
+#meal-form > .dialog-heading {
+  padding: 12px 20px 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+}
+.meal-form-body { min-height: 0; overflow-y: auto; padding: 0 20px 20px; scroll-padding: 12px 12px 96px; scrollbar-gutter: stable; }
+.meal-form-footer { padding: 8px 20px 12px; border-top: 1px solid var(--line); box-shadow: 0 -8px 14px color-mix(in srgb, var(--surface) 84%, transparent); }
+.meal-form-footer .dialog-actions { margin: 0; gap: 8px; }
+.meal-form-footer .form-error { min-height: 0; margin: 0 0 6px; }
+.meal-form-footer .form-error:empty { display: none; }
+#meal-dialog .field-error:empty { display: none; }
+#meal-analysis-stop { min-height: 44px; margin-inline-end: auto; }
+body.is-pwa[data-fit-status="keyboard"] #meal-form:has(> .meal-form-body) { max-height: calc(var(--fit-dialog-height, 80vh) - 2px); }
+
+.intake-day-label { color: var(--muted); }
+.intake-day-value { display: block; font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.25; }
+#intake-add { width: 100%; justify-content: center; margin-top: 12px; }
+.intake-day-meals { list-style: none; padding: 0; margin: 12px 0 0; }
+.intake-day-meals:empty { display: none; }
+.settings-help-link { margin-top: 12px; }
+.settings-profile-only .settings-help-link, .help-mobile, body.is-pwa .help-desktop { display: none; }
+body.is-pwa .help-mobile { display: block; }
+.chart-hint { margin-top: 4px; color: var(--muted); font-size: var(--type-meta); }
+.chart-date-button { min-width: 72px; min-height: 44px; padding: 0 8px; color: var(--accent-dark); }
+.chart-date-list { margin-top: 12px; }
+.chart-date-list button { min-height: 48px; }
+
+/* Seven days fit a 360px phone when their visual bars share the available
+   width. Below that width, the 44px date chooser above the chart is the
+   deliberate touch-safe alternative; forcing seven 44px bars would require
+   a horizontal scroll and hide dates. */
+@media (min-width: 360px) and (max-width: 520px) {
+  .weekly-chart { gap: 0; }
+}
+#food-ai-setup > summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--accent-dark); font-weight: 650; }
+
+/* Stronger input outlines distinguish controls from the surrounding surfaces. */
+dialog { --field-edge: var(--muted); --field-edge: color-mix(in srgb, var(--muted) 72%, var(--input)); }
+dialog input:not([type=checkbox]):not([type=radio]), dialog select, dialog textarea { border-color: var(--field-edge); }
+@media (forced-colors: active) {
+  dialog input:not([type=checkbox]):not([type=radio]), dialog select, dialog textarea { border-color: ButtonText; }
+}
+
+body:not(.mini) .toast {
+  top: auto;
+  bottom: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(380px, calc(100% - 24px));
+}
+/* A feedback toast must not hide the timer's calorie summary or the tab rail.
+   On phone-sized PWAs it uses the transient title band below the app header;
+   the meal buttons and timer controls stay fully visible. */
+body.is-pwa:not(.mini) .toast {
+  top: calc(var(--pwa-safe-top) + 48px);
+  right: 12px;
+  bottom: auto;
+  left: 12px;
+  width: auto;
+  max-width: none;
+  transform: none;
+  justify-content: space-between;
+}
+/* Stats can scroll through several cards. Place feedback in its own flow row
+   below the title instead of as a fixed overlay, preserving every card and
+   the undo target at every scroll position. */
+body.is-pwa[data-page="insights"]:not(.mini) #page-insights > .toast {
+  position: static;
+  width: auto;
+  max-width: none;
+  margin: 0 0 8px;
+  transform: none;
+}
+body:not(.mini) #toast-close { min-width: 36px; min-height: 36px; }
+
+/* Long Korean titles need room to stay readable beside the fixed 44px close
+   target on narrow PWA dialogs. */
+body.is-pwa dialog .dialog-heading {
+  align-items: flex-start;
+  gap: 8px;
+}
+body.is-pwa dialog .dialog-heading h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -1px;
+  word-break: keep-all;
+}
+body.is-pwa dialog .dialog-heading .icon-button {
+  flex: 0 0 44px;
+  align-self: flex-start;
+}
+body.is-pwa #meal-form > .dialog-heading { padding-inline: 14px; }
+
+body.is-pwa .sidebar { min-height: 50px; padding-block: 2px; }
+body.is-pwa[data-fit-mode] .sidebar { min-height: 50px; }
+body.is-pwa .sidebar .icon-button, body.is-pwa .dialog-heading .icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+body.is-pwa .brand, body.is-pwa .header-action { min-height: 44px; }
+body.is-pwa .header-action { padding-inline: 4px; }
+body.is-pwa .timer-action {
+  position: relative;
+  isolation: isolate;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border-color: transparent;
+}
+body.is-pwa .timer-action::before {
+  content: '';
+  position: absolute;
+  inset: 4px 1px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+  z-index: -1;
+}
+body.is-pwa .timer-action:hover::before { background: var(--accent-soft); }
+body.is-pwa .timer-action { color: var(--accent-dark); font-weight: 700; }
+body.is-pwa .timer-digits span { color: var(--text); opacity: .72; }
+
+/* Keep a little visual breath between the timer card and fixed tab rail on
+   the shortest portrait layout without changing the global PWA fit. */
+body.is-pwa[data-fit-mode="compact"] .dashboard-grid { padding-bottom: 4px; }
+body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 0; }
+body.is-pwa dialog .dialog-actions button,
+body.is-pwa #intake-add,
+body.is-pwa #meal-dialog .quick-times button,
+body.is-pwa #meal-other-toggle,
+body.is-pwa #meal-last-time,
+body.is-pwa .food-media-actions button,
+body.is-pwa .food-total-row button { min-height: 44px; }
+body.is-pwa .history-row .icon-button { min-width: 44px; min-height: 44px; }
+
+@media (min-width: 920px) and (min-height: 540px) {
+  body.is-pwa .shell { padding-inline-start: 90px; padding-bottom: 0; }
+  body.is-pwa .shell .sidebar nav {
+    inset: 0 auto 0 0;
+    width: 84px;
+    min-height: 0;
+    height: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px;
+    border: 0;
+    border-inline-end: 1px solid var(--line);
+  }
+  body.is-pwa .shell .sidebar nav .nav-item { flex: none; flex-direction: column; min-height: 64px; white-space: normal; }
+
+  /* Wide PWA windows should keep the timer as the visual centre rather than
+     preserving the narrow-phone column at the top of a large canvas. */
+  body.is-pwa .shell > main { max-width: 1160px; padding-inline: 42px; }
+  body.is-pwa #page-timer .dashboard-grid {
+    grid-template-columns: minmax(230px, .72fr) minmax(500px, 1.48fr);
+    align-items: center;
+    gap: clamp(28px, 4vw, 52px);
+    min-height: calc(100dvh - 92px);
+    max-width: 990px;
+    margin-inline: auto;
+  }
+  body.is-pwa #page-timer .meal-panel { align-self: center; }
+  body.is-pwa #page-timer .meal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  body.is-pwa #page-timer .meal-button { min-height: 92px; padding: 12px 8px; }
+  body.is-pwa #page-timer .meal-art { width: 35px; height: 35px; }
+  body.is-pwa #page-timer .meal-art svg { width: 28px; height: 28px; }
+  /* The landscape compact rule is useful on a phone, but at desktop width it
+     splits the dial and its summary into two unrelated columns. Keep the
+     dial as the card's centre and place its stage and totals on the same axis. */
+  body.is-pwa #page-timer .timer-panel,
+  body.is-pwa[data-fit-landscape] #page-timer .timer-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    min-height: min(620px, calc(100dvh - 118px));
+    padding: 22px 28px 16px;
+    align-items: center;
+  }
+  body.is-pwa #page-timer .timer-panel > .panel-header,
+  body.is-pwa[data-fit-landscape] #page-timer .timer-panel > .panel-header { grid-column: 1; grid-row: 1; width: 100%; }
+  body.is-pwa #page-timer .dial-wrap,
+  body.is-pwa[data-fit-landscape] #page-timer .dial-wrap {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    width: min(94%, 405px);
+    margin: 15px auto 8px;
+  }
+  body.is-pwa #page-timer .timer-digits { font-size: clamp(58px, 5.2vw, 78px); }
+  body.is-pwa #page-timer .autophagy-stages,
+  body.is-pwa[data-fit-landscape] #page-timer .autophagy-stages {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: center;
+    margin: 0;
+    padding-block: 8px;
+  }
+  body.is-pwa #page-timer .timer-meta,
+  body.is-pwa[data-fit-landscape] #page-timer .timer-meta {
+    grid-column: 1;
+    grid-row: 4;
+    width: min(405px, 100%);
+    justify-self: center;
+    margin: 0;
+    padding-block: 8px 4px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  body.is-pwa[data-fit-landscape] #page-timer .timer-meta > .energy-summary + .energy-summary { border-left: 1px solid var(--line); }
+}
+
 #activity-dialog .data-actions { flex-wrap: wrap; gap: 8px; }
 #activity-dialog .data-actions label { margin: 0; font-weight: 500; cursor: pointer; }
 #activity-dialog select, #activity-dialog input:not([hidden]) { width: 100%; }
@@ -559,7 +862,7 @@ body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var
 #activity-dialog details > summary, #activity-manual label, #activity-manual input, #activity-manual button { font-size: var(--type-label); }
 #activity-status { margin: 10px 0; font-size: 14px; overflow-wrap: anywhere; }
 .activity-day { margin: 14px 0; padding: 12px; background: var(--accent-soft); border-radius: 10px; }
-#activity-manual { padding-bottom: 12px; }
+
 
 #activity-transfer { margin: 12px 0; border-top: 1px solid var(--line); padding-top: 8px; }
 #activity-paste { display: block; width: 100%; font: inherit; font-size: 14px; padding: 8px; resize: vertical; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
@@ -569,3 +872,220 @@ body.is-pwa[data-fit-status="keyboard"] dialog[open] { position: fixed; top: var
 .transfer-help ol { padding-left: 22px; font-size: 14px; line-height: 1.6; }
 .transfer-help li + li { margin-top: 8px; }
 .transfer-help pre { padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; background: var(--bg); border-radius: 6px; user-select: text; -webkit-user-select: text; }
+
+#workout-dialog {
+  --workout-pad: clamp(10px, 4vw, 18px);
+  width: min(416px, calc(100% - 24px));
+  padding: 0;
+  overflow: hidden;
+}
+#workout-dialog[open], #workout-content, #activity-manual {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#workout-dialog :is(button, summary) { min-height: 48px; }
+#workout-dialog .icon-button { min-width: 48px; }
+#workout-dialog .dialog-heading {
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding: 6px var(--workout-pad);
+  border-bottom: 1px solid var(--line);
+}
+#workout-title { overflow-wrap: anywhere; word-break: keep-all; text-wrap: balance; line-height: 1.25; }
+.workout-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--workout-pad) 8px;
+  scroll-padding-block: 8px;
+}
+#activity-manual .workout-body > label:first-child { margin-top: 8px; }
+#activity-manual input { min-width: 0; }
+.workout-kcal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 650;
+}
+#activity-manual #activity-kcal {
+  min-height: 56px;
+  padding: 4px 12px;
+  font-size: 28px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.workout-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-top: 12px;
+}
+.workout-end span, .workout-end strong { display: block; }
+.workout-end span { color: var(--muted); font-size: var(--type-meta); }
+.workout-end strong { font-variant-numeric: tabular-nums; }
+.workout-duration { min-width: 0; padding: 0; margin: 12px 0 0; border: 0; }
+.workout-duration legend { margin-bottom: 6px; padding: 0; font-weight: 650; }
+.workout-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)); gap: 6px; }
+#activity-manual .workout-preset { position: relative; display: block; min-width: 0; margin: 0; }
+.workout-preset input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.workout-preset span {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+.workout-preset input:checked + span { background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent); font-weight: 750; }
+.workout-preset input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.workout-optional { margin-top: 6px; }
+.workout-optional > summary { display: list-item; align-content: center; cursor: pointer; color: var(--muted); }
+#workout-dialog .dialog-actions { flex-shrink: 0; margin: 0; padding: 8px var(--workout-pad); border-top: 1px solid var(--line); }
+#workout-dialog .workout-result { margin: 0; padding: 14px var(--workout-pad); }
+@media (forced-colors: active) {
+  .workout-preset input:checked + span { border: 2px solid Highlight; }
+  .workout-preset input:focus-visible + span { outline-color: Highlight; }
+}
+
+#activity-dialog {
+  --activity-pad: clamp(10px, 4vw, 18px);
+  width: min(452px, calc(100% - 24px));
+  height: min(90vh, 660px);
+  height: min(90dvh, 660px);
+  padding: 0;
+  overflow: hidden;
+}
+#activity-dialog[open], #activity-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#activity-content { flex: 1 1 auto; overflow: hidden; }
+#activity-dialog .dialog-heading {
+  flex-shrink: 0;
+  gap: 8px;
+  margin: 0;
+  padding: 6px var(--activity-pad);
+  border-bottom: 1px solid var(--line);
+}
+#activity-title { line-height: 1.25; word-break: keep-all; overflow-wrap: anywhere; }
+#activity-dialog :is(button, summary, select) { min-height: 48px; }
+#activity-dialog .icon-button { min-width: 48px; }
+#activity-dialog button { white-space: normal; }
+.activity-body {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px var(--activity-pad);
+  scroll-padding-block: 8px;
+}
+#activity-dialog .activity-day {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+}
+.activity-day h3 { margin: 0 0 4px; font-size: var(--type-label); }
+.activity-today-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.activity-today-metrics dt, .activity-selected-source { color: var(--muted); font-size: var(--type-meta); }
+.activity-today-metrics dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(16px, 5vw, 23px);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.activity-selected-source { margin-top: 3px; overflow-wrap: anywhere; }
+.activity-front-actions .primary-button { width: 100%; }
+.activity-front-actions .field-help { margin: 4px 0 0; }
+.activity-group {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.activity-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  list-style: none;
+  cursor: pointer;
+}
+.activity-group > summary::-webkit-details-marker { display: none; }
+.activity-group > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+.activity-group[open] > summary::after { transform: rotate(225deg); }
+.activity-group > summary small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--type-meta);
+}
+.activity-group-body { padding: 0 10px 10px; }
+.activity-group-body > button, .activity-group-body > .data-actions, #activity-transfer > button,
+#activity-transfer > .data-actions { margin-top: 6px; }
+#activity-dialog #activity-transfer { margin: 6px 0 0; padding-top: 0; }
+#activity-dialog #activity-paste { border-color: var(--field-edge); }
+.activity-scroll-cue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 26px;
+  margin: 0;
+  padding: 3px var(--activity-pad);
+  color: var(--muted);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  font-size: var(--type-meta);
+  line-height: 1.25;
+  text-align: center;
+}
+.activity-scroll-cue span { color: var(--accent-dark); font-weight: 750; }
+.activity-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px var(--activity-pad);
+  border-top: 1px solid var(--line);
+}
+#activity-dialog[data-activity-scrollable] .activity-footer { box-shadow: 0 -7px 14px rgb(23 36 28 / 10%); }
+#activity-status {
+  margin: 0;
+  max-height: min(5em, 20vh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+/* `anywhere` is useful for long IDs, but it lets Korean prose split a word
+   between syllables on a 293px screen. Keep Korean labels and guidance at
+   natural word boundaries; an unusually long source name can still wrap. */
+html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activity-front-actions, .activity-group > summary, .activity-group-body, .activity-scroll-cue, .activity-footer) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}

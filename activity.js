@@ -63,6 +63,20 @@
     return Array.from(merged.values()).sort(compareSample);
   }
 
+  function addRecordedSamples(existing, incoming, now, manual = false) {
+    const samples = normalizeSamples(incoming);
+    assert(samples.length > 0, '활동 에너지 기록이 없어요.');
+    assert(samples.every(sample => sample.end <= now), '미래의 활동은 기록할 수 없어요.');
+    if (manual) {
+      assert(samples.length === 1 && samples[0].source === 'manual', '운동 기록 형식이 올바르지 않습니다.');
+      const candidate = samples[0];
+      const overlaps = existing.some(sample => sample.source === 'manual' && sample.id !== candidate.id &&
+        sample.start < candidate.end && sample.end > candidate.start);
+      assert(!overlaps, '이미 기록한 운동 시간과 겹쳐요. 종료 시각이나 운동 시간을 확인해 주세요.');
+    }
+    return mergeSamples(existing, samples);
+  }
+
   function parseIsoTime(value) {
     assert(typeof value === 'string', '단축어 활동 시각은 시간대가 있는 ISO 8601 문자열이어야 합니다.');
     // Do not accept local-time strings: imports must mean the same instant on
@@ -222,5 +236,5 @@
     return { totalKcal: roundKcal(basalKcal + activity.activeKcal), basalKcal: basalKcal, activeKcal: activity.activeKcal, calculationStatus: 'measured-activity', activity: activity };
   }
 
-  return { MIN_TIME: MIN_TIME, MAX_TIME: MAX_TIME, MAX_SAMPLES: MAX_SAMPLES, MAX_TRANSFER_CHARS: MAX_TRANSFER_CHARS, DEFAULT_PROFILE: DEFAULT_PROFILE, normalizeSample: normalizeSample, normalizeSamples: normalizeSamples, mergeSamples: mergeSamples, parseTransfer: parseTransfer, normalizeProfile: normalizeProfile, calculate: calculate, estimate: estimate };
+  return { MIN_TIME: MIN_TIME, MAX_TIME: MAX_TIME, MAX_SAMPLES: MAX_SAMPLES, MAX_TRANSFER_CHARS: MAX_TRANSFER_CHARS, DEFAULT_PROFILE: DEFAULT_PROFILE, normalizeSample: normalizeSample, normalizeSamples: normalizeSamples, mergeSamples: mergeSamples, addRecordedSamples: addRecordedSamples, parseTransfer: parseTransfer, normalizeProfile: normalizeProfile, calculate: calculate, estimate: estimate };
 });

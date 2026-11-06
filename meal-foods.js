@@ -16,6 +16,7 @@
   let transientGeneration = 0;
   let currentPhoto = null;
   let analysisRequest = null;
+  let photoReadGeneration = null;
   let noteEdited = false;
   let endpoint = null;
   let photoCode = '';
@@ -46,6 +47,7 @@
   }
 
   function nextTransientGeneration() {
+    photoReadGeneration = null;
     cancelAnalysis();
     stopQrScan();
     transientGeneration += 1;
@@ -104,6 +106,19 @@
       setText(output, calculated ? copy(`계산된 합계 ${formatted} kcal · 양 입력 필요`, `Calculated subtotal ${formatted} kcal · amount needed`)
         : copy('먹은 양을 입력하면 합계가 표시돼요.', 'Enter the amount eaten to show the total.'));
     } else setText(output, copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`));
+  }
+
+  // The calorie path opens below the short meal form. Keep the first row's
+  // label clear of the fixed dialog header as well as the editable fields
+  // clear of the save bar, without moving focus or opening the keyboard.
+  function revealFoodEntry() {
+    const foods = byId('meal-foods');
+    const scroller = document.querySelector('#meal-dialog .meal-form-body');
+    const target = foods?.querySelector('.food-row, .food-fields, [data-food-name]');
+    if (!foods?.open || !scroller || !target) return;
+    const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    const clearHeader = 28;
+    scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - clearHeader), behavior: 'instant' });
   }
 
   function computeKcal(row) {
@@ -185,11 +200,21 @@
     });
     fields.append(
       field(copy('음식 이름', 'Food name'), name),
+      field(copy('칼로리', 'Calories'), kcal)
+    );
+    const more = document.createElement('details');
+    more.className = 'food-row-more';
+    const moreSummary = document.createElement('summary');
+    moreSummary.textContent = copy('양·100g당 칼로리로 계산', 'Calculate from amount and kcal per 100 g');
+    const moreFields = document.createElement('div');
+    moreFields.className = 'food-fields food-fields-more';
+    moreFields.append(
       field(copy('양 (g)', 'Amount (g)'), grams),
-      field(copy('칼로리', 'Calories'), kcal),
       field(copy('100g당 kcal', 'kcal per 100g'), density)
     );
-    row.append(header, fields);
+    more.append(moreSummary, moreFields);
+    more.open = data.grams !== undefined || data.kcalPer100g !== undefined || Boolean(data.photoDraft);
+    row.append(header, fields, more);
     container.append(row);
     if (data.photoDraft || data.textDraft) {
       const draftKey = data.textDraft ? 'foodTextDraft' : 'foodPhotoDraft';
@@ -395,10 +420,26 @@
     }
   }
 
+  function analysisPending() {
+    return !!analysisRequest || photoReadGeneration !== null;
+  }
+
+  function updateAnalysisActions() {
+    const pending = analysisPending();
+    const stop = byId('meal-analysis-stop');
+    if (stop) stop.hidden = !pending;
+    const error = byId('meal-error');
+    if (!pending && error?.hasAttribute('data-analysis-pending')) {
+      error.removeAttribute('data-analysis-pending');
+      error.textContent = '';
+    }
+  }
+
   function cancelAnalysis() {
     if (analysisRequest?.kind === 'text') setText(byId('food-text-status'), '');
     analysisRequest?.controller.abort();
     analysisRequest = null;
+    updateAnalysisActions();
   }
 
   function discardDrafts(kind) {
@@ -510,6 +551,7 @@
     const controller = new AbortController();
     const request = { kind, controller };
     analysisRequest = request;
+    updateAnalysisActions();
     const isActive = () => analysisRequest === request && byId('meal-dialog').open;
     const timeout = root.setTimeout(() => controller.abort(), 30000);
     status(fromText ? copy('입력한 음식의 칼로리를 계산하고 있어요…', 'Calculating calories from your note…')
@@ -535,7 +577,10 @@
       if (isActive()) status(analysisError('UNAVAILABLE', kind));
     } finally {
       root.clearTimeout(timeout);
-      if (analysisRequest === request) analysisRequest = null;
+      if (analysisRequest === request) {
+        analysisRequest = null;
+        updateAnalysisActions();
+      }
     }
   }
 
@@ -545,6 +590,7 @@
   }
 
   function analyzeNote() {
+    if (analysisRequest?.kind === 'photo' || photoReadGeneration !== null) return;
     if (!noteEdited || !photoCode || !byId('food-text-auto')?.checked) return;
     const note = byId('meal-note').value.trim();
     if (!note) return;
@@ -553,8 +599,12 @@
   }
 
   function prepareSave() {
-    analyzeNote();
-    return analysisRequest?.kind !== 'text';
+    if (!analysisPending()) analyzeNote();
+    if (!analysisPending()) return true;
+    const error = byId('meal-error');
+    error.setAttribute('data-analysis-pending', '');
+    setText(error, copy('음식 칼로리를 계산 중이에요. 완료될 때까지 기다리거나 분석을 중단한 뒤 저장해 주세요.', 'Calorie analysis is running. Wait for it to finish or stop analysis before saving.'));
+    return false;
   }
 
   function clearPhoto(showStatus, invalidate) {
@@ -587,20 +637,31 @@
       setStatus(copy('사진은 12MB 이하로 올려 주세요.', 'Choose an image smaller than 12 MB.'));
       return;
     }
+    if (photoCode && endpoint) {
+      photoReadGeneration = generation;
+      updateAnalysisActions();
+    }
+    const finishReading = () => {
+      if (photoReadGeneration !== generation) return;
+      photoReadGeneration = null;
+      updateAnalysisActions();
+    };
     const reader = new FileReader();
     reader.onerror = reader.onabort = () => {
+      finishReading();
       if (isCurrentGeneration(generation)) setStatus(copy('사진을 읽지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be read. Please choose another one.'));
     };
     reader.onload = () => {
       if (!isCurrentGeneration(generation)) return;
       const preview = byId('food-photo-preview');
       const remove = byId('food-photo-remove');
-      if (!preview || typeof reader.result !== 'string') return;
+      if (!preview || typeof reader.result !== 'string') { finishReading(); return; }
       preview.src = reader.result;
       preview.alt = copy('입력한 음식 사진 미리보기', 'Selected food photo preview');
       const ready = typeof preview.decode === 'function' ? preview.decode() : Promise.resolve();
       ready.then(() => {
         if (!isCurrentGeneration(generation)) return;
+        finishReading();
         preview.hidden = false;
         if (remove) remove.hidden = false;
         currentPhoto = { preview, generation };
@@ -610,6 +671,7 @@
           : copy('사진은 이 입력 화면에서만 참고용으로 사용돼요. 음식과 칼로리를 확인해 주세요.', 'This photo is temporary reference only. Please confirm the food and calories.'));
       }).catch(() => {
         if (!isCurrentGeneration(generation)) return;
+        finishReading();
         clearPhoto(false, false);
         setStatus(copy('사진을 표시하지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be displayed. Please choose another one.'));
       });
@@ -753,14 +815,26 @@
     const source = Array.isArray(foods) ? foods : [];
     source.slice(0, MAX_FOODS).forEach((food) => addRow(food));
     if (source.length === 0) addRow();
+    const hasFoods = source.length > 0;
+    const mealDetails = byId('meal-details');
+    if (mealDetails) mealDetails.open = Boolean(expanded || hasFoods);
     const details = byId('meal-foods');
-    if (details) details.open = Boolean(expanded) || source.length > 0;
+    if (details) details.open = Boolean(expanded || hasFoods);
+    const tools = byId('food-tools');
+    // Show the two essential fields first. Photo/AI and quantity-based
+    // calculation stay one explicit choice away, so the calorie entry path
+    // does not begin with a long tool panel or depend on extra scrolling.
+    if (tools) tools.open = false;
     updateTotal();
+    if (expanded) requestAnimationFrame(revealFoodEntry);
   }
 
   function initialize() {
     if (initialized || !byId('food-items')) return;
     initialized = true;
+    byId('meal-foods')?.addEventListener('toggle', () => {
+      if (byId('meal-foods')?.open) requestAnimationFrame(revealFoodEntry);
+    });
     endpoint = photoEndpoint();
     if (endpoint) {
       byId('food-ai-panel').hidden = false;
@@ -847,6 +921,12 @@
     if (stop) stop.addEventListener('click', () => { nextTransientGeneration(); stopCamera(true); });
     const remove = byId('food-photo-remove');
     if (remove) remove.addEventListener('click', () => clearPhoto(true));
+    byId('meal-analysis-stop')?.addEventListener('click', () => {
+      noteEdited = false;
+      nextTransientGeneration();
+      setStatus(copy('분석을 중단했어요. 직접 입력한 내용은 저장할 수 있어요.', 'Analysis stopped. You can save the entries you added.'));
+      byId('save-meal').focus({ preventScroll: true });
+    });
     const dialog = byId('meal-dialog');
     if (dialog) dialog.addEventListener('close', () => { nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
     root.addEventListener('beforeunload', () => { nextTransientGeneration(); stopCamera(false); }, { once: true });

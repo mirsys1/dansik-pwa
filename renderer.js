@@ -54,6 +54,8 @@ function fatTrendKey(elapsedMs) {
 let state = C.defaultState();
 let busy = false;
 let editingId = null;
+let editingSnapshot = null;
+let settingsBaseline = null;
 let mealStartsTimer = false;
 let mealDateDay = '';
 let mealLastKey = '';
@@ -67,7 +69,6 @@ let theme = 'light';
 let prefs = { tray: false, autoStart: false, firstRunDone: true, canAutoStart: false, autoStartActive: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', sex: 'male', age: 35, heightCm: 170, weightKg: 68, activityLevel: 'light' };
 function applyColorTheme(name) { document.body.dataset.colorTheme = C.validColorTheme(name) ? name : 'sage'; }
 let appInfo = { version: '' };
-let firstRunShown = false;
 let pinBusy = false;
 let effectOpener = null;
 let fastingSelection = null;
@@ -90,7 +91,17 @@ function translateDom() {
   document.querySelectorAll('[data-meal]').forEach(button => { const key = Object.keys(MEAL_KEYS).find(k => MEAL_KEYS[k] === button.dataset.meal); button.title = t('meal.hint', { meal: mealName(button.dataset.meal), key }); });
   if (windowInfo) applyWindowInfo(windowInfo);
 }
-function toast(message, undo = false) { $('toast-message').textContent = message; $('undo-button').hidden = !undo; $('toast').hidden = false; clearTimeout(toastTimeout); toastTimeout = setTimeout(() => { $('toast').hidden = true; }, undo ? 15000 : 5000); }
+function placeToast(page = document.body.dataset.page || 'timer') {
+  const element = $('toast');
+  if (page === 'insights') {
+    const insights = $('page-insights');
+    const heading = insights.querySelector('.page-heading');
+    if (heading && element.parentElement !== insights) heading.after(element);
+  } else if (element.parentElement !== document.body) {
+    document.body.append(element);
+  }
+}
+function toast(message, undo = false) { placeToast(); $('toast-message').textContent = message; $('undo-button').hidden = !undo; $('toast').hidden = false; clearTimeout(toastTimeout); toastTimeout = setTimeout(() => { $('toast').hidden = true; }, undo ? 15000 : 5000); }
 function showWarning(message) { $('warning').textContent = message || ''; $('warning').hidden = !message; }
 function applyWindowInfo(info) {
   if(!info)return;
@@ -115,7 +126,8 @@ function applySnapshot(snapshot) {
   applyColorTheme(prefs.colorTheme);
   $('theme-button').setAttribute('aria-label', theme === 'light' ? t('theme.toDark') : t('theme.toLight'));
   $('save-status').textContent = t('footer.saved', { time: time(Date.now()) });
-  if (snapshot.warning) showWarning(snapshot.warning);
+  if (snapshot.warning || document.body.classList.contains('is-pwa')) showWarning(snapshot.warning);
+  if (snapshot.canUndo === false) $('undo-button').hidden = true;
   if ($('meal-dialog').open) updateMealDateControls();
   render();
 }
@@ -153,24 +165,34 @@ function stageColor(elapsedMs) {
   const f = b[0] === a[0] ? 0 : Math.min(1, (h - a[0]) / (b[0] - a[0]));
   return `rgb(${a[1].map((v, k) => Math.round(v + (b[1][k] - v) * f)).join(',')})`;
 }
+function dailyEnergySnapshot(date, now) {
+  const burned = window.FastingEnergy.forDay(date, prefs, now);
+  const intake = C.foodCalorieSummary(state.events, burned.from, Math.min(burned.until, burned.to + 1));
+  return { burned, intake, conflict: burned.calculationStatus === 'overlap-detected' };
+}
 function renderDailyCalories(now) {
   const minute = Math.floor(now / 60000);
-  if (dailyCaloriesView?.minute === minute && dailyCaloriesView.prefs === prefs && dailyCaloriesView.events === state.events) return;
+  if (dailyCaloriesView?.minute === minute && dailyCaloriesView.prefs === prefs && dailyCaloriesView.events === state.events) return dailyCaloriesView;
 
-  const burned = window.FastingEnergy.today(prefs, now);
-  let intake = 0;
-  for (const meal of state.events) {
-    if (meal.at < burned.from) break;
-    if (meal.at <= now && meal.foods?.length) intake += C.foodKcalTotal(meal.foods);
-  }
+  const snapshot = dailyEnergySnapshot(C.localDay(now, tz()), now);
+  const { burned, intake, conflict } = snapshot;
   const intakeButton = $('intake-summary');
   const energyButton = $('energy-summary');
-  $('intake-value').textContent = kcalText(intake, true);
-  intakeButton.setAttribute('aria-label', t('intake.aria', { amount: kcalText(intake) }));
-  $('goal-time').textContent = kcalText(burned.totalKcal, true);
-  energyButton.setAttribute('aria-label', t('energy.homeAria', { amount: kcalText(burned.totalKcal) }));
+  const intakeAmount = intake.logged ? kcalText(intake.kcal) : t('dayEnergy.noIntake');
+  const partialIntake = intake.logged > 0 && intake.missing > 0;
+  const partialBurned = !conflict && burned.activeKcal != null && burned.activity?.excludedBoundary > 0;
+  intakeButton.querySelector('.energy-label').textContent = t(partialIntake ? 'dayEnergy.homePartialIntake' : 'intake.label');
+  $('intake-value').textContent = intake.logged ? kcalText(intake.kcal, true) : t('dayEnergy.noAmount');
+  intakeButton.setAttribute('aria-label', t('intake.aria', { amount: partialIntake ? t('dayEnergy.partial', { kcal: intakeAmount }) : intakeAmount }));
+  const burnedLabel = partialBurned ? 'dayEnergy.homePartialBurned'
+    : !conflict && burned.activeKcal == null ? 'dayEnergy.homeBasal' : 'dayEnergy.burned';
+  energyButton.querySelector('.energy-label').textContent = t(burnedLabel);
+  $('goal-time').textContent = conflict ? t('dayEnergy.noAmount') : kcalText(burned.totalKcal, true);
+  const burnedAmount = conflict ? t('dayEnergy.activityConflict') : kcalText(burned.totalKcal);
+  energyButton.setAttribute('aria-label', t('energy.homeAria', { amount: burnedAmount }) + ' · ' + window.FastingEnergy.activityNote(burned, prefs));
   intakeButton.disabled = energyButton.disabled = false;
-  dailyCaloriesView = { minute, prefs, events: state.events };
+  dailyCaloriesView = { ...snapshot, minute, prefs, events: state.events };
+  return dailyCaloriesView;
 }
 function tick() {
   if (!ready) return;
@@ -181,15 +203,16 @@ function tick() {
   const active = Boolean(meal) && !timer.reset;
   const laterMeal = active && state.events[0] && state.events[0].at > meal.at;
   const anchorNote = $('timer-anchor-note');
-  const showAnchor = active && prefs.timerAnchorId === meal.id;
-  const anchorText = showAnchor ? t('timer.startAt', { when: intervalTime(meal.at) }) + (laterMeal ? ` · ${t('timer.mealAfter')}` : '') : '';
+  const showAnchor = !active || (active && prefs.timerAnchorId === meal.id);
+  const anchorText = !active ? t('timer.startGuide') : t('timer.startAt', { when: intervalTime(meal.at) }) + (laterMeal ? ` · ${t('timer.mealAfter')}` : '');
   if (anchorNote.textContent !== anchorText) anchorNote.textContent = anchorText;
   if (anchorNote.hidden === showAnchor) anchorNote.hidden = !showAnchor;
   const autophagy = C.getAutophagyStage(active && !timer.clockSkew && !laterMeal ? timer.elapsedMs : null);
   $('autophagy-dial').classList.toggle('is-active', autophagy.active);
+  $('autophagy-dial').hidden = !autophagy.active;
   $('autophagy-dial-dots').textContent = autophagy.dots;
   $('autophagy-dial-label').textContent = t(autophagy.current.titleKey);
-  document.querySelectorAll('#autophagy-stages .autophagy-stage').forEach(el => { const s = Number(el.dataset.stage), cur = autophagy.active && s === autophagy.stage; el.hidden = laterMeal || s !== autophagy.stage; el.classList.toggle('is-current', cur); el.classList.toggle('is-done', autophagy.active && s < autophagy.stage); if (cur) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current'); });
+  document.querySelectorAll('#autophagy-stages .autophagy-stage').forEach(el => { const s = Number(el.dataset.stage), cur = autophagy.active && s === autophagy.stage; el.hidden = !autophagy.active || laterMeal || s !== autophagy.stage; el.classList.toggle('is-current', cur); el.classList.toggle('is-done', autophagy.active && s < autophagy.stage); if (cur) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current'); });
   const pauseBtn = $('timer-pause'), resetBtn = $('timer-reset');
   if (pauseBtn) { pauseBtn.disabled = busy || !active; pauseBtn.textContent = timer.paused ? t('timer.resume') : t('timer.pause'); pauseBtn.setAttribute('aria-label', timer.paused ? t('timer.resumeAria') : t('timer.pauseAria')); pauseBtn.setAttribute('aria-pressed', String(Boolean(timer.paused))); }
   if (resetBtn) resetBtn.disabled = busy || !active;
@@ -264,22 +287,141 @@ function renderEnergyBreakdown(show, now) {
   const section = $('energy-today');
   section.hidden = $('energy-actions').hidden = !show;
   if (!show) return;
-  const daily = window.FastingEnergy.today(prefs, now);
-  const activity = daily.activeKcal == null ? t('energy.noActivity') : kcalText(daily.activeKcal);
-  section.innerHTML = `<p class="effect-caption">${t('energy.todayRange', { time: time(now) })}</p>
+  const { burned: daily, conflict } = renderDailyCalories(now);
+  const activity = conflict ? t('dayEnergy.activityConflict') : daily.activeKcal == null ? t('energy.noActivity') : kcalText(daily.activeKcal);
+  section.innerHTML = `<p class="effect-caption">${t('energy.todayRange', { time: time(daily.to) })}</p>
     <dl>
       <dt>${t('energy.basal')}</dt><dd data-energy-basal>${kcalText(daily.basalKcal)}</dd>
       <dt>${t('energy.activity')}</dt><dd data-energy-activity>${activity}</dd>
-      <dt class="energy-total">${t('energy.todayTotal')}</dt><dd class="energy-total" data-energy-total>${kcalText(daily.totalKcal)}</dd>
+      <dt class="energy-total">${t('energy.todayTotal')}</dt><dd class="energy-total" data-energy-total>${conflict ? '—' : kcalText(daily.totalKcal)}</dd>
     </dl>
     <p class="field-help">${esc(window.FastingEnergy.activityNote(daily, prefs))}</p>`;
 }
+function weightDateLabel(date) {
+  return new Intl.DateTimeFormat(L.locale, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${date}T12:00:00Z`));
+}
+function weightValue(weightKg, signed = false) {
+  const value = new Intl.NumberFormat(L.locale, { maximumFractionDigits: 1, signDisplay: signed ? 'exceptZero' : 'auto' }).format(weightKg);
+  return t('weight.value', { value });
+}
+function renderDayCalories(date, now) {
+  const section = $('energy-day');
+  if (!section) return;
+  section.hidden = !date || !window.FastingEnergy.forDay || !C.dayRange || !C.foodCalorieSummary;
+  if (section.hidden) return;
+
+  const currentDay = date === C.localDay(now, tz());
+  const { burned, intake, conflict } = currentDay ? renderDailyCalories(now) : dailyEnergySnapshot(date, now);
+  const intakeKcal = Math.round(intake.kcal * 10) / 10;
+  const balance = !conflict && intake.logged && !intake.missing
+    ? Math.round((intakeKcal - burned.totalKcal) * 10) / 10 : null;
+  const signed = balance > 0 ? '+' : balance < 0 ? '−' : '';
+  const balanceText = balance === null ? '—' : signed + kcalText(Math.abs(balance));
+  const intakeText = !intake.logged ? t('dayEnergy.noIntake') : intake.missing
+    ? t('dayEnergy.partial', { kcal: kcalText(intakeKcal) }) : kcalText(intakeKcal);
+  const weight = window.FastingWeight?.compare(state.weightMeasurements, date);
+  const measured = weight?.current ? weightValue(weight.current.weightKg) : t('dayEnergy.measureWeight');
+  const weightChange = weight?.previous ? `<dt>${t('weight.change')}</dt><dd data-day-weight-change>
+    <strong>${esc(weight.changeKg === 0 ? t('weight.unchanged') : weightValue(weight.changeKg, true))}</strong>
+    <br><small>${esc(t('weight.previous', { date: weightDateLabel(weight.previous.date) }))}</small></dd>` : '';
+  section.innerHTML = `<h3>${t('dayEnergy.title')}</h3>
+    <p class="effect-caption">${t(currentDay ? 'energy.todayRange' : 'dayEnergy.fullDay', { time: time(burned.to) })}</p>
+    <dl>
+      <dt>${t('intake.label')}</dt><dd data-day-intake>${esc(intakeText)}</dd>
+      <dt>${t('dayEnergy.burned')}</dt><dd data-day-burned>${conflict ? t('dayEnergy.activityConflict') : kcalText(burned.totalKcal)}</dd>
+      <dt>${t('dayEnergy.weight')}</dt><dd data-day-weight>${esc(measured)}</dd>
+      ${weightChange}
+    </dl>
+    <div class="day-energy-balance" data-day-balance-row>
+      <span>${t('dayEnergy.balance')}</span><strong data-day-balance>${balanceText}</strong>
+    </div>
+    <p class="field-help">${esc(window.FastingEnergy.activityNote(burned, prefs))}</p>
+    ${!conflict && balance === null ? `<p class="field-help">${t('dayEnergy.missing')}</p>` : ''}
+    <details class="day-energy-reference"><summary>${t('effects.modelTitle')}</summary><p>${t('dayEnergy.reference')}</p></details>
+    ${weight && $('weight-dialog') ? `<div class="food-media-actions"><button type="button" class="outline-button" aria-haspopup="dialog" aria-controls="weight-dialog" data-weight-date="${esc(date)}">${t(weight.current ? 'weight.edit' : 'weight.title')}</button></div>` : ''}`;
+}
+function bindWeightEditor() {
+  const dialog = $('weight-dialog');
+  const card = $('energy-day');
+  if (!dialog || !card) return;
+  const form = $('weight-form');
+  const input = $('weight-measurement');
+  const deleteButton = $('weight-delete');
+  const error = $('weight-error');
+  const prompt = $('weight-delete-prompt');
+  let edit = null;
+  let saving = false;
+
+  function showError(message = '') {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+  function resetDelete() {
+    prompt.hidden = true;
+    deleteButton.textContent = t('weight.delete');
+  }
+  card.addEventListener('click', event => {
+    const date = event.target.closest('[data-weight-date]')?.dataset.weightDate;
+    if (!window.FastingWeight?.validDate(date) || dialog.open) return;
+    const current = window.FastingWeight.compare(state.weightMeasurements, date).current;
+    edit = { date, expectedWeightKg: current?.weightKg ?? null };
+    $('weight-date').textContent = weightDateLabel(date);
+    input.value = current ? String(current.weightKg) : '';
+    deleteButton.hidden = !current;
+    resetDelete();
+    showError();
+    dialog.showModal();
+    input.focus({ preventScroll: true });
+  });
+
+  async function saveWeight(type, fields, message) {
+    if (!edit || saving) return;
+    saving = true;
+    const controls = [...form.querySelectorAll('button, input')];
+    controls.forEach(control => { control.disabled = true; });
+    form.setAttribute('aria-busy', 'true');
+    showError();
+    try {
+      const result = await window.desktop.action({ type, ...edit, ...fields });
+      if (!result.ok) { showError(L.err(result.error || t('error.saveFallback'))); return; }
+      applySnapshot(result);
+      dialog.close();
+      toast(t(message), result.canUndo);
+    } catch (err) {
+      showError(L.err(err));
+    } finally {
+      saving = false;
+      controls.forEach(control => { control.disabled = false; });
+      form.removeAttribute('aria-busy');
+    }
+  }
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    saveWeight('weight-record', { weightKg: input.valueAsNumber }, 'weight.saved');
+  });
+  input.addEventListener('input', () => { showError(); resetDelete(); });
+  deleteButton.addEventListener('click', () => {
+    if (!prompt.hidden) { saveWeight('weight-delete', {}, 'weight.deleted'); return; }
+    prompt.hidden = false;
+    deleteButton.textContent = t('weight.deleteConfirm');
+  });
+  dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+  dialog.addEventListener('close', () => {
+    const date = edit?.date;
+    edit = null;
+    if (!$('fasting-dialog').open || fastingSelection?.date !== date) return;
+    renderDayCalories(date, Date.now());
+    card.querySelector('[data-weight-date]')?.focus({ preventScroll: true });
+  });
+}
+bindWeightEditor();
 function openFastingDetail(selection = {}, opener = null) {
   fastingSelection = selection;
   if (!$('fasting-dialog').open) effectOpener = opener || document.activeElement;
   const now = Date.now();
   const stats = selection.live ? null : C.weeklyStats(state, now, tz());
-  let interval, date, records = [], laterMeal = false;
+  let interval, date, selectedDay, records = [], laterMeal = false;
   if (selection.live) {
     const meal = C.timerMeal(state, now, prefs);
     const timer = C.getTimer(state, now, prefs);
@@ -288,15 +430,16 @@ function openFastingDetail(selection = {}, opener = null) {
     date = C.localDay(now, tz());
   } else if (selection.date) {
     date = selection.date;
-    const entry = stats.daily.find(d => d.date === date);
-    records = entry ? entry.intervals : [];
-    interval = entry && entry.longestInterval;
+    selectedDay = stats.daily.find(d => d.date === date);
+    records = selectedDay?.intervals || [];
+    interval = records.find(x => x.from === selection.from && x.to === selection.to) || selectedDay?.longestInterval;
   } else {
     interval = stats.mealIntervals.find(x => x.from === selection.from && x.to === selection.to);
     date = interval ? C.localDay(interval.to, tz()) : '';
     records = stats.daily.find(d => d.date === date)?.intervals || [];
   }
   $('fasting-title').textContent = selection.live ? t('timer.goalArrival') : t('effects.dayTitle', { date: date ? new Date(date+'T12:00:00Z').toLocaleDateString(L.locale, { month: 'long', day: 'numeric', timeZone: 'UTC' }) : '' });
+  renderDayCalories(selectedDay?.date, now);
   renderEnergyBreakdown(selection.live, now);
   $('energy-fasting-note').hidden = !selection.live || !interval;
   if (!interval) {
@@ -338,12 +481,15 @@ function render() {
   renderHistory(); renderStats(); tick();
 }
 function goPage(page) {
+  document.body.dataset.page = page;
+  placeToast(page);
   $('sr-status').textContent = { timer: t('sr.timer'), history: t('sr.history'), insights: t('sr.insights') }[page] || '';
   document.querySelectorAll('.page').forEach(el => { el.hidden = el.id !== `page-${page}`; });
   document.querySelectorAll('[data-page]').forEach(button => { button.classList.toggle('active', button.dataset.page===page); if(button.dataset.page===page)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current'); });
   const main = document.querySelector('main');
-  main.scrollTop = 0; // PWA: <main> is its own scroll container, scrollIntoView only moves ancestors
-  main.scrollIntoView({behavior:'instant'});
+  // The web app scrolls inside main; Windows scrolls the document under its title bar.
+  main.scrollTop = 0;
+  if (!document.body.classList.contains('is-pwa')) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 (function enableTouchPaging() {
@@ -470,6 +616,20 @@ function showOtherMealDate(show) {
   $('meal-date').disabled = !show;
   $('meal-other-toggle').setAttribute('aria-expanded', String(show));
 }
+function setMealFieldError(field, message = '') {
+  const error = $(`meal-${field}-error`);
+  const input = $(`meal-${field === 'clock' ? 'clock' : 'date'}`);
+  if (error) error.textContent = message;
+  if (input) input.setAttribute('aria-invalid', String(Boolean(message)));
+}
+function showMealFieldValidation(field, message) {
+  $('meal-error').textContent = '';
+  setMealFieldError(field, message);
+  const input = $(`meal-${field === 'clock' ? 'clock' : 'date'}`);
+  input?.scrollIntoView({ block: 'center', behavior: 'instant' });
+  input?.focus({ preventScroll: true });
+}
+function clearMealFieldErrors() { setMealFieldError('date'); setMealFieldError('clock'); }
 function updateMealDateControls() {
   const days = mealDayOptions();
   mealDateDay = days.today;
@@ -504,20 +664,46 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   editingId = id;
   mealStartsTimer = !id && startTimer;
   const event = state.events.find(item => item.id === id);
+  editingSnapshot = event ? C.clone(event) : null;
   $('meal-dialog-title').textContent = event ? t('meal.dialogEdit') : t('meal.dialogNew');
   $('meal-type').value = event?.type || 'breakfast';
   setMealDateTime(event?.at || Date.now());
   $('meal-note').value = event?.note || '';
   $('meal-error').textContent = '';
+  clearMealFieldErrors();
   $('delete-meal').hidden = !event;
   window.MealFoods.open(event?.foods, showFoods);
   $('meal-dialog').showModal();
+  const scroller = $('meal-dialog').querySelector('.meal-form-body');
+  if (scroller) scroller.scrollTop = 0;
 }
-function openIntake() {
+function renderIntake() {
   const now = Date.now();
   const today = C.localDay(now, tz());
-  const meal = state.events.find(event => event.at <= now);
-  openMeal(meal && C.localDay(meal.at, tz()) === today ? meal.id : null, true);
+  const from = C.parseLocalInput(today + 'T00:00', tz());
+  const meals = [];
+  for (const meal of state.events) {
+    if (meal.at < from) break;
+    if (meal.at <= now) meals.push(meal);
+  }
+  const logged = meals.filter(meal => meal.foods?.length);
+  const total = logged.reduce((sum, meal) => sum + C.foodKcalTotal(meal.foods), 0);
+  $('intake-day-value').textContent = logged.length ? kcalText(total) : t('intake.noCalories');
+  $('intake-day-coverage').textContent = meals.length
+    ? t('intake.coverage', { logged: logged.length, total: meals.length }) : t('intake.empty');
+  $('intake-day-meals').innerHTML = meals.map(meal => {
+    const kind = mealName(meal.type);
+    const amount = meal.foods?.length ? kcalText(C.foodKcalTotal(meal.foods)) : t('intake.noCalories');
+    return `<li><button type="button" class="settings-link" data-intake-edit="${esc(meal.id)}">
+      <span class="settings-row-copy"><strong>${esc(kind)} · ${esc(time(meal.at))}</strong><small>${esc(amount)} · ${t('intake.editMeal')}</small></span>
+    </button></li>`;
+  }).join('');
+}
+function openIntake() {
+  const dialog = $('intake-dialog');
+  if (!dialog) { openMeal(null, true); return; }
+  renderIntake();
+  dialog.showModal();
 }
 function openSettings(profileOnly = false) {
   const dialog = $('settings-dialog');
@@ -545,12 +731,33 @@ function openSettings(profileOnly = false) {
   $('goal-input').value = state.settings.goalHours;
   $('goal-input').disabled = profileOnly;
   $('notifications-input').checked = state.settings.notifications;
+  settingsBaseline = {
+    prefs: {
+      ...profile, tray: $('tray-input').checked, autoStart: $('autostart-input').checked,
+      language: $('language-input').value, timeZone: $('timezone-input').value, colorTheme: $('color-theme-input').value
+    },
+    settings: { ...state.settings }
+  };
   $('settings-error').textContent = '';
   dialog.showModal();
   title.focus({ preventScroll: true });
   dialog.scrollTop = 0;
 }
-async function exportData() { const result = await action({type:'export'}, null, false); if(result?.exported)toast(t('toast.exported')); }
+async function exportData(format) {
+  const chooser = $('export-dialog');
+  if (!format && chooser && document.body.classList.contains('is-pwa')) {
+    $('export-error').textContent = '';
+    chooser.showModal();
+    return;
+  }
+  const result = await action(format ? { type: 'export', format } : { type: 'export' }, null, false);
+  if (result?.exported) {
+    if (chooser?.open) chooser.close();
+    toast(t('toast.exported'));
+  } else if (chooser?.open && !result) {
+    $('export-error').textContent = lastActionError || t('export.failed');
+  }
+}
 
 icons();
 $('dial-ticks').innerHTML = Array.from({length:60},(_,i) => { const a=i*Math.PI/30;const outer=187;const inner=i%5===0?179:183;return `<line class="dial-tick" x1="${180+inner*Math.sin(a)}" y1="${180-inner*Math.cos(a)}" x2="${180+outer*Math.sin(a)}" y2="${180-outer*Math.cos(a)}"/>`; }).join('');
@@ -562,10 +769,15 @@ document.addEventListener('click', event => {
   else if(button.dataset.page)goPage(button.dataset.page);
   else if(button.dataset.goto)goPage(button.dataset.goto);
   else if(button.dataset.edit)openMeal(button.dataset.edit);
+  else if(button.dataset.intakeEdit)openMeal(button.dataset.intakeEdit, true);
+  else if(button.dataset.exportFormat)exportData(button.dataset.exportFormat);
   else if(button.id==='intake-summary')openIntake();
   else if(button.id==='energy-summary')openFastingDetail({live:true},button);
   else if(button.dataset.effectDate)openFastingDetail({date:button.dataset.effectDate},button);
-  else if(button.dataset.effectFrom)openFastingDetail({from:Number(button.dataset.effectFrom),to:Number(button.dataset.effectTo)},button);
+  else if(button.dataset.effectFrom) {
+    const date = button.closest('.effect-record-list') ? fastingSelection?.date : undefined;
+    openFastingDetail({ date, from: Number(button.dataset.effectFrom), to: Number(button.dataset.effectTo) }, button);
+  }
   else if(button.hasAttribute('data-add'))openMeal();
   else if(button.dataset.close)$(button.dataset.close).close();
 });
@@ -575,22 +787,45 @@ document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventLi
   $('meal-date').value = mealDayOptions()[button.dataset.mealDay];
   showOtherMealDate(false);
   updateMealDateControls();
-  $('meal-error').textContent = '';
+  $('meal-error').textContent = ''; clearMealFieldErrors();
 }));
 $('meal-other-toggle').addEventListener('click', () => showOtherMealDate($('meal-other-date').hidden));
-$('meal-date').addEventListener('input', () => { updateMealDateControls(); $('meal-error').textContent = ''; });
+$('meal-date').addEventListener('input', () => { updateMealDateControls(); $('meal-error').textContent = ''; setMealFieldError('date'); });
 $('meal-date').addEventListener('change', updateMealDateControls);
-$('meal-clock').addEventListener('input', () => { clearChangedMealPreset(); $('meal-error').textContent = ''; });
+$('meal-clock').addEventListener('input', () => { clearChangedMealPreset(); $('meal-error').textContent = ''; setMealFieldError('clock'); });
 $('meal-last-time').addEventListener('click', () => {
   const last = state.events[0];
   if (!last || last.at > Date.now()) return;
   setMealDateTime(last.at, last);
-  $('meal-error').textContent = '';
+  $('meal-error').textContent = ''; clearMealFieldErrors();
 });
 $('food-photo-pick').addEventListener('click', () => $('food-photo-file').click());
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
 $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
 $('add-history').addEventListener('click',()=>openMeal());
+let chartDateOpener = null;
+$('chart-date-menu')?.addEventListener('click', event => {
+  chartDateOpener = event.currentTarget;
+  const stats = C.weeklyStats(state, Date.now(), tz());
+  $('chart-date-list').innerHTML = stats.daily.map(day => {
+    const duration = day.longestInterval ? shortDuration(day.maxIntervalMs) : t('stats.dayNoData');
+    return `<button type="button" class="settings-link" data-effect-date="${esc(day.date)}"><span class="settings-row-copy"><strong>${esc(day.date)}</strong><small>${esc(duration)}</small></span></button>`;
+  }).join('');
+  $('chart-date-dialog').showModal();
+});
+$('chart-date-dialog')?.addEventListener('close', () => {
+  const opener = chartDateOpener;
+  chartDateOpener = null;
+  requestAnimationFrame(() => opener?.isConnected && opener.focus({ preventScroll: true }));
+});
+$('intake-add')?.addEventListener('click', () => openMeal(null, true));
+$('meal-dialog').addEventListener('close', () => {
+  if (!$('intake-dialog')?.open) return;
+  const edited = editingId;
+  renderIntake();
+  const item = [...$('intake-day-meals').querySelectorAll('[data-intake-edit]')].find(button => button.dataset.intakeEdit === edited);
+  (item || $('intake-add')).focus({ preventScroll: true });
+});
 
 
 $('settings-button').addEventListener('click', () => openSettings());
@@ -600,7 +835,11 @@ $('settings-dialog').addEventListener('close', () => {
   applyColorTheme(prefs.colorTheme);
   if ($('fasting-dialog').open && fastingSelection?.live) openFastingDetail(fastingSelection);
 });
-$('activity-dialog').addEventListener('close',()=>{if($('fasting-dialog').open && fastingSelection)openFastingDetail(fastingSelection);});
+for (const id of ['activity-dialog', 'workout-dialog']) {
+  $(id)?.addEventListener('close', () => {
+    if ($('fasting-dialog').open && fastingSelection) openFastingDetail(fastingSelection);
+  });
+}
 $('fasting-dialog').addEventListener('close',()=>{
   const origin = effectOpener;
   const target = origin?.isConnected ? origin : [...document.querySelectorAll('#weekly-chart button, #interval-list button')].find(button => origin && (
@@ -624,8 +863,8 @@ document.querySelectorAll('[data-window-menu]').forEach(button=>button.addEventL
 $('undo-button').addEventListener('click',()=>action({type:'undo'},t('toast.undone'),false));
 $('toast-close').addEventListener('click',()=>{$('toast').hidden=true;});
 $('load-more').addEventListener('click',()=>{historyLimit+=60;renderHistory();});
-$('export-history').addEventListener('click',exportData);
-$('export-settings').addEventListener('click',exportData);
+$('export-history').addEventListener('click', () => exportData());
+$('export-settings').addEventListener('click', () => exportData());
 async function importData() {
   const result = await action({type:'import-preview'}, null, false);
   if (!result || !result.picked) return;
@@ -635,6 +874,18 @@ async function importData() {
   $('import-merge-text').firstChild.textContent = t('import.mergeAdd', { added: p.added });
   $('import-merge-text').querySelector('small').textContent = p.skipped ? t('import.mergeSkip', { current: p.current, skipped: p.skipped }) : t('import.mergeKeep', { current: p.current });
   $('import-replace-text').firstChild.textContent = t('import.replaceCount', { current: p.current, count: p.count });
+  $('import-replace-text').querySelector('small').textContent = t('import.replaceHelp');
+  const weights = p.weights;
+  if (weights) {
+    const mergeHint = weights.incoming === null
+      ? t('import.weightKeep', { current: weights.current })
+      : t('import.weightMerge', { current: weights.current, added: weights.added });
+    const replaceHint = weights.incoming === null
+      ? t('import.weightKeep', { current: weights.current })
+      : t('import.weightReplace', { current: weights.current, incoming: weights.incoming });
+    $('import-merge-text').querySelector('small').textContent += ' ' + mergeHint;
+    $('import-replace-text').querySelector('small').textContent = replaceHint;
+  }
   $('import-mode-merge').checked = true;
   $('import-error').textContent = '';
   $('import-dialog').showModal();
@@ -650,26 +901,26 @@ $('import-confirm').addEventListener('click',async()=>{
 $('meal-form').addEventListener('submit',async event=>{
   event.preventDefault();
   if (window.MealFoods.prepareSave?.() === false) return;
-  const original = editingId ? state.events.find(item => item.id === editingId) : null;
-  if (!$('meal-date').value) { showOtherMealDate(true); $('meal-error').textContent=t('meal.dateMissing'); $('meal-date').focus(); return; }
+  const original = editingSnapshot;
+  if (!$('meal-date').value) { const message = t('meal.dateMissing'); showOtherMealDate(true); showMealFieldValidation('date', message); return; }
   const local = mealLocalValue();
   clearChangedMealPreset();
   const exact = mealExactPreset ? mealExactPreset.at : null;
   // Leaving the time field alone keeps the stored time (including its seconds) untouched.
   const timeUntouched = !!original && local === localInput(original.at) && (exact === null || exact === original.at);
   const at = exact === null ? C.parseLocalInput(local, tz()) : exact;
-  if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){$('meal-error').textContent=t('meal.timeRange');return;}
-  if(!timeUntouched&&localInput(at)!==local){$('meal-error').textContent=t('meal.invalidLocal');return;}
+  if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){const message=t('meal.timeRange');showMealFieldValidation('clock', message);return;}
+  if(!timeUntouched&&localInput(at)!==local){const message=t('meal.invalidLocal');showMealFieldValidation('clock', message);return;}
   let foods;
   try { foods = window.MealFoods.read(); }
   catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
   if (!timeUntouched) patch.at = at;
-  const result=await action(editingId?{type:'update',id:editingId,patch}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
+  const result=await action(editingId?{type:'update',id:editingId,patch,expectedMeal:original}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
   if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
 });
 $('delete-meal').addEventListener('click',()=>{$('delete-error').textContent='';$('delete-dialog').showModal();});
-$('confirm-delete').addEventListener('click',async()=>{const result=await action({type:'delete',id:editingId},t('toast.mealDeleted'));if(result){$('delete-dialog').close();$('meal-dialog').close();}else $('delete-error').textContent=lastActionError||t('delete.failed');});
+$('confirm-delete').addEventListener('click',async()=>{const result=await action({type:'delete',id:editingId,expectedMeal:editingSnapshot},t('toast.mealDeleted'));if(result){$('delete-dialog').close();$('meal-dialog').close();}else $('delete-error').textContent=lastActionError||t('delete.failed');});
 $('settings-form').addEventListener('invalid', event => {
   const group = event.target.closest('.settings-group');
   if (group) group.open = true;
@@ -693,6 +944,8 @@ $('settings-form').addEventListener('submit', async event => {
     return;
   }
   const wanted = { sex: $('sex-input').value, age, heightCm, weightKg, activityLevel: $('activity-input').value };
+  const baseline = settingsBaseline || { prefs, settings: state.settings };
+  let settingsPatch = {};
   if (!profileOnly) {
     Object.assign(wanted, {
       tray: $('tray-input').checked,
@@ -700,11 +953,13 @@ $('settings-form').addEventListener('submit', async event => {
       timeZone: $('timezone-input').value,
       colorTheme: $('color-theme-input').value
     });
+    if (prefs.canAutoStart) wanted.autoStart = $('autostart-input').checked;
+    const themeAuto = $('theme-auto-input').checked;
+    const options = { goalEnabled: $('goal-enabled').checked, goalHours, notifications: $('notifications-input').checked, themeAuto };
+    settingsPatch = Object.fromEntries(Object.entries(options).filter(([key, value]) => value !== baseline.settings[key]));
+    if (settingsPatch.themeAuto === false && state.settings.themeAuto) settingsPatch.theme = theme;
   }
-  const changed = Object.fromEntries(Object.entries(wanted).filter(([key, value]) => value !== prefs[key]));
-  if (!profileOnly && prefs.canAutoStart && $('autostart-input').checked !== Boolean(prefs.autoStartActive || prefs.autoStart)) {
-    changed.autoStart = $('autostart-input').checked;
-  }
+  const changed = Object.fromEntries(Object.entries(wanted).filter(([key, value]) => value !== baseline.prefs[key]));
   submit.disabled = true;
   try {
     if (Object.keys(changed).length) {
@@ -712,18 +967,13 @@ $('settings-form').addEventListener('submit', async event => {
       if (!saved.ok) throw new Error(saved.error || t('settings.saveFailed'));
       prefs = saved.prefs;
       if (saved.state) applySnapshot(saved);
+      if (settingsBaseline === baseline) Object.assign(baseline.prefs, changed);
     }
     let canUndo = false;
-    if (!profileOnly) {
-      const themeAuto = $('theme-auto-input').checked;
-      const options = { goalEnabled: $('goal-enabled').checked, goalHours, notifications: $('notifications-input').checked, themeAuto };
-      const settingsPatch = Object.fromEntries(Object.entries(options).filter(([key, value]) => value !== state.settings[key]));
-      if (Object.keys(settingsPatch).length) {
-        if (!themeAuto && state.settings.themeAuto) settingsPatch.theme = theme;
-        const result = await action({ type: 'settings', patch: settingsPatch }, null);
-        if (!result) throw new Error(lastActionError || t('settings.saveFailed'));
-        canUndo = result.canUndo;
-      }
+    if (Object.keys(settingsPatch).length) {
+      const result = await action({ type: 'settings', patch: settingsPatch }, null);
+      if (!result) throw new Error(lastActionError || t('settings.saveFailed'));
+      canUndo = result.canUndo;
     }
     dialog.close();
     toast(t('toast.settingsSaved'), canUndo);
@@ -738,6 +988,7 @@ function openHelp(scrollToShortcuts) {
   if (!$('help-dialog').open) $('help-dialog').showModal();
   if (scrollToShortcuts) $('shortcuts-title').scrollIntoView({block:'start'});
 }
+$('settings-help')?.addEventListener('click', () => openHelp(false));
 const MEAL_KEYS = { '1': 'breakfast', '2': 'lunch', '3': 'dinner', '4': 'snack' };
 document.querySelectorAll('[data-meal]').forEach(button => { const key = Object.keys(MEAL_KEYS).find(k => MEAL_KEYS[k] === button.dataset.meal); button.setAttribute('aria-keyshortcuts', `Control+${key}`); button.title = t('meal.hint', { meal: mealName(button.dataset.meal), key }); });
 document.addEventListener('keydown',event=>{
@@ -759,7 +1010,14 @@ if(window.desktop){
   window.desktop.onState(snapshot=>{if(snapshot.state)applySnapshot(snapshot);if(snapshot.warning)showWarning(snapshot.warning);});
   window.desktop.onMode(mini=>{document.body.classList.toggle('mini',mini);});
   window.desktop.onCommand(name=>{if(name==='help'||name==='about')openHelp(false);else if(name==='shortcuts')openHelp(true);});
-  window.desktop.getState().then(result=>{if(!result.ok)throw new Error(result.error);applySnapshot(result);document.querySelectorAll('[data-meal]').forEach(button=>{button.disabled=false;});if(!prefs.firstRunDone&&!firstRunShown&&!state.events.length){firstRunShown=true;toast(t('toast.firstRun'));window.desktop.action({type:'prefs',patch:{firstRunDone:true}}).catch(()=>{});}}).catch(error=>{showWarning(t('error.loadFailed', { message: error.message }));$('save-status').textContent=t('footer.loadFailed');});
+  window.desktop.getState().then(result => {
+    if (!result.ok) throw new Error(result.error);
+    applySnapshot(result);
+    document.querySelectorAll('[data-meal]').forEach(button => { button.disabled = false; });
+  }).catch(error => {
+    showWarning(t('error.loadFailed', { message: error.message }));
+    $('save-status').textContent = t('footer.loadFailed');
+  });
 }else{showWarning(t('error.desktopOnly'));}
 setInterval(tick,1000);
 setInterval(()=>{if(ready)renderStats();},60000);

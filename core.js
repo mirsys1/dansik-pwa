@@ -1,8 +1,9 @@
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  const commonJs = typeof module === 'object' && module.exports;
+  const api = factory(commonJs ? require('./weight.js') : root.FastingWeight);
+  if (commonJs) module.exports = api;
   if (root) root.FastingCore = api;
-})(typeof window !== 'undefined' ? window : globalThis, function () {
+})(typeof window !== 'undefined' ? window : globalThis, function (Weight) {
   'use strict';
 
   const TYPES = Object.freeze(['breakfast', 'lunch', 'dinner', 'snack']);
@@ -41,6 +42,22 @@
     });
   }
   function foodKcalTotal(foods) { return normalizeFoods(foods).reduce((total, food) => total + food.kcal, 0); }
+  function foodCalorieSummary(events, from, until) {
+    let kcal = 0;
+    let logged = 0;
+    let missing = 0;
+    for (const meal of events) {
+      if (meal.at < from) break; // Stored meals are sorted newest first.
+      if (meal.at >= until) continue;
+      if (meal.foods?.length) {
+        kcal += foodKcalTotal(meal.foods);
+        logged += 1;
+      } else {
+        missing += 1;
+      }
+    }
+    return { kcal, logged, missing };
+  }
   function validateEvent(event, now) {
     assert(event && typeof event === 'object', '식사 기록 형식이 올바르지 않습니다.');
     assert(typeof event.id === 'string' && event.id.length >= 1 && event.id.length <= 160, '식사 기록 ID가 올바르지 않습니다.');
@@ -69,7 +86,13 @@
     const seen = new Set();
     for (const event of events) { assert(!seen.has(event.id), '식사 기록 ID가 중복되었습니다.'); seen.add(event.id); }
     for (let i = 1; i < events.length; i += 1) assert(events[i - 1].at >= events[i].at, '식사 기록은 최신순이어야 합니다.');
-    return { version: 1, events, settings: { goalHours: raw.settings.goalHours, goalEnabled, notifications: raw.settings.notifications, theme: raw.settings.theme, themeAuto }, notifiedKey: raw.notifiedKey };
+    const state = { version: 1, events, settings: { goalHours: raw.settings.goalHours, goalEnabled, notifications: raw.settings.notifications, theme: raw.settings.theme, themeAuto }, notifiedKey: raw.notifiedKey };
+    // An absent weight field is legacy. An explicit empty list is part of the backup.
+    if (Object.prototype.hasOwnProperty.call(raw, 'weightMeasurements')) {
+      assert(Array.isArray(raw.weightMeasurements), '입력 형식이 올바르지 않습니다.');
+      state.weightMeasurements = weightApi().normalizeMeasurements(raw.weightMeasurements);
+    }
+    return state;
   }
   function normalized(state, now) { return validateState(state, now); }
   function persistedNow(state, now) {
@@ -89,7 +112,47 @@
       assert(next.events.length < MAX_EVENTS, '합치면 기록이 최대 개수(100,000건)를 넘어요.');
       next.events.push(event); ids.add(event.id); meals.add(key); added += 1;
     }
-    sortEvents(next.events); return { state: normalizedPersisted(next, now), added, skipped };
+    const current = next.weightMeasurements?.length || 0;
+    const incomingCount = source.weightMeasurements?.length ?? null;
+    if (incomingCount !== null) {
+      next.weightMeasurements = weightApi().merge(next.weightMeasurements || [], source.weightMeasurements);
+    }
+    const weightAdded = (next.weightMeasurements?.length || 0) - current;
+    sortEvents(next.events);
+    return {
+      state: normalizedPersisted(next, now),
+      added,
+      skipped,
+      weights: { current, incoming: incomingCount, added: weightAdded }
+    };
+  }
+  function replaceBackup(state, incoming, now, restoreSettings) {
+    const current = normalizedPersisted(state, now);
+    const next = normalizedPersisted(incoming, now);
+    next.settings = {
+      ...(restoreSettings ? next.settings : current.settings),
+      theme: current.settings.theme,
+      themeAuto: current.settings.themeAuto
+    };
+    next.notifiedKey = null;
+    if (next.weightMeasurements === undefined && current.weightMeasurements !== undefined) {
+      next.weightMeasurements = current.weightMeasurements;
+    }
+    return next;
+  }
+  function weightApi() {
+    if (!Weight) throw new TypeError('지원하지 않는 요청입니다.');
+    return Weight;
+  }
+  function recordWeight(state, date, weightKg, now, timeZone, expectedWeightKg) {
+    const next = normalizedPersisted(state, now);
+    next.weightMeasurements = weightApi().record(next.weightMeasurements || [], date, weightKg, localDay(now, timeZone), expectedWeightKg);
+    return next;
+  }
+  function deleteWeight(state, date, now, timeZone, expectedWeightKg) {
+    const next = normalizedPersisted(state, now);
+    next.weightMeasurements = weightApi().remove(next.weightMeasurements || [], date, localDay(now, timeZone), expectedWeightKg);
+    return next;
   }
   function recordMeal(state, type, now, id) {
     assert(TYPES.includes(type), '식사 종류가 올바르지 않습니다.');
@@ -292,6 +355,14 @@
     const p = tzParts(at, timeZone);
     return `${String(p.year).padStart(4, '0')}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
   }
+  function dayRange(date, timeZone) {
+    const next = new Date(date + 'T00:00:00Z');
+    next.setUTCDate(next.getUTCDate() + 1);
+    return {
+      from: parseLocalInput(date + 'T00:00', timeZone),
+      until: parseLocalInput(next.toISOString().slice(0, 10) + 'T00:00', timeZone)
+    };
+  }
   function weeklyStats(state, now, timeZone) {
     const next = readOnlyState(state, now);
     const useTz = Boolean(timeZone && timeZone !== 'auto');
@@ -334,5 +405,5 @@
     let raw; try { raw = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new TypeError('JSON 형식의 단식 기록 백업 파일이 아니에요.'); }
     return normalizedPersisted(raw, Date.now());
   }
-  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, parseBackup, mergeBackup, recordMeal, updateMeal, deleteMeal, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
+  return { TYPES, COLOR_THEMES, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, foodCalorieSummary, validateEvent, validateState, validColorTheme, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, dayRange, parseBackup, mergeBackup, replaceBackup, recordMeal, updateMeal, deleteMeal, recordWeight, deleteWeight, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, weeklyStats, clone };
 });
