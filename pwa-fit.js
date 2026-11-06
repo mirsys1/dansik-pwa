@@ -160,7 +160,7 @@
       return;
     }
     let selected = 'compact';
-    let diameter = 128;
+    let diameter = 104;
     const stable = previousHeight && Math.abs(previousHeight - visibleHeight) < 16 && Math.abs(previousWidth - visibleWidth) < 16 && previousLandscape === landscape;
     const start = stable ? modes.indexOf(previousMode) : 0;
     for (let i = Math.max(0, start); i < modes.length; i += 1) {
@@ -172,16 +172,16 @@
       const available = grid.clientHeight - gridPad - (landscape ? 0 : height(meal) + number(gridStyle.rowGap));
       const stageGap = number(getComputedStyle(panel).getPropertyValue('--fit-stage-gap'));
       const metaGap = number(getComputedStyle(panel).getPropertyValue('--fit-meta-gap'));
-      const fixed = height(header) + pad + 12 + (landscape ? 0 : height(stage) + height(meta) + stageGap + metaGap);
+      const fixed = height(header) + pad + (landscape ? 12 : 20) + (landscape ? 0 : height(stage) + height(meta) + stageGap + metaGap);
       const innerWidth = panel.clientWidth - number(panelStyle.paddingLeft) - number(panelStyle.paddingRight);
       const column = landscape ? number(panelStyle.gridTemplateColumns.split(' ')[0]) : innerWidth;
       const maxWidth = Math.floor(column * 0.94);
       diameter = Math.floor(Math.min(330, maxWidth, available - fixed));
-      const preferred = landscape ? 160 : [280, 220, 128][i];
+      const preferred = landscape ? 160 : [280, 220, 104][i];
       selected = modes[i];
       if (diameter >= preferred) break;
     }
-    variable('--fit-dial-size', `${Math.max(128, Math.floor(diameter * 0.96))}px`);
+    variable('--fit-dial-size', `${Math.max(104, Math.floor(diameter * 0.96))}px`);
     fitDigits();
     // Reading minima take precedence on exceptionally constrained viewports.
     const digitRect = digits.getBoundingClientRect();
@@ -227,7 +227,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-63';
+  const fitBuild = 'PWA-64';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -280,7 +280,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.63';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.64';
         if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
           stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';
         } else {

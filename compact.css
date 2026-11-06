@@ -535,7 +535,7 @@ body.is-pwa label:has(#tray-input) {
   body.is-pwa .dial-wrap {
     flex: none;
     width: min(92%, 330px, calc(100dvh - 510px));
-    margin: auto auto 6px;
+    margin: 8px auto 14px;
   }
   body.is-pwa .autophagy-stages {
     flex: none;
@@ -573,8 +573,8 @@ body.is-pwa[data-fit-mode] {
   --fit-stage-gap: 16px;
   --fit-meta-gap: 14px;
 }
-body.is-pwa[data-fit-mode="dense"] { --fit-gap: 5px; --fit-meal-height: 52px; --fit-panel-pad: 8px; --fit-stage-gap: 10px; --fit-meta-gap: 9px; }
-body.is-pwa[data-fit-mode="compact"] { --fit-gap: 4px; --fit-meal-height: 44px; --fit-panel-pad: 5px; --fit-stage-gap: 4px; --fit-meta-gap: 4px; }
+body.is-pwa[data-fit-mode="dense"] { --fit-gap: 5px; --fit-meal-height: 52px; --fit-panel-pad: 8px; --fit-stage-gap: 12px; --fit-meta-gap: 9px; }
+body.is-pwa[data-fit-mode="compact"] { --fit-gap: 4px; --fit-meal-height: 44px; --fit-panel-pad: 5px; --fit-stage-gap: 10px; --fit-meta-gap: 4px; }
 body.is-pwa[data-fit-mode] .sidebar { height: auto; min-height: 44px; }
 body.is-pwa[data-fit-mode] .sidebar nav { height: auto; min-height: calc(54px + var(--pwa-safe-bottom)); }
 body.is-pwa[data-fit-mode] .nav-item { white-space: normal; }
@@ -596,7 +596,7 @@ body.is-pwa[data-fit-mode] .timer-panel { flex: 1 0 auto; min-height: min-conten
 body.is-pwa[data-fit-mode] .timer-actions { flex-shrink: 0; }
 body.is-pwa[data-fit-mode] .timer-action { position: relative; min-height: 36px; padding: 2px 8px; }
 body.is-pwa[data-fit-mode] .timer-action::after { content: ""; position: absolute; inset: -4px 0; }
-body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: auto auto var(--fit-stage-gap); }
+body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: 8px auto var(--fit-stage-gap); }
 body.is-pwa[data-fit-mode] .timer-digits { font-size: var(--fit-digit-size, min(clamp(43.89px, 13.585vw, 58.52px), max(32px, 19cqw))); }
 body.is-pwa[data-fit-mode] .timer-digits.long-duration { font-size: var(--fit-digit-size, min(clamp(33.44px, 10.45vw, 41.8px), max(28px, 16cqw))); }
 body.is-pwa[data-fit-mode] .timer-digits.extra-long-duration { font-size: var(--fit-digit-size, min(clamp(25.08px, 8.36vw, 33.44px), max(24px, 13cqw))); }
@@ -827,15 +827,14 @@ body.is-pwa .timer-action:hover::before { background: var(--accent-soft); }
 body.is-pwa .timer-action { color: var(--accent-dark); font-weight: 700; }
 body.is-pwa .timer-digits span { color: var(--text); opacity: .72; }
 
-/* The shortest portrait layout has no room to separate these rows.  All
-   taller phones retain the compact-mode gap declared with the fit tokens. */
+/* Keep the dial's outer tick marks clear of the stage even on short screens. */
 body.is-pwa[data-fit-mode="compact"] .dashboard-grid { padding-bottom: 4px; }
 @media (max-height: 520px) {
   body.is-pwa[data-fit-mode="compact"] {
-    --fit-stage-gap: 0px;
+    --fit-stage-gap: 6px;
     --fit-meta-gap: 3px;
   }
-  body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 0; }
+  body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-top: 4px; }
 }
 body.is-pwa dialog .dialog-actions button,
 body.is-pwa #intake-add,
