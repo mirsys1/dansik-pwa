@@ -155,7 +155,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.33 (PWA-65)', build: 'PWA-65' },
+      app: { version: '1.0.33 (PWA-66)', build: 'PWA-66' },
       canUndo: undoStack.length > 0,
       warning: warning ? I.err(warning) : null,
       language: { setting: prefs.language, resolved: I.lang },
@@ -310,9 +310,10 @@
         case 'load': return snapshot();
         case 'record': {
           if (now - lastClick < 1200) return { ok: false, debounced: true, canUndo: undoStack.length > 0, error: I.err('방금 기록했어요. 잘못 누르셨다면 되돌리기를 눌러주세요.') };
-          const result = persist(Core.recordMeal(state, payload.meal, now, newId()), true, resetTimerControl());
+          const id = newId();
+          const result = persist(Core.recordMeal(state, payload.meal, now, id), true, resetTimerControl());
           lastClick = now;
-          return result;
+          return { ...result, recordedMealId: id };
         }
         case 'add': {
           if (payload.startTimer !== undefined && typeof payload.startTimer !== 'boolean') throw new TypeError('입력 형식이 올바르지 않습니다.');

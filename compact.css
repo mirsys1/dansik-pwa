@@ -219,6 +219,10 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .history-row { grid-template-columns: 28px minmax(0, 1fr) auto auto; padding: 10px; gap: 7px; }
 .history-row strong { font-size: var(--type-label); }
 .history-row p, .history-row time { font-size: var(--type-meta); }
+.history-edit-copy { min-width: 0; padding: 3px 0; text-align: left; }
+.history-edit-copy strong, .history-edit-copy span { display: block; }
+.history-edit-copy span { color: var(--muted); font-size: var(--type-meta); overflow-wrap: anywhere; }
+.history-edit-copy:hover strong { color: var(--accent-dark); }
 .history-row .row-icon { width: 28px; height: 28px; }
 .history-row .icon-button { min-width: 28px; }
 .history-empty { padding: 40px 18px; }
@@ -850,6 +854,7 @@ body.is-pwa #meal-last-time,
 body.is-pwa .food-media-actions button,
 body.is-pwa .food-total-row button { min-height: 44px; }
 body.is-pwa .history-row .icon-button { min-width: 44px; min-height: 44px; }
+body.is-pwa .history-edit-copy { min-height: 44px; }
 
 @media (min-width: 920px) and (min-height: 540px) {
   body.is-pwa .shell { padding-inline-start: 90px; padding-bottom: 0; }

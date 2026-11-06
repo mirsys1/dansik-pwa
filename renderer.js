@@ -163,6 +163,23 @@ async function action(payload, message, undo = true) {
     document.querySelectorAll('[data-meal],#save-meal,#confirm-delete').forEach(button => { button.disabled = !ready; });
   }
 }
+async function recordMealAndEdit(meal) {
+  const result = await action({ type: 'record', meal }, t('toast.recorded', { meal: mealName(meal) }));
+  if (!result?.recordedMealId) return null;
+  // The response carries the exact persisted ID. Do not infer it from event order:
+  // a different tab can add or move another meal while this action is in flight.
+  if (!state.events.some(event => event.id === result.recordedMealId)) return null;
+  if (document.body.classList.contains('mini')) {
+    const expanded = await action({ type: 'mini' }, null, false);
+    const mini = expanded?.window?.mini ?? expanded?.mini;
+    if (mini !== false) return null;
+    // The PWA changes mode through an event; use its confirmed response as a
+    // fallback so the dialog cannot be opened inside the compact window.
+    document.body.classList.remove('mini');
+  }
+  openMeal(result.recordedMealId, true);
+  return result;
+}
 const DIAL_MS = 24 * 3600000;
 const TIMER_GRADIENTS = Object.freeze({
   p01: ['#a8cc91', '#38b76d', '#137d83'], p02: ['#a8cc91', '#2dcdb6', '#55ade4'],
@@ -334,8 +351,10 @@ function tick() {
 function row(event) {
   const meal = MEALS[event.type], name = mealName(event.type);
   const symbol = `<span class="row-icon ${event.type}">${icon(meal.icon)}</span>`;
-  const description = [event.note, event.foods?.length ? kcalText(C.foodKcalTotal(event.foods)) : ''].filter(Boolean).join(' · ');
-  return `<div class="history-row">${symbol}<div><strong>${name}</strong><p>${esc(description || t('history.noNote'))}</p></div><time datetime="${new Date(event.at).toISOString()}">${time(event.at)}</time><button class="icon-button" data-edit="${esc(event.id)}" aria-label="${esc(t('history.editAria', { when: dateTime(event.at), meal: name }))}">${icon('edit')}</button></div>`;
+  const foodNames = event.foods?.map(food => food.name).filter(Boolean).join(', ');
+  const description = [foodNames, event.note, event.foods?.length ? kcalText(C.foodKcalTotal(event.foods)) : ''].filter(Boolean).join(' · ');
+  const editAria = esc(t('history.editAria', { when: dateTime(event.at), meal: name }));
+  return `<div class="history-row">${symbol}<button type="button" class="history-edit-copy" data-edit="${esc(event.id)}" aria-label="${editAria}"><strong>${name}</strong><span>${esc(description || t('history.noNote'))}</span></button><time datetime="${new Date(event.at).toISOString()}">${time(event.at)}</time><button class="icon-button" data-edit="${esc(event.id)}" aria-label="${editAria}">${icon('edit')}</button></div>`;
 }
 function renderHistory() {
   $('history-count').textContent = t('history.count', { n: state.events.length });
@@ -851,7 +870,7 @@ icons();
 $('dial-ticks').innerHTML = Array.from({length:60},(_,i) => { const a=i*Math.PI/30;const outer=187;const inner=i%5===0?179:183;return `<line class="dial-tick" x1="${180+inner*Math.sin(a)}" y1="${180-inner*Math.cos(a)}" x2="${180+outer*Math.sin(a)}" y2="${180-outer*Math.cos(a)}"/>`; }).join('');
 document.addEventListener('click', event => {
   const button = event.target.closest('button'); if(!button)return;
-  if(button.dataset.meal) { action({type:'record',meal:button.dataset.meal},t('toast.recorded', { meal: mealName(button.dataset.meal) })); }
+  if(button.dataset.meal) { recordMealAndEdit(button.dataset.meal); }
   else if(button.dataset.goal) { action({type:'settings',patch:{goalHours:Number(button.dataset.goal),goalEnabled:true}},t('toast.goalSet', { h: button.dataset.goal })); }
   else if(button.hasAttribute('data-offset')) { setMealDateTime(Date.now()-Number(button.dataset.offset)*60000); $('meal-error').textContent=''; }
   else if(button.dataset.page)goPage(button.dataset.page);
@@ -873,7 +892,7 @@ document.addEventListener('click', event => {
   }
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
-$('past-meal').addEventListener('click',()=>openMeal(null, false, true));
+$('past-meal').addEventListener('click',()=>openMeal(null, true, true));
 document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventListener('click', () => {
   $('meal-date').value = mealDayOptions()[button.dataset.mealDay];
   showOtherMealDate(false);
@@ -1096,7 +1115,7 @@ document.addEventListener('keydown',event=>{
   if(!(event.ctrlKey||event.metaKey)||event.altKey||dialogOpen||!ready)return;
   const key=event.key.toLowerCase();
   if(key==='z'){if(!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();action({type:'undo'},t('toast.undone'),false);}return;}
-  if(MEAL_KEYS[key]){event.preventDefault();action({type:'record',meal:MEAL_KEYS[key]},t('toast.recorded', { meal: mealName(MEAL_KEYS[key]) }));return;}
+  if(MEAL_KEYS[key]){event.preventDefault();recordMealAndEdit(MEAL_KEYS[key]);return;}
   if(key==='n'){event.preventDefault();openMeal();}
   else if(key==='m'){event.preventDefault();action({type:'mini'},null,false);}
   else if(key===','){event.preventDefault();openSettings();}
