@@ -568,9 +568,13 @@ body.is-pwa[data-fit-mode] {
   --fit-meal-height: 64px;
   --fit-panel-pad: 12px;
   --fit-dial-size: 240px;
+  /* The stage label and calorie summary need their own rhythm below the
+     dial; keep the values measurable by the fit controller. */
+  --fit-stage-gap: 16px;
+  --fit-meta-gap: 14px;
 }
-body.is-pwa[data-fit-mode="dense"] { --fit-gap: 5px; --fit-meal-height: 52px; --fit-panel-pad: 8px; }
-body.is-pwa[data-fit-mode="compact"] { --fit-gap: 4px; --fit-meal-height: 44px; --fit-panel-pad: 5px; }
+body.is-pwa[data-fit-mode="dense"] { --fit-gap: 5px; --fit-meal-height: 52px; --fit-panel-pad: 8px; --fit-stage-gap: 10px; --fit-meta-gap: 9px; }
+body.is-pwa[data-fit-mode="compact"] { --fit-gap: 4px; --fit-meal-height: 44px; --fit-panel-pad: 5px; --fit-stage-gap: 4px; --fit-meta-gap: 4px; }
 body.is-pwa[data-fit-mode] .sidebar { height: auto; min-height: 44px; }
 body.is-pwa[data-fit-mode] .sidebar nav { height: auto; min-height: calc(54px + var(--pwa-safe-bottom)); }
 body.is-pwa[data-fit-mode] .nav-item { white-space: normal; }
@@ -592,11 +596,11 @@ body.is-pwa[data-fit-mode] .timer-panel { flex: 1 0 auto; min-height: min-conten
 body.is-pwa[data-fit-mode] .timer-actions { flex-shrink: 0; }
 body.is-pwa[data-fit-mode] .timer-action { position: relative; min-height: 36px; padding: 2px 8px; }
 body.is-pwa[data-fit-mode] .timer-action::after { content: ""; position: absolute; inset: -4px 0; }
-body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: auto auto 6px; }
+body.is-pwa[data-fit-mode] .dial-wrap { flex: none; width: var(--fit-dial-size); max-width: 100%; margin: auto auto var(--fit-stage-gap); }
 body.is-pwa[data-fit-mode] .timer-digits { font-size: var(--fit-digit-size, min(clamp(43.89px, 13.585vw, 58.52px), max(32px, 19cqw))); }
 body.is-pwa[data-fit-mode] .timer-digits.long-duration { font-size: var(--fit-digit-size, min(clamp(33.44px, 10.45vw, 41.8px), max(28px, 16cqw))); }
 body.is-pwa[data-fit-mode] .timer-digits.extra-long-duration { font-size: var(--fit-digit-size, min(clamp(25.08px, 8.36vw, 33.44px), max(24px, 13cqw))); }
-body.is-pwa[data-fit-mode] .autophagy-stages { flex: none; margin: 0 0 auto; padding: 2px 0 6px; }
+body.is-pwa[data-fit-mode] .autophagy-stages { flex: none; margin: 0 0 var(--fit-meta-gap); padding: 2px 0 6px; }
 body.is-pwa[data-fit-mode] .autophagy-stage { font-size: 13.5px; line-height: 1.2; white-space: normal; flex-wrap: wrap; text-align: center; overflow: visible; }
 body.is-pwa[data-fit-mode] .stage-title { text-overflow: clip; overflow: visible; }
 body.is-pwa[data-fit-mode] .timer-meta { flex: none; padding: 6px 0 3px; }
@@ -604,7 +608,7 @@ body.is-pwa[data-fit-mode] .timer-meta strong { font-size: 16px; }
 body.is-pwa[data-fit-mode] .timer-meta small { flex-basis: 100%; white-space: normal; }
 body.is-pwa[data-fit-mode="compact"] .dashboard-grid { padding-bottom: 0; }
 body.is-pwa[data-fit-mode="compact"] .timer-panel { padding-bottom: 0; }
-body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 2px; }
+body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: var(--fit-stage-gap); }
 body.is-pwa[data-fit-mode="compact"] .autophagy-stages { padding: 0 0 2px; }
 body.is-pwa[data-fit-mode="compact"] .timer-meta { padding: 2px 0 0; }
 body.is-pwa[data-fit-mode="compact"] .autophagy-stages { padding-bottom: 4px; }
@@ -809,10 +813,16 @@ body.is-pwa .timer-action:hover::before { background: var(--accent-soft); }
 body.is-pwa .timer-action { color: var(--accent-dark); font-weight: 700; }
 body.is-pwa .timer-digits span { color: var(--text); opacity: .72; }
 
-/* Keep a little visual breath between the timer card and fixed tab rail on
-   the shortest portrait layout without changing the global PWA fit. */
+/* The shortest portrait layout has no room to separate these rows.  All
+   taller phones retain the compact-mode gap declared with the fit tokens. */
 body.is-pwa[data-fit-mode="compact"] .dashboard-grid { padding-bottom: 4px; }
-body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 0; }
+@media (max-height: 520px) {
+  body.is-pwa[data-fit-mode="compact"] {
+    --fit-stage-gap: 0px;
+    --fit-meta-gap: 3px;
+  }
+  body.is-pwa[data-fit-mode="compact"] .dial-wrap { margin-bottom: 0; }
+}
 body.is-pwa dialog .dialog-actions button,
 body.is-pwa #intake-add,
 body.is-pwa #meal-dialog .quick-times button,
