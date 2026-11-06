@@ -391,14 +391,23 @@ function renderEnergyBreakdown(show, now) {
   const section = $('energy-today');
   section.hidden = $('energy-actions').hidden = !show;
   if (!show) return;
-  const { burned: daily, conflict } = renderDailyCalories(now);
+  const { burned: daily, intake, conflict } = renderDailyCalories(now);
   const activity = conflict ? t('dayEnergy.activityConflict') : daily.activeKcal == null ? t('energy.noActivity') : kcalText(daily.activeKcal);
+  const intakeText = !intake.logged ? t('dayEnergy.noIntake') : intake.missing
+    ? t('dayEnergy.partial', { kcal: kcalText(intake.kcal) }) : kcalText(intake.kcal);
+  const balance = !conflict && intake.logged && !intake.missing
+    ? Math.round((intake.kcal - daily.totalKcal) * 10) / 10 : null;
+  const signed = balance > 0 ? '+' : balance < 0 ? '−' : '';
+  const balanceText = balance === null ? '—' : signed + kcalText(Math.abs(balance));
   section.innerHTML = `<p class="effect-caption">${t('energy.todayRange', { time: time(daily.to) })}</p>
     <dl>
+      <dt>${t('intake.label')}</dt><dd data-energy-intake>${esc(intakeText)}</dd>
       <dt>${t('energy.basal')}</dt><dd data-energy-basal>${kcalText(daily.basalKcal)}</dd>
       <dt>${t('energy.activity')}</dt><dd data-energy-activity>${activity}</dd>
       <dt class="energy-total">${t('energy.todayTotal')}</dt><dd class="energy-total" data-energy-total>${conflict ? '—' : kcalText(daily.totalKcal)}</dd>
     </dl>
+    <div class="day-energy-balance" data-energy-balance-row><span>${t('dayEnergy.balance')}</span><strong data-energy-balance>${balanceText}</strong></div>
+    ${!conflict && balance === null ? `<p class="field-help">${t('dayEnergy.missing')}</p>` : ''}
     <p class="field-help">${esc(window.FastingEnergy.activityNote(daily, prefs))}</p>`;
 }
 function weightDateLabel(date) {

@@ -881,6 +881,33 @@ body.is-pwa .food-total-row button { min-height: 44px; }
 body.is-pwa .history-row .icon-button { min-width: 44px; min-height: 44px; }
 body.is-pwa .history-edit-copy { min-height: 44px; }
 
+/* Preserve the touch target while keeping frames around short labels compact. */
+@media (forced-colors: none) {
+  #meal-dialog :where(.meal-day-options button, .quick-times button, #meal-last-time, .meal-form-footer .outline-button, .meal-form-footer .primary-button) {
+    position: relative; isolation: isolate; min-height: 44px;
+    background: transparent; border-color: transparent;
+  }
+  #meal-dialog :where(.meal-day-options button, .quick-times button, #meal-last-time, .meal-form-footer .outline-button, .meal-form-footer .primary-button)::before {
+    content: ''; position: absolute; inset: 4px 0; z-index: -1;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  }
+  #meal-dialog .meal-day-options button { align-items: center; }
+  #meal-dialog .meal-day-options button[aria-pressed="true"]::before { background: var(--accent-soft); border-color: var(--accent); }
+  #meal-dialog :is(.quick-times button, #meal-last-time):hover:not(:disabled)::before { background: var(--accent-soft); border-color: var(--accent); }
+  #meal-dialog .meal-form-footer .primary-button::before { background: var(--accent-dark); border-color: var(--accent-dark); }
+  #meal-dialog .meal-form-footer .outline-button:hover::before { background: var(--accent-soft); border-color: var(--accent); }
+  dialog:not(#meal-dialog) :where(.dialog-actions > .outline-button, .dialog-actions > .primary-button) {
+    position: relative; isolation: isolate; min-height: 44px;
+    background: transparent; border-color: transparent;
+  }
+  dialog:not(#meal-dialog) :where(.dialog-actions > .outline-button, .dialog-actions > .primary-button)::before {
+    content: ''; position: absolute; inset: 4px 0; z-index: -1;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  }
+  dialog:not(#meal-dialog) .dialog-actions > .primary-button::before { background: var(--accent-dark); border-color: var(--accent-dark); }
+  dialog:not(#meal-dialog) .dialog-actions > .outline-button:hover::before { background: var(--accent-soft); border-color: var(--accent); }
+}
+
 @media (min-width: 920px) and (min-height: 540px) {
   body.is-pwa .shell { padding-inline-start: 90px; padding-bottom: 0; }
   body.is-pwa .shell .sidebar nav {
