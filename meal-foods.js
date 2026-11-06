@@ -618,12 +618,16 @@
       try { saved = root.localStorage.getItem(codeKey()) || ''; } catch { /* optional persistence */ }
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
       const qrInput = byId('food-ai-qr-file');
-      byId('food-ai-scan').addEventListener('click', () => qrInput.click());
-      qrInput.addEventListener('change', () => {
-        const file = qrInput.files?.[0];
-        qrInput.value = '';
-        if (file) scanPhotoPairQr(file);
-      });
+      const qrButton = byId('food-ai-scan');
+      if (qrInput && qrButton && typeof root.jsQR === 'function') {
+        qrButton.hidden = false;
+        qrButton.addEventListener('click', () => qrInput.click());
+        qrInput.addEventListener('change', () => {
+          const file = qrInput.files?.[0];
+          qrInput.value = '';
+          if (file) scanPhotoPairQr(file);
+        });
+      }
       if (document.readyState === 'complete') consumePhotoPairLink();
       else document.addEventListener('DOMContentLoaded', consumePhotoPairLink, { once: true });
       root.addEventListener('hashchange', consumePhotoPairLink);
