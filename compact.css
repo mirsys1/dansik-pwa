@@ -198,6 +198,16 @@ dialog { padding: 20px; font-size: var(--type-body); }
 .dialog-heading { margin-bottom: 16px; }
 .dialog-heading h2 { font-size: var(--type-title); }
 dialog label:not(.check-label) { font-size: var(--type-body); margin-top: 13px; }
+.meal-date-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 4px; font-size: var(--type-body); font-weight: 650; }
+#meal-other-toggle { min-height: 34px; gap: 3px; font-size: var(--type-meta); font-weight: 500; }
+.meal-day-options { display: flex; gap: 8px; }
+.meal-day-options button { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: var(--type-body); }
+.meal-day-options button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-weight: 700; }
+.meal-day-options small { color: var(--muted); font-size: var(--type-meta); font-variant-numeric: tabular-nums; }
+.meal-day-options button[aria-pressed="true"] small { color: inherit; }
+#meal-other-date input { width: 100%; font-size: 16px; }
+#meal-dialog label[for="meal-clock"] { margin-top: 10px; }
+#meal-dialog .meal-clock { width: 100%; min-height: 54px; padding: 7px 12px; font-size: 24px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .dialog-description, .check-label { font-size: var(--type-body); }
 .check-label { margin: 18px 0; }
 .check-label small, .field-help, .optional, .form-error, .quick-times button { font-size: var(--type-meta); }
@@ -257,8 +267,8 @@ body.mini .toast { top: auto; bottom: 13px; font-size: var(--type-meta); }
 
 /* Windows high contrast: let system colors win and keep state visible without relying on fill color. */
 @media (forced-colors:active){
-  .meal-button,.nav-item,.outline-button,.primary-button,.danger-button,.icon-button,.text-button,.segmented button,.titlebar-pin,.mini-meals button{border:1px solid ButtonText}
-  .segmented button[aria-pressed=true],.nav-item.active,.titlebar-pin[aria-pressed=true]{border:2px solid Highlight;outline:1px solid Highlight}
+  .meal-button,.meal-day-options button,.nav-item,.outline-button,.primary-button,.danger-button,.icon-button,.text-button,.segmented button,.titlebar-pin,.mini-meals button{border:1px solid ButtonText}
+  .meal-day-options button[aria-pressed=true],.segmented button[aria-pressed=true],.nav-item.active,.titlebar-pin[aria-pressed=true]{border:2px solid Highlight;outline:1px solid Highlight}
   .dial-track{stroke:ButtonBorder;fill:Canvas}
   .dial-progress,.dial-tip{stroke:Highlight;fill:none}
   .dial-tip{fill:Highlight}

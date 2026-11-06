@@ -54,6 +54,7 @@ function fatTrendKey(elapsedMs) {
 let state = C.defaultState();
 let busy = false;
 let editingId = null;
+let mealDateDay = '';
 let toastTimeout;
 let historyLimit = 60;
 let ready = false;
@@ -175,6 +176,7 @@ function renderDailyCalories(now) {
 function tick() {
   if (!ready) return;
   const now = Date.now();
+  if ($('meal-dialog').open && mealDateDay !== C.localDay(now, tz())) updateMealDateControls();
   const latest = state.events[0];
   const timer = C.getTimer(state, now, prefs);
   const active = Boolean(latest) && !timer.reset;
@@ -437,13 +439,42 @@ function goPage(page) {
     if (gesture && gesture.kind === 'touch' && (!event.changedTouches || Array.from(event.changedTouches).some(touch => touch.identifier === gesture.id))) gesture = null;
   });
 })();
+function mealDayOptions(now = Date.now()) {
+  const today = C.localDay(now, tz());
+  const previous = new Date(`${today}T00:00:00Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return { today, yesterday: previous.toISOString().slice(0, 10) };
+}
+function showOtherMealDate(show) {
+  $('meal-other-date').hidden = !show;
+  $('meal-date').disabled = !show;
+  $('meal-other-toggle').setAttribute('aria-expanded', String(show));
+}
+function updateMealDateControls() {
+  const days = mealDayOptions();
+  mealDateDay = days.today;
+  const selected = $('meal-date').value;
+  $('meal-today-date').textContent = days.today.slice(5).replace('-', '.');
+  $('meal-yesterday-date').textContent = days.yesterday.slice(5).replace('-', '.');
+  document.querySelectorAll('[data-meal-day]').forEach(button => button.setAttribute('aria-pressed', String(selected === days[button.dataset.mealDay])));
+  $('meal-other-current').textContent = selected && selected !== days.today && selected !== days.yesterday ? ` · ${selected}` : '';
+  const original = editingId ? state.events.find(item => item.id === editingId) : null;
+  $('meal-date').max = localInput(Math.max(Date.now(), original?.at || 0)).slice(0, 10);
+}
+function setMealDateTime(at) {
+  const local = localInput(at);
+  $('meal-date').value = local.slice(0, 10);
+  $('meal-clock').value = local.slice(11, 16);
+  const days = mealDayOptions();
+  showOtherMealDate($('meal-date').value !== days.today && $('meal-date').value !== days.yesterday);
+  updateMealDateControls();
+}
 function openMeal(id = null, showFoods = false) {
   editingId = id;
   const event = state.events.find(item => item.id === id);
   $('meal-dialog-title').textContent = event ? t('meal.dialogEdit') : t('meal.dialogNew');
   $('meal-type').value = event?.type || 'breakfast';
-  $('meal-at').value = localInput(event?.at || Date.now());
-  $('meal-at').max = localInput(Math.max(Date.now(), event?.at || 0));
+  setMealDateTime(event?.at || Date.now());
   $('meal-note').value = event?.note || '';
   $('meal-error').textContent = '';
   $('delete-meal').hidden = !event;
@@ -465,7 +496,7 @@ document.addEventListener('click', event => {
   const button = event.target.closest('button'); if(!button)return;
   if(button.dataset.meal) { action({type:'record',meal:button.dataset.meal},t('toast.recorded', { meal: mealName(button.dataset.meal) })); }
   else if(button.dataset.goal) { action({type:'settings',patch:{goalHours:Number(button.dataset.goal),goalEnabled:true}},t('toast.goalSet', { h: button.dataset.goal })); }
-  else if(button.hasAttribute('data-offset')) { const now=Date.now(); $('meal-at').max=localInput(now); $('meal-at').value=localInput(now-Number(button.dataset.offset)*60000); }
+  else if(button.hasAttribute('data-offset')) { setMealDateTime(Date.now()-Number(button.dataset.offset)*60000); $('meal-error').textContent=''; }
   else if(button.dataset.page)goPage(button.dataset.page);
   else if(button.dataset.goto)goPage(button.dataset.goto);
   else if(button.dataset.edit)openMeal(button.dataset.edit);
@@ -478,6 +509,16 @@ document.addEventListener('click', event => {
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
 $('past-meal').addEventListener('click',()=>openMeal());
+document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventListener('click', () => {
+  $('meal-date').value = mealDayOptions()[button.dataset.mealDay];
+  showOtherMealDate(false);
+  updateMealDateControls();
+  $('meal-error').textContent = '';
+}));
+$('meal-other-toggle').addEventListener('click', () => showOtherMealDate($('meal-other-date').hidden));
+$('meal-date').addEventListener('input', () => { updateMealDateControls(); $('meal-error').textContent = ''; });
+$('meal-date').addEventListener('change', updateMealDateControls);
+$('meal-clock').addEventListener('input', () => { $('meal-error').textContent = ''; });
 $('food-photo-pick').addEventListener('click', () => $('food-photo-file').click());
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
 $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
@@ -544,10 +585,15 @@ $('import-confirm').addEventListener('click',async()=>{
 $('meal-form').addEventListener('submit',async event=>{
   event.preventDefault();
   const original = editingId ? state.events.find(item => item.id === editingId) : null;
+  if (!$('meal-date').value) { showOtherMealDate(true); $('meal-error').textContent=t('meal.dateMissing'); $('meal-date').focus(); return; }
+  const clock = $('meal-clock').value;
+  const minute = /^\d{2}:\d{2}:00(?:\.0+)?$/.test(clock) ? clock.slice(0, 5) : clock;
+  const local = `${$('meal-date').value}T${minute}`;
   // Leaving the time field alone keeps the stored time (including its seconds) untouched.
-  const timeUntouched = !!original && $('meal-at').value === localInput(original.at);
-  const at = C.parseLocalInput($('meal-at').value, tz());
+  const timeUntouched = !!original && local === localInput(original.at);
+  const at = C.parseLocalInput(local, tz());
   if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){$('meal-error').textContent=t('meal.timeRange');return;}
+  if(!timeUntouched&&localInput(at)!==local){$('meal-error').textContent=t('meal.invalidLocal');return;}
   let foods;
   try { foods = window.MealFoods.read(); }
   catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
