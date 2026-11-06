@@ -101,12 +101,10 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .timer-meta > .energy-summary + .energy-summary { border-left: 1px solid var(--line); border-radius: 0 7px 7px 0; }
 .timer-meta > .energy-summary:hover { background: var(--accent-soft); }
 .timer-meta .energy-line { font-variant-numeric: tabular-nums; }
-#intake-summary[data-empty] .energy-line { color: var(--accent-dark); }
 .timer-meta > .goal-status { grid-column: 1 / -1; text-align: center; color: var(--accent-dark); }
 .timer-meta span { font-size: var(--type-meta); line-height: 1.15; }
 .timer-meta .energy-label { font-size: var(--energy-label-size); font-weight: 700; }
-.timer-meta #intake-summary:not([data-empty]) .energy-line,
-.timer-meta #energy-summary .energy-line { font-size: calc(var(--energy-label-size) + 2px); }
+.timer-meta .energy-summary .energy-line { font-size: calc(var(--energy-label-size) + 2px); }
 .timer-meta strong { font-size: var(--type-body); line-height: 1.15; margin-top: 0; overflow-wrap: anywhere; }
 .timer-meta small { display: block; margin-top: 0; color: var(--muted); font-size: var(--type-meta); line-height: 1.15; white-space: nowrap; }
 

@@ -159,19 +159,14 @@ function renderDailyCalories(now) {
 
   const burned = window.FastingEnergy.today(prefs, now);
   let intake = 0;
-  let hasFoods = false;
   for (const meal of state.events) {
     if (meal.at < burned.from) break;
-    if (meal.at <= now && meal.foods?.length) {
-      intake += C.foodKcalTotal(meal.foods);
-      hasFoods = true;
-    }
+    if (meal.at <= now && meal.foods?.length) intake += C.foodKcalTotal(meal.foods);
   }
   const intakeButton = $('intake-summary');
   const energyButton = $('energy-summary');
-  $('intake-value').textContent = hasFoods ? kcalText(intake, true) : t('intake.add');
-  intakeButton.toggleAttribute('data-empty', !hasFoods);
-  intakeButton.setAttribute('aria-label', hasFoods ? t('intake.aria', { amount: kcalText(intake) }) : t('intake.emptyAria'));
+  $('intake-value').textContent = kcalText(intake, true);
+  intakeButton.setAttribute('aria-label', t('intake.aria', { amount: kcalText(intake) }));
   $('goal-time').textContent = kcalText(burned.totalKcal, true);
   energyButton.setAttribute('aria-label', t('energy.homeAria', { amount: kcalText(burned.totalKcal) }));
   intakeButton.disabled = energyButton.disabled = false;
