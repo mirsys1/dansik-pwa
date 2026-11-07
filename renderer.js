@@ -406,7 +406,7 @@ function renderEnergyBreakdown(show, now) {
       <dt>${t('energy.activity')}</dt><dd data-energy-activity>${activity}</dd>
       <dt class="energy-total">${t('energy.todayTotal')}</dt><dd class="energy-total" data-energy-total>${conflict ? '—' : kcalText(daily.totalKcal)}</dd>
     </dl>
-    <div class="day-energy-balance" data-energy-balance-row><span>${t('dayEnergy.balance')}</span><strong data-energy-balance>${balanceText}</strong></div>
+    <div class="day-energy-balance" data-energy-balance-row><span>${t('dayEnergy.todayBalance')}</span><strong data-energy-balance>${balanceText}</strong></div>
     ${!conflict && balance === null ? `<p class="field-help">${t('dayEnergy.missing')}</p>` : ''}
     <p class="field-help">${esc(window.FastingEnergy.activityNote(daily, prefs))}</p>`;
 }

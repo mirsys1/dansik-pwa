@@ -192,14 +192,14 @@ h2, .section-label { font-size: var(--type-label); font-weight: 650; }
 .day-calories dd { overflow-wrap: anywhere; }
 /* Keep the difference as one compact, aligned outcome instead of splitting its
    Korean label and value across two unrelated grid rows. */
-.day-energy-balance { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }
-.day-energy-balance span { min-width: 0; font-size: var(--type-label); font-weight: 700; white-space: nowrap; }
-.day-energy-balance strong { flex-shrink: 0; font-size: calc(var(--type-label) + 2px); font-variant-numeric: tabular-nums; text-align: right; }
+.day-energy-balance { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }
+.day-energy-balance span { min-width: 0; font-size: var(--type-label); font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.day-energy-balance strong { max-width: 100%; font-size: calc(var(--type-label) + 2px); font-variant-numeric: tabular-nums; text-align: center; overflow-wrap: anywhere; }
 /* A Korean system text-size increase can make the label and a long kcal value
    wider than one small iPhone row. Keep them as one result, but give each a
    dedicated line before their glyphs can collide. */
 @media (max-width: 390px) {
-  .day-energy-balance { align-items: stretch; flex-direction: column; gap: 2px; }
+  .day-energy-balance { align-items: center; flex-direction: column; gap: 2px; }
   .day-energy-balance span { white-space: normal; word-break: keep-all; overflow-wrap: break-word; }
   .day-energy-balance strong { max-width: 100%; overflow-wrap: anywhere; }
 }
