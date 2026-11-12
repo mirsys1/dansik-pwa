@@ -315,17 +315,7 @@
     if (summaryHelp) setText(summaryHelp, needsCorrection
       ? copy('빠진 정보가 있는 음식은 합계에 포함되지 않아요. 수정에서 음식 이름과 칼로리를 확인해 주세요.', 'Items with missing information are not included. Check the food name and calories in Edit.')
       : copy('계산 결과를 확인한 뒤 기록 저장을 누르세요.', 'Check the result, then save the meal.'));
-    syncFoodEditButton();
     root.dispatchEvent(new CustomEvent('meal:foods-changed', { detail: { count: calculated, total: calculated ? roundKcal(total) : null, incomplete: needsCorrection } }));
-  }
-
-  function syncFoodEditButton() {
-    const button = byId('food-edit');
-    const details = byId('meal-foods');
-    if (!button || !details) return;
-    const open = Boolean(details.open);
-    button.setAttribute('aria-expanded', String(open));
-    setText(button, open ? copy('접기', 'Done editing') : copy('수정', 'Edit'));
   }
 
   // The calorie path opens below the short meal form. Keep the first row's
@@ -335,18 +325,10 @@
     const foods = byId('meal-foods');
     const scroller = document.querySelector('#meal-dialog .meal-form-body');
     const target = foods?.querySelector('.food-row, .food-fields, [data-food-name]');
-    if (!foods?.open || !scroller || !target) return;
+    if (!foods || !scroller || !target) return;
     const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
     const clearHeader = 28;
     scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - clearHeader), behavior: 'instant' });
-  }
-
-  function revealFoodSummary() {
-    const summary = byId('food-summary');
-    const scroller = document.querySelector('#meal-dialog .meal-form-body');
-    if (!summary || summary.hidden || !scroller) return;
-    const top = summary.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-    scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - 20), behavior: 'instant' });
   }
 
   function computeKcal(row) {
@@ -399,6 +381,7 @@
     fields.className = 'food-fields';
     const name = input('text', '', data.name, copy('예: 김밥 한 줄', 'e.g. one gimbap roll'));
     name.maxLength = 100;
+    name.setAttribute('enterkeyhint', 'next');
     name.dataset.foodName = 'true';
     // Preserve saved portions and AI metadata without a second input form.
     // The user edits the total calories for the food they actually ate.
@@ -409,6 +392,7 @@
     kcal.min = '0';
     kcal.max = String(MAX_KCAL);
     kcal.step = 'any';
+    kcal.setAttribute('enterkeyhint', 'done');
     kcal.dataset.foodKcal = 'true';
     const density = input('hidden', '', data.kcalPer100g, '');
     density.dataset.foodDensity = 'true';
@@ -416,6 +400,16 @@
     kcal.addEventListener('input', () => {
       kcal.removeAttribute('data-calculated');
       updateTotal();
+    });
+    name.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      kcal.focus();
+    });
+    kcal.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      kcal.blur();
     });
     fields.append(
       field(copy('메뉴 이름', 'Menu name'), name),
@@ -725,20 +719,14 @@
     const inserted = items.slice(0, room);
     inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
-      const details = byId('meal-foods');
-      if (details && (!items.length || Boolean(unmatched))) details.open = true;
-      syncFoodEditButton();
+      revealFoodEntry();
       status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
         : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'));
       return;
     }
-    const needsManual = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g)) || needsReview.length > 0 || Boolean(unmatched);
-    const details = byId('meal-foods');
-    if (details) details.open = needsManual;
-    syncFoodEditButton();
     updateTotal();
-    if (!needsManual) revealFoodSummary();
+    revealFoodEntry();
     const message = fromText
       ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
       : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
@@ -1056,9 +1044,6 @@
     source.slice(0, MAX_FOODS).forEach((food) => addRow(food));
     if (source.length === 0) addRow();
     showRecentFoods(events);
-    const details = byId('meal-foods');
-    if (details) details.open = Boolean(expanded);
-    syncFoodEditButton();
     const choices = byId('food-photo-choices');
     if (choices) choices.hidden = true;
     updateTotal();
@@ -1198,15 +1183,6 @@
     }
     const add = byId('food-add');
     if (add) add.addEventListener('click', () => addRow()?.querySelector('[data-food-name]').focus());
-    byId('food-edit')?.addEventListener('click', () => {
-      const details = byId('meal-foods');
-      if (!details) return;
-      const opening = !details.open;
-      details.open = opening;
-      syncFoodEditButton();
-      if (opening) byId('food-items')?.querySelector('[data-food-name]')?.focus({ preventScroll: true });
-    });
-    byId('meal-foods')?.addEventListener('toggle', syncFoodEditButton);
     byId('food-photo-add')?.addEventListener('click', () => {
       const choices = byId('food-photo-choices');
       if (!choices) return;

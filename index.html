@@ -132,6 +132,12 @@
         <label for="meal-note" data-i18n-text="meal.foodPrompt">무엇을 드셨나요? <span class="optional" data-i18n="meal.optional">선택</span></label>
         <textarea id="meal-note" rows="2" maxlength="200" placeholder="예: 김밥 한 줄, 라떼 한 잔" data-i18n-attr="placeholder=meal.simpleExample" aria-describedby="food-text-disclosure food-text-status"></textarea>
         <div id="food-recent-slot" hidden></div>
+        <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
+          <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
+          <p class="field-help" data-i18n="intake.basicFoodHelp">먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.</p>
+          <div id="food-items"></div>
+          <div class="food-total-row"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><output id="food-total"></output></div>
+        </section>
         <div id="food-text-options" hidden>
           <p id="food-text-disclosure" class="field-help" role="note" data-i18n="intake.simpleTextDisclosure">자동 계산 시 음식 글이 Cloudflare AI로 전송돼요.</p>
           <p id="food-text-status" class="field-help" role="status"></p>
@@ -155,16 +161,10 @@
         <img id="food-photo-preview" class="food-media" alt="" hidden>
         <button type="button" class="text-button" id="food-photo-remove" hidden data-i18n="intake.removePhoto">사진 지우기</button>
         <section id="food-summary" class="food-summary" aria-labelledby="food-summary-label" hidden>
-          <div class="food-summary-head"><div><h3 id="food-summary-label" data-i18n="intake.calorieSummary">섭취 칼로리</h3><output id="food-summary-total"></output></div><button type="button" class="text-button" id="food-edit" aria-controls="meal-foods" aria-expanded="false" data-i18n="intake.editResult">수정</button></div>
+          <div class="food-summary-head"><div><h3 id="food-summary-label" data-i18n="intake.calorieSummary">섭취 칼로리</h3><output id="food-summary-total"></output></div></div>
           <ul id="food-summary-items"></ul>
           <p id="food-summary-help" class="field-help"></p>
         </section>
-        <details id="meal-foods" class="meal-foods">
-          <summary data-i18n="intake.manualEntry">칼로리 직접 입력</summary>
-          <p class="field-help" data-i18n="intake.basicFoodHelp">먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.</p>
-          <div id="food-items"></div>
-          <div class="food-total-row"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">음식 추가</button><output id="food-total"></output></div>
-        </details>
       </section>
     </div>
     <div class="meal-form-footer">

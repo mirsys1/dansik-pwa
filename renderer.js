@@ -1533,7 +1533,7 @@ $('meal-form').addEventListener('submit',async event=>{
   if(!timeUntouched&&localInput(at)!==local){const message=t('meal.invalidLocal');showMealFieldValidation('clock', message);return;}
   let foods;
   try { foods = window.MealFoods.read({ confirmAnalysis: true }); }
-  catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
+  catch (error) { $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
   if (!timeUntouched) patch.at = at;
   const result=await action(editingId?{type:'update',id:editingId,patch,expectedMeal:original}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));

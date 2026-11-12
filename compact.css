@@ -153,25 +153,8 @@ body.is-pwa .autophagy-stage { font-size: calc(13.5px + 1pt); }
 .meal-details > input { width: calc(100% - 24px); }
 .meal-details > .meal-foods { margin-top: 12px; margin-bottom: 12px; }
 .meal-foods { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
-.meal-foods summary { cursor: pointer; font-weight: 700; }
-.meal-details[open] .meal-foods { margin-top: 10px; border-color: color-mix(in srgb, var(--line) 80%, var(--accent-soft)); }
-.meal-foods > summary { min-height: 44px; display: flex; align-items: center; padding: 8px 10px; margin: -2px -2px 4px; border-radius: 8px; color: var(--accent-dark); background: var(--accent-soft); list-style: none; }
-.meal-foods > summary::-webkit-details-marker { display: none; }
-.meal-foods > summary::marker { content: ''; }
-.meal-foods > summary::after { content: '⌄'; margin-left: auto; font-size: 18px; line-height: 1; transition: transform .15s ease; }
-.meal-foods[open] > summary::after { transform: rotate(180deg); }
-.meal-foods > summary:hover { filter: brightness(.98); }
-.meal-foods > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .meal-foods .field-help { margin: 4px 0; }
 .meal-details[open] { background: transparent; }
-/* Once calorie entry is open, its own controls provide the visual grouping.
-   Removing the two surrounding card borders keeps the small-screen form from
-   looking like a stack of nested panels. */
-.meal-details[open]:has(.meal-foods[open]) { border-color: transparent; }
-.meal-details[open] .meal-foods[open] { padding: 0; border-color: transparent; background: transparent; }
-/* Collapsed calorie entry is a single row, not a box around a box. */
-.meal-details[open] .meal-foods:not([open]) { padding: 0; border-color: transparent; background: transparent; }
-.meal-details[open] .meal-foods[open] > summary { margin-inline: 0; }
 .food-row { padding: 8px 0; border-top: 1px solid var(--line); }
 .food-row:first-child:only-child .food-row-head { display: none; }
 .food-row-head, .food-total-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1474,13 +1457,13 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
 .food-summary-head > div { min-width: 0; }
 .food-summary-head h3 { margin: 0 0 4px; font-size: var(--type-meta); font-weight: 600; color: var(--muted); }
 #food-summary-total { display: block; font-size: 24px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.25; }
-#food-edit { flex-shrink: 0; min-height: 44px; }
 #food-summary-items { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--type-meta); line-height: 1.4; }
 #food-summary-items li { min-width: 0; overflow-wrap: anywhere; }
 #food-summary-help { margin: 8px 0 0; }
-#meal-dialog #meal-foods { margin: 12px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-#meal-dialog #meal-foods > summary { margin: 0; padding: 8px 0; min-height: 44px; background: transparent; font-weight: 600; }
-#meal-details:has(#food-summary:not([hidden])) #meal-foods > summary { display: none; }
+#meal-dialog #meal-foods { margin: 12px 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+#meal-dialog #meal-foods-title { margin: 0 0 4px; font-size: var(--type-body); font-weight: 700; color: var(--text); }
+#meal-dialog #meal-foods > .field-help { margin: 0 0 8px; }
+#meal-dialog #meal-foods .food-row:first-child { border-top: 0; padding-top: 0; }
 #meal-dialog .food-total-row { margin-top: 8px; }
 #meal-dialog .meal-form-footer .dialog-actions { flex-wrap: wrap; }
 #meal-dialog #delete-meal:not([hidden]) { margin-inline-end: auto; padding-inline: 4px; background: transparent; border-color: transparent; }

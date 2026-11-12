@@ -479,6 +479,7 @@
   "intake.calorieSummary": "섭취 칼로리",
   "intake.editResult": "수정",
   "intake.manualEntry": "칼로리 직접 입력",
+  "intake.foodAdd": "메뉴 추가",
   "intake.basicFoodHelp": "먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.",
   "intake.aiCode": "AI 연결 코드",
   "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요."
@@ -495,6 +496,7 @@
   "intake.calorieSummary": "Calories eaten",
   "intake.editResult": "Edit",
   "intake.manualEntry": "Enter calories manually",
+  "intake.foodAdd": "Add menu item",
   "intake.basicFoodHelp": "Enter the total calories for the portion you ate, e.g. 450 kcal.",
   "intake.aiCode": "AI access code",
   "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. They are not stored. Check the result before saving."
