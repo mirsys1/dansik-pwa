@@ -80,6 +80,7 @@ let editingId = null;
 let editingSnapshot = null;
 let settingsBaseline = null;
 let mealStartsTimer = false;
+let returnToMealAfterSettings = false;
 let mealAutoType = false;
 let mealDateDay = '';
 let mealLastKey = '';
@@ -251,8 +252,13 @@ async function recordMealAndEdit(meal) {
   }
   openMeal(result.recordedMealId);
   $('meal-dialog-title').textContent = t('meal.dialogNew');
+  $('meal-recorded-notice').textContent = t('meal.timerStarted');
   $('meal-recorded-notice').hidden = false;
   $('meal-cancel').textContent = t('dialog.close');
+  $('save-meal').textContent = t('meal.done');
+  // A just-recorded meal can be undone from the toast. Keep this quick detail
+  // screen focused on completing or closing instead of presenting a third action.
+  $('delete-meal').hidden = true;
   return result;
 }
 const DIAL_MS = 24 * 3600000;
@@ -963,10 +969,25 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   $('delete-meal').hidden = !event;
   $('meal-recorded-notice').hidden = true;
   $('meal-cancel').textContent = t('dialog.cancel');
-  window.MealFoods.open(event?.foods, showFoods, state.events);
+  $('save-meal').textContent = event ? t('meal.saveEdit') : t('meal.save');
+  // Existing meal foods are presented through the compact summary first.
+  // The detailed manual editor opens only from its explicit edit control.
+  window.MealFoods.open(event?.foods, false, state.events);
   $('meal-dialog').showModal();
   const scroller = $('meal-dialog').querySelector('.meal-form-body');
   if (scroller) scroller.scrollTop = 0;
+}
+function openMealAiSettings() {
+  const mealDialog = $('meal-dialog');
+  returnToMealAfterSettings = Boolean(mealDialog?.open);
+  if (!$('settings-dialog').open) openSettings(false);
+  $('settings-profile').open = true;
+  const section = $('settings-food-ai');
+  if (section) {
+    section.hidden = false;
+    section.scrollIntoView({ block: 'nearest' });
+  }
+  $('food-ai-setup')?.setAttribute('open', '');
 }
 function renderIntake() {
   const now = Date.now();
@@ -1268,6 +1289,7 @@ $('chart-date-dialog')?.addEventListener('close', () => {
 });
 $('intake-add')?.addEventListener('click', () => openMeal(null, true));
 $('meal-dialog').addEventListener('close', () => {
+  returnToMealAfterSettings = false;
   if (!$('intake-dialog')?.open) return;
   const edited = editingId;
   renderIntake();
@@ -1289,8 +1311,13 @@ $('timer-gradient-input').addEventListener('change',()=>{
 $('settings-dialog').addEventListener('close', () => {
   applyColorTheme(prefs.colorTheme);
   discardTimerGradientPreview();
+  if (returnToMealAfterSettings && $('meal-dialog').open) {
+    returnToMealAfterSettings = false;
+    requestAnimationFrame(() => $('meal-note')?.focus({ preventScroll: true }));
+  }
   if ($('fasting-dialog').open && fastingSelection?.live) openFastingDetail(fastingSelection);
 });
+window.addEventListener('meal:ai-settings', openMealAiSettings);
 for (const id of ['activity-dialog', 'workout-dialog']) {
   $(id)?.addEventListener('close', () => {
     if ($('fasting-dialog').open && fastingSelection) openFastingDetail(fastingSelection);
@@ -1505,7 +1532,7 @@ $('meal-form').addEventListener('submit',async event=>{
   if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){const message=t('meal.timeRange');showMealFieldValidation('clock', message);return;}
   if(!timeUntouched&&localInput(at)!==local){const message=t('meal.invalidLocal');showMealFieldValidation('clock', message);return;}
   let foods;
-  try { foods = window.MealFoods.read(); }
+  try { foods = window.MealFoods.read({ confirmAnalysis: true }); }
   catch (error) { $('meal-foods').open = true; $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
   if (!timeUntouched) patch.at = at;

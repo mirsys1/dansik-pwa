@@ -22,6 +22,7 @@
   let photoCode = '';
   let quotaDay = '';
   let qrSession = null;
+  let skipNextNoteAnalysis = false;
 
   const byId = (id) => document.getElementById(id);
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
@@ -112,6 +113,59 @@
   }
 
   function showRecentFoods(events) {
+    // The short form only offers three touch-sized suggestions.  The full
+    // history remains in the History tab; a select here made a quick record
+    // look like a second form.
+    const slot = byId('food-recent-slot');
+    if (slot) {
+      slot.replaceChildren();
+      const choices = recentFoods(events).slice(0, 3);
+      if (!choices.length) { slot.hidden = true; return; }
+      const label = document.createElement('span');
+      label.className = 'food-recent-label';
+      label.textContent = copy('최근 음식', 'Recent foods');
+      const chips = document.createElement('div');
+      chips.className = 'food-recent-chips';
+      choices.forEach((food, index) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'food-recent-chip';
+        chip.dataset.recentIndex = String(index);
+        chip.textContent = food.name;
+        chip.title = `${food.name} · ${food.kcal} kcal`;
+        // Keep the text area focused when a chip is touched, otherwise its
+        // blur can start an AI request just before this known local value is
+        // reused. Keyboard activation still works through the click handler.
+        chip.addEventListener('pointerdown', event => event.preventDefault());
+        chip.addEventListener('click', () => {
+          const note = byId('meal-note');
+          if (!note) return;
+          skipNextNoteAnalysis = true;
+          const existingNote = note.value.trim();
+          if (!existingNote) note.value = food.name;
+          else if (!existingNote.toLocaleLowerCase().includes(food.name.toLocaleLowerCase())) note.value = `${existingNote}, ${food.name}`;
+          noteEdited = false;
+          const rows = [...document.querySelectorAll('#food-items [data-food-row]')];
+          const same = rows.find((row) => {
+            const grams = row.querySelector('[data-food-grams]')?.value.trim();
+            return row.querySelector('[data-food-name]')?.value.trim() === food.name &&
+              Number(row.querySelector('[data-food-kcal]')?.value) === food.kcal &&
+              (grams === '' ? food.grams === undefined : Number(grams) === food.grams);
+          });
+          if (!same) {
+            const blank = rows.find(row => [...row.querySelectorAll('input')].every(control => !control.value.trim() && !control.validity.badInput));
+            if (blank) blank.remove();
+            addRow(food);
+          }
+          setText(byId('food-text-status'), copy(`${food.name}을(를) 불러왔어요. 칼로리는 필요하면 수정할 수 있어요.`, `${food.name} added. You can change the calories if needed.`));
+          updateTotal();
+        });
+        chips.append(chip);
+      });
+      slot.append(label, chips);
+      slot.hidden = true;
+      return;
+    }
     const container = byId('food-items');
     if (!container) return;
     byId('food-recent')?.remove();
@@ -238,25 +292,72 @@
 
   function updateTotal() {
     const output = byId('food-total');
+    const summary = byId('food-summary');
+    const summaryTotal = byId('food-summary-total');
+    const summaryItems = byId('food-summary-items');
+    const summaryHelp = byId('food-summary-help');
     const rows = document.querySelectorAll('#food-items [data-food-kcal]');
     let total = 0;
     let calculated = 0;
     let missingAmount = false;
+    let incomplete = false;
+    const names = [];
     rows.forEach((control) => {
-      const kcal = finiteNumber(control.value.trim());
-      if (Number.isFinite(kcal) && kcal >= 0) {
+      const row = control.closest('[data-food-row]');
+      const name = row?.querySelector('[data-food-name]')?.value.trim() || '';
+      const kcalRaw = control.value.trim();
+      const gramsRaw = row?.querySelector('[data-food-grams]')?.value.trim() || '';
+      const densityRaw = row?.querySelector('[data-food-density]')?.value.trim() || '';
+      const kcal = finiteNumber(kcalRaw);
+      const grams = finiteNumber(gramsRaw);
+      const density = finiteNumber(densityRaw);
+      const validName = name.length > 0 && name.length <= 100;
+      const validKcal = Number.isFinite(kcal) && kcal >= 0 && kcal <= MAX_KCAL;
+      const validGrams = gramsRaw === '' || (Number.isFinite(grams) && grams > 0 && grams <= MAX_GRAMS);
+      const validDensity = densityRaw === '' || (Number.isFinite(density) && density >= 0 && density <= MAX_DENSITY);
+      const validForSave = validName && validKcal && validGrams && validDensity;
+      const requiresChoice = Boolean(row?.hasAttribute('data-food-review') && !name);
+      const hasInput = Boolean(name || kcalRaw || gramsRaw || densityRaw);
+
+      if (validForSave) {
         total += kcal;
         calculated++;
-      } else {
-        const row = control.closest('[data-food-row]');
-        if (row.querySelector('[data-food-name]').value.trim() && row.querySelector('[data-food-density]').value !== '') missingAmount = true;
+        names.push({ name, kcal });
+      } else if (hasInput || requiresChoice) {
+        incomplete = true;
+        if (validName && densityRaw && !kcalRaw && !gramsRaw) missingAmount = true;
       }
     });
+    const needsCorrection = incomplete || missingAmount;
     const formatted = roundKcal(total).toLocaleString(isEnglish() ? 'en-US' : 'ko-KR', { maximumFractionDigits: 1 });
-    if (missingAmount) {
-      setText(output, calculated ? copy(`계산된 합계 ${formatted} kcal · 양 입력 필요`, `Calculated subtotal ${formatted} kcal · amount needed`)
-        : copy('먹은 양을 입력하면 합계가 표시돼요.', 'Enter the amount eaten to show the total.'));
-    } else setText(output, copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`));
+    const message = needsCorrection
+      ? (calculated ? copy(`계산된 합계 ${formatted} kcal · 입력 확인 필요`, `Calculated subtotal ${formatted} kcal · review needed`)
+        : copy('음식 이름과 칼로리를 확인하면 합계가 표시돼요.', 'Enter a food name and calories to show the total.'))
+      : (calculated ? copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`) : '');
+    setText(output, message);
+    if (summary) summary.hidden = calculated === 0;
+    if (summaryTotal) setText(summaryTotal, calculated ? `${formatted} kcal` : '');
+    if (summaryItems) {
+      summaryItems.replaceChildren(...names.map((item) => {
+        const line = document.createElement('li');
+        line.textContent = `${item.name} · ${roundKcal(item.kcal).toLocaleString(isEnglish() ? 'en-US' : 'ko-KR', { maximumFractionDigits: 1 })} kcal`;
+        return line;
+      }));
+    }
+    if (summaryHelp) setText(summaryHelp, needsCorrection
+      ? copy('빠진 정보가 있는 음식은 합계에 포함되지 않아요. 수정에서 음식 이름과 칼로리를 확인해 주세요.', 'Items with missing information are not included. Check the food name and calories in Edit.')
+      : copy('계산 결과를 확인한 뒤 기록 저장을 누르세요.', 'Check the result, then save the meal.'));
+    syncFoodEditButton();
+    root.dispatchEvent(new CustomEvent('meal:foods-changed', { detail: { count: calculated, total: calculated ? roundKcal(total) : null, incomplete: needsCorrection } }));
+  }
+
+  function syncFoodEditButton() {
+    const button = byId('food-edit');
+    const details = byId('meal-foods');
+    if (!button || !details) return;
+    const open = Boolean(details.open);
+    button.setAttribute('aria-expanded', String(open));
+    setText(button, open ? copy('접기', 'Done editing') : copy('수정', 'Edit'));
   }
 
   // The calorie path opens below the short meal form. Keep the first row's
@@ -270,6 +371,14 @@
     const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
     const clearHeader = 28;
     scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - clearHeader), behavior: 'instant' });
+  }
+
+  function revealFoodSummary() {
+    const summary = byId('food-summary');
+    const scroller = document.querySelector('#meal-dialog .meal-form-body');
+    if (!summary || summary.hidden || !scroller) return;
+    const top = summary.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + top - 20), behavior: 'instant' });
   }
 
   function computeKcal(row) {
@@ -420,6 +529,17 @@
 
   function codeKey() { return `dansik:food-photo-code:v1:${endpoint.origin}`; }
 
+  function updateTextActions() {
+    const calculate = byId('food-text-calculate');
+    const settings = byId('food-ai-settings-open');
+    const auto = byId('food-text-auto');
+    // With a working automatic connection the note stays intentionally quiet.
+    // Manual calculation appears after opting out or an analysis error, and
+    // setup remains one clear action away when the device is disconnected.
+    if (calculate) calculate.hidden = !photoCode || Boolean(auto?.checked);
+    if (settings) settings.hidden = Boolean(photoCode);
+  }
+
   function setPhotoCode(code) {
     if (code) stopQrScan();
     photoCode = code;
@@ -427,13 +547,17 @@
       if (code) root.localStorage.setItem(codeKey(), code);
       else root.localStorage.removeItem(codeKey());
     } catch { /* storage can be unavailable in private browser sessions */ }
-    byId('food-ai-code').value = '';
-    byId('food-ai-setup').hidden = Boolean(code);
-    byId('food-ai-disconnect').hidden = !code;
+    const codeInput = byId('food-ai-code');
+    if (codeInput) codeInput.value = '';
+    const setup = byId('food-ai-setup');
+    if (setup) setup.hidden = Boolean(code);
+    const disconnect = byId('food-ai-disconnect');
+    if (disconnect) disconnect.hidden = !code;
     const textAuto = byId('food-text-auto');
     if (textAuto) textAuto.disabled = !code;
     // No standing hint without a code: pressing Calculate explains and opens the setup.
     setText(byId('food-text-status'), '');
+    updateTextActions();
   }
 
   function codeFromQrLink(link) {
@@ -654,15 +778,23 @@
     const inserted = items.slice(0, room);
     inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
+      const details = byId('meal-foods');
+      if (details && (!items.length || Boolean(unmatched))) details.open = true;
+      syncFoodEditButton();
       status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
         : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'));
       return;
     }
-    if (fromText) byId('meal-foods').open = true;
+    const needsManual = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g)) || needsReview.length > 0 || Boolean(unmatched);
+    const details = byId('meal-foods');
+    if (details) details.open = needsManual;
+    syncFoodEditButton();
+    updateTotal();
+    if (!needsManual) revealFoodSummary();
     const message = fromText
-      ? copy('② 음식과 먹은 양, 칼로리를 확인한 뒤 ③ 기록 저장을 눌러 주세요.', '2. Check the foods, portions and calories. 3. Save the meal.')
-      : copy('② 사진 결과의 음식과 양을 확인한 뒤 ③ 기록 저장을 눌러 주세요. 사진만으로 양을 정확히 알 수 없어요.', '2. Check the food and portions, then 3. Save the meal. A photo cannot determine exact portions.');
+      ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
+      : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
       ? copy(' 양이 비어 있는 음식은 먹은 양(g)을 입력하면 칼로리가 계산돼요.', 'Enter the amount eaten (g) for any blank portion to calculate its calories.') : '';
     const review = needsReview.length ? copy(' 국·찌개는 실제로 먹은 종류를 골라 주세요.', ' Select the soup or stew you ate.') : '';
@@ -672,6 +804,10 @@
   }
 
   function analysisError(code, kind) {
+    if (kind === 'text') {
+      const calculate = byId('food-text-calculate');
+      if (calculate) calculate.hidden = false;
+    }
     switch (code) {
       case 'AUTH':
         setPhotoCode('');
@@ -751,7 +887,6 @@
   }
 
   function prepareSave() {
-    if (!analysisPending()) analyzeNote();
     if (!analysisPending()) return true;
     const error = byId('meal-error');
     error.setAttribute('data-analysis-pending', '');
@@ -928,7 +1063,7 @@
     }, 'image/jpeg', 0.9);
   }
 
-  function read() {
+  function read(options = {}) {
     const foods = [];
     const rows = document.querySelectorAll('#food-items [data-food-row]');
     for (const row of rows) {
@@ -949,6 +1084,12 @@
       if (gramsRaw !== '') item.grams = grams;
       foods.push(item);
     }
+    // A result drafted by AI stays editable until the user deliberately uses
+    // the form's Save button.  This makes saving the explicit confirmation;
+    // automatic analysis never records a meal by itself.
+    if (!options.confirmAnalysis && document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]')) {
+      throw new Error(copy('AI 계산 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Review the AI result, then use Save meal.'));
+    }
     const core = root.FastingCore;
     return core && typeof core.normalizeFoods === 'function' ? core.normalizeFoods(foods) : foods;
   }
@@ -968,18 +1109,11 @@
     source.slice(0, MAX_FOODS).forEach((food) => addRow(food));
     if (source.length === 0) addRow();
     showRecentFoods(events);
-    const hasFoods = source.length > 0;
-    const mealDetails = byId('meal-details');
-    if (mealDetails) mealDetails.open = true;
     const details = byId('meal-foods');
-    // Collapsed unless there is something to show or the user came from the
-    // calorie card; the food line and AI calculate button stay visible above it.
-    if (details) details.open = hasFoods || Boolean(expanded);
-    const tools = byId('food-tools');
-    // Show the two essential fields first. Photo/AI and quantity-based
-    // calculation stay one explicit choice away, so the calorie entry path
-    // does not begin with a long tool panel or depend on extra scrolling.
-    if (tools) tools.open = false;
+    if (details) details.open = Boolean(expanded);
+    syncFoodEditButton();
+    const choices = byId('food-photo-choices');
+    if (choices) choices.hidden = true;
     updateTotal();
   }
 
@@ -988,19 +1122,22 @@
     initialized = true;
     endpoint = photoEndpoint();
     if (endpoint) {
-      byId('food-ai-panel').hidden = false;
-      byId('food-photo-manual-help').hidden = true;
+      const settings = byId('settings-food-ai');
+      if (settings) settings.hidden = false;
+      const panel = byId('food-ai-panel');
+      if (panel) panel.hidden = false;
+      const manualHelp = byId('food-photo-manual-help');
+      if (manualHelp) manualHelp.hidden = true;
       let saved = '';
       try { saved = root.localStorage.getItem(codeKey()) || ''; } catch { /* optional persistence */ }
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
       const textAuto = byId('food-text-auto');
       if (textAuto) {
         byId('food-text-options').hidden = false;
-        const options = byId('food-text-options');
         byId('food-quota-check')?.addEventListener('click', async event => {
           const output = byId('food-quota-status');
           if (!photoCode) {
-            byId('meal-foods').open = true; byId('food-tools').open = true; byId('food-ai-setup').open = true;
+            root.dispatchEvent(new CustomEvent('meal:ai-settings'));
             setText(output, copy('먼저 AI 연결 코드를 등록해 주세요.', 'Connect your AI access code first.'));
             return;
           }
@@ -1025,37 +1162,25 @@
           const note = byId('meal-note').value.trim();
           if (!note) { setText(byId('food-text-status'), copy('음식 이름과 양을 입력해 주세요.', 'Enter a food and portion.')); byId('meal-note').focus(); return; }
           if (!photoCode) {
-            byId('meal-foods').open = true;
-            byId('food-tools').open = true;
-            byId('food-ai-setup').open = true;
+            root.dispatchEvent(new CustomEvent('meal:ai-settings'));
             setText(byId('food-text-status'), copy('AI 연결 코드를 등록한 뒤 다시 눌러 주세요. 음식은 직접 기록할 수도 있어요.', 'Connect an AI access code and try again, or record food manually.'));
-            byId('food-ai-setup').scrollIntoView({ block: 'nearest' });
             return;
           }
           if (analysisRequest?.kind === 'text') return;
           noteEdited = false;
           analyze('text', note);
         });
-        try { textAuto.checked = root.localStorage.getItem(TEXT_AUTO_KEY) === '1'; } catch { /* optional persistence */ }
+        try {
+          const stored = root.localStorage.getItem(TEXT_AUTO_KEY);
+          textAuto.checked = stored !== '0';
+        } catch { textAuto.checked = true; }
         textAuto.addEventListener('change', () => {
           try { root.localStorage.setItem(TEXT_AUTO_KEY, textAuto.checked ? '1' : '0'); } catch { /* optional persistence */ }
+          updateTextActions();
           if (textAuto.checked) analyzeNote();
           else if (analysisRequest?.kind === 'text') cancelAnalysis();
         });
-        const note = byId('meal-note');
-        note.addEventListener('input', () => {
-          noteEdited = true;
-          if (analysisRequest?.kind === 'text') cancelAnalysis();
-          discardDrafts('text');
-          if (photoCode) setText(byId('food-text-status'), '');
-        });
-        note.addEventListener('blur', analyzeNote);
-        note.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' && !event.isComposing && textAuto.checked && !textAuto.disabled) {
-            event.preventDefault();
-            analyzeNote();
-          }
-        });
+        updateTextActions();
       }
       const qrInput = byId('food-ai-qr-file');
       const qrButton = byId('food-ai-scan');
@@ -1088,18 +1213,61 @@
         setStatus(copy('사진을 찍거나 올리면 분석이 시작돼요.', 'Take or select a photo to start analysis.'));
         analyzePhoto();
       };
-      byId('food-ai-connect').addEventListener('click', connect);
-      codeInput.addEventListener('keydown', (event) => {
+      byId('food-ai-connect')?.addEventListener('click', connect);
+      codeInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); connect(); }
       });
-      byId('food-ai-disconnect').addEventListener('click', () => {
+      byId('food-ai-disconnect')?.addEventListener('click', () => {
         cancelAnalysis();
         setPhotoCode('');
         setStatus(copy('사진 분석을 껐어요. 음식은 직접 입력할 수 있어요.', 'Photo analysis is off. You can still enter food manually.'));
       });
     }
+    const note = byId('meal-note');
+    if (note) {
+      note.addEventListener('input', () => {
+        noteEdited = true;
+        if (analysisRequest?.kind === 'text') cancelAnalysis();
+        discardDrafts('text');
+        if (photoCode) setText(byId('food-text-status'), '');
+      });
+      note.addEventListener('focus', () => { const slot = byId('food-recent-slot'); if (slot?.children.length) slot.hidden = false; });
+      note.addEventListener('blur', () => {
+        root.setTimeout(() => {
+          const slot = byId('food-recent-slot');
+          if (slot?.contains(document.activeElement)) return;
+          if (slot) slot.hidden = true;
+          if (skipNextNoteAnalysis) { skipNextNoteAnalysis = false; return; }
+          analyzeNote();
+        }, 0);
+      });
+      note.addEventListener('keydown', (event) => {
+        const auto = byId('food-text-auto');
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing && auto?.checked && !auto.disabled) {
+          event.preventDefault();
+          analyzeNote();
+        }
+      });
+    }
     const add = byId('food-add');
     if (add) add.addEventListener('click', () => addRow()?.querySelector('[data-food-name]').focus());
+    byId('food-edit')?.addEventListener('click', () => {
+      const details = byId('meal-foods');
+      if (!details) return;
+      const opening = !details.open;
+      details.open = opening;
+      syncFoodEditButton();
+      if (opening) byId('food-items')?.querySelector('[data-food-name]')?.focus({ preventScroll: true });
+    });
+    byId('meal-foods')?.addEventListener('toggle', syncFoodEditButton);
+    byId('food-photo-add')?.addEventListener('click', () => {
+      const choices = byId('food-photo-choices');
+      if (!choices) return;
+      choices.hidden = !choices.hidden;
+      byId('food-photo-add').setAttribute('aria-expanded', String(!choices.hidden));
+    });
+    byId('food-photo-pick')?.addEventListener('click', () => byId('food-photo-file')?.click());
+    byId('food-ai-settings-open')?.addEventListener('click', () => root.dispatchEvent(new CustomEvent('meal:ai-settings')));
     ['food-photo-file', 'food-photo-capture'].forEach((id) => {
       const picker = byId(id);
       if (picker) picker.addEventListener('change', () => selectPhoto(picker.files && picker.files[0]));

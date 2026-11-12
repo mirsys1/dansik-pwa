@@ -1445,3 +1445,58 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
 @media (max-width: 600px) and (min-height: 900px) {
   body.is-pwa #page-timer .today-strip { display: block; margin: 10px 2px 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 }
+
+
+/* PWA-103: one food description, one result, optional detailed editing. */
+#meal-dialog .meal-form-body { padding-top: 12px; scrollbar-gutter: auto; }
+#meal-dialog .meal-recorded-notice { margin: 0 0 8px; color: var(--accent-dark); }
+#meal-dialog .meal-when { margin-top: 0; }
+#meal-dialog .meal-when > summary { padding-inline: 0; border: 0; border-radius: 0; background: transparent; }
+#meal-dialog #meal-details { margin-top: 12px; padding: 0; border: 0; background: transparent; }
+#meal-details > label { margin: 0 0 8px; font-weight: 700; }
+#meal-dialog #meal-note { display: block; width: 100%; max-width: 100%; min-height: 80px; margin: 0; padding: 10px 12px; font: inherit; font-size: max(16px, var(--type-body)); line-height: 1.5; resize: vertical; border-radius: 10px; }
+#meal-dialog #food-text-options { margin: 8px 0 12px; }
+#meal-dialog #food-text-options p { margin: 4px 0; }
+#food-text-status:empty, #food-photo-status:empty, #food-summary-help:empty { display: none; }
+#meal-dialog .food-text-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+#meal-dialog .food-text-actions button { padding-inline: 0; min-height: 44px; text-align: left; }
+#meal-dialog .food-photo-add { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 0; padding: 8px 14px; font-weight: 650; }
+#meal-dialog #food-photo-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+#meal-dialog #food-photo-choices[hidden] { display: none; }
+#food-photo-choices > .field-help { flex: 1 0 100%; margin: 0; }
+#meal-dialog .food-media { margin-top: 10px; }
+#meal-dialog #food-photo-status { margin: 8px 0; }
+#meal-dialog #food-recent-slot { margin: 8px 0; }
+#meal-dialog #food-recent-slot[hidden] { display: none; }
+.food-recent-label { display: block; margin-bottom: 6px; color: var(--muted); font-size: var(--type-meta); }
+.food-recent-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.food-recent-chip { min-height: 44px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent-dark); font-size: var(--type-meta); overflow-wrap: anywhere; }
+#meal-dialog #food-recent { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+#food-recent button { min-height: 44px; min-width: 0; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent-dark); font-size: var(--type-meta); overflow-wrap: anywhere; }
+#food-recent .field-help { flex-basis: 100%; margin: 0; }
+#meal-dialog .food-summary { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface)); }
+#meal-dialog .food-summary[hidden] { display: none; }
+.food-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.food-summary-head > div { min-width: 0; }
+.food-summary-head h3 { margin: 0 0 4px; font-size: var(--type-meta); font-weight: 600; color: var(--muted); }
+#food-summary-total { display: block; font-size: 24px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.25; }
+#food-edit { flex-shrink: 0; min-height: 44px; }
+#food-summary-items { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--type-meta); line-height: 1.4; }
+#food-summary-items li { min-width: 0; overflow-wrap: anywhere; }
+#food-summary-help { margin: 8px 0 0; }
+#meal-dialog #meal-foods { margin: 12px 0 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+#meal-dialog #meal-foods > summary { margin: 0; padding: 8px 0; min-height: 44px; background: transparent; font-weight: 600; }
+#meal-details:has(#food-summary:not([hidden])) #meal-foods > summary { display: none; }
+#meal-dialog .food-total-row { margin-top: 8px; }
+#meal-dialog .meal-form-footer .dialog-actions { flex-wrap: wrap; }
+#meal-dialog #delete-meal:not([hidden]) { margin-inline-end: auto; padding-inline: 4px; background: transparent; border-color: transparent; }
+.settings-profile-only #settings-food-ai { display: none; }
+#settings-food-ai .food-ai-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#settings-food-ai .food-ai-actions input { min-width: 0; flex: 1 1 140px; }
+#settings-food-ai .food-ai-actions button { flex: 0 0 auto; }
+@media (max-width: 340px) {
+  #meal-dialog .meal-form-body { padding-inline: 14px; }
+  #meal-dialog .meal-form-footer { padding-inline: 14px; }
+  #meal-dialog #meal-note { min-height: 72px; }
+  #meal-dialog .food-summary { padding: 10px 12px; }
+}

@@ -466,6 +466,40 @@
   };
 
   // Errors are thrown with Korean source text (core/csv/store/main); the UI shows them through err().
+  // Simple meal entry shares the same Korean and English interaction states.
+  Object.assign(ko, {
+  "meal.timerStarted": "타이머가 시작됐어요.",
+  "meal.done": "완료",
+  "meal.saveEdit": "변경 저장",
+  "meal.simpleExample": "예: 김밥 한 줄, 라떼 한 잔",
+  "intake.simpleTextDisclosure": "자동 계산 시 음식 글이 Cloudflare AI로 전송돼요.",
+  "intake.aiSettings": "AI 연결 설정",
+  "intake.aiSettingsHelp": "음식 글과 사진의 칼로리를 자동으로 계산해요. 결과를 확인한 뒤 기록하세요.",
+  "intake.photoInput": "사진으로 입력",
+  "intake.calorieSummary": "섭취 칼로리",
+  "intake.editResult": "수정",
+  "intake.manualEntry": "칼로리 직접 입력",
+  "intake.basicFoodHelp": "칼로리를 모르면 음식만 적고 저장할 수 있어요.",
+  "intake.aiCode": "AI 연결 코드",
+  "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요."
+});
+  Object.assign(en, {
+  "meal.timerStarted": "The timer started.",
+  "meal.done": "Done",
+  "meal.saveEdit": "Save changes",
+  "meal.simpleExample": "e.g. one gimbap roll, one latte",
+  "intake.simpleTextDisclosure": "Automatic calculation sends your food description to Cloudflare AI.",
+  "intake.aiSettings": "AI connection settings",
+  "intake.aiSettingsHelp": "Calculate calories from food descriptions and photos. Check the result before saving.",
+  "intake.photoInput": "Add a photo",
+  "intake.calorieSummary": "Calories eaten",
+  "intake.editResult": "Edit",
+  "intake.manualEntry": "Enter calories manually",
+  "intake.basicFoodHelp": "You can save just the food description if you do not know the calories.",
+  "intake.aiCode": "AI access code",
+  "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. They are not stored. Check the result before saving."
+});
+
   const errEn = {
     '저장 파일의 절대 경로가 필요합니다.': 'An absolute path is required for the storage file.',
     '기록 파일을 열 수 없어요. 다른 프로그램이 사용 중인지 확인한 뒤 다시 실행해 주세요. 기록은 그대로 보존되어 있어요.': "Couldn't open the records file. Check whether another program is using it, then restart. Your records are untouched.",
