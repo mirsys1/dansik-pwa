@@ -176,18 +176,12 @@ body.is-pwa .autophagy-stage { font-size: calc(13.5px + 1pt); }
 .food-row:first-child:only-child .food-row-head { display: none; }
 .food-row-head, .food-total-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .food-row-head .icon-button { min-width: 36px; min-height: 36px; }
-.food-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
+.food-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 4px 8px; }
 .food-fields label { min-width: 0; margin: 0; }
 .food-fields input { display: block; width: 100%; min-width: 0; }
 #food-recent { margin: 10px 0; }
 #food-recent label { display: block; margin-bottom: 4px; }
 #food-recent .field-help { margin-top: 4px; }
-.food-portion-options { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.food-portion-options span { font-size: var(--type-meta); color: var(--muted); }
-.food-portion-options button { min-width: 44px; min-height: 44px; padding: 4px 8px; }
-.food-row-more { margin-top: 7px; }
-.food-row-more summary { color: var(--accent-dark); font-size: var(--type-meta); font-weight: 650; }
-.food-fields-more { margin-top: 7px; }
 .food-tools { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 9px; }
 .food-tools > summary { color: var(--accent-dark); font-size: var(--type-meta); }
 .food-photo-choice { display: block; width: 100%; margin: 3px 0 6px; }

@@ -116,7 +116,7 @@
     <button type="button" class="primary-button" id="intake-add"><span data-icon="plus"></span><span data-i18n="intake.addMeal">새 식사 기록</span></button>
     <ul id="intake-day-meals" class="intake-day-meals" data-i18n-attr="aria-label=intake.todayMeals" aria-label="오늘 식사 목록"></ul>
   </dialog>
-  <dialog id="meal-dialog" aria-labelledby="meal-dialog-title"><form id="meal-form">
+  <dialog id="meal-dialog" aria-labelledby="meal-dialog-title"><form id="meal-form" novalidate>
     <div class="dialog-heading"><h2 id="meal-dialog-title" data-i18n="meal.dialogNew">식사 기록하기</h2><button type="button" class="icon-button" data-close="meal-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="meal-form-body">
       <p id="meal-recorded-notice" class="field-help meal-recorded-notice" data-i18n="meal.timerStarted" hidden>타이머가 시작됐어요.</p>
@@ -161,7 +161,7 @@
         </section>
         <details id="meal-foods" class="meal-foods">
           <summary data-i18n="intake.manualEntry">칼로리 직접 입력</summary>
-          <p class="field-help" data-i18n="intake.basicFoodHelp">칼로리를 모르면 음식만 적고 저장할 수 있어요.</p>
+          <p class="field-help" data-i18n="intake.basicFoodHelp">먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.</p>
           <div id="food-items"></div>
           <div class="food-total-row"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">음식 추가</button><output id="food-total"></output></div>
         </details>

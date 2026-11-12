@@ -237,52 +237,20 @@
       const blank = rows.find((row) => !row.hasAttribute('data-food-review') &&
         [...row.querySelectorAll('input')].every((control) => !control.value.trim() && !control.validity.badInput));
       if (blank) blank.remove();
-      // When both amount and calories were recorded, scale from that prior
-      // portion as a convenience. This is not a nutrition-database lookup.
-      const density = choice.grams ? choice.kcal * 100 / choice.grams : null;
-      const scalable = Number.isFinite(density) && density <= MAX_DENSITY;
-      const added = addRow(scalable ? { ...choice, kcalPer100g: Math.round(density * 10000) / 10000 } : choice);
+      const added = addRow(choice);
       if (added) {
         const addedName = added.querySelector('[data-food-name]');
         const addedKcal = added.querySelector('[data-food-kcal]');
         const addedDensity = added.querySelector('[data-food-density]');
-        if (scalable) addedKcal.setAttribute('data-calculated', '');
-        if (scalable) {
-          const portion = document.createElement('div');
-          portion.className = 'food-portion-options';
-          portion.setAttribute('role', 'group');
-          portion.setAttribute('aria-label', copy('이전 기록의 양 기준', 'Portion based on previous entry'));
-          const caption = document.createElement('span');
-          caption.textContent = copy('이전 양 기준', 'Previous portion');
-          portion.append(caption);
-          for (const [factor, label] of [[0.5, '½'], [1, '1'], [2, '2']]) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'outline-button';
-            button.textContent = `${label}×`;
-            button.setAttribute('aria-label', copy(`이전 양의 ${label}배`, `${label} times previous portion`));
-            button.disabled = choice.grams * factor > MAX_GRAMS || choice.kcal * factor > MAX_KCAL;
-            button.addEventListener('click', () => {
-              const control = added.querySelector('[data-food-grams]');
-              control.value = String(Math.round(choice.grams * factor * 10) / 10);
-              control.dispatchEvent(new Event('input', { bubbles: true }));
-            });
-            portion.append(button);
-          }
-          added.querySelector('.food-row-more').append(portion);
-        }
         addedName.addEventListener('input', () => {
           if (addedName.value.trim() === choice.name) return;
           addedDensity.value = '';
           addedKcal.value = '';
           addedKcal.removeAttribute('data-calculated');
-          added.querySelector('.food-portion-options')?.remove();
           help.textContent = copy('음식 이름을 바꿨어요. 칼로리를 확인해 주세요.', 'Food name changed. Check the calories.');
           updateTotal();
         });
-        help.textContent = scalable
-          ? copy('이전 기록을 추가했어요. 양을 바꾸면 이전 비율로 계산해요.', 'Previous entry added. Amount changes use the previous calorie ratio.')
-          : copy('음식을 추가했어요. 양과 칼로리를 확인해 주세요.', 'Food added. Check its amount and calories.');
+        help.textContent = copy('음식을 추가했어요. 메뉴의 총 칼로리를 확인해 주세요.', 'Food added. Check the total calories for this item.');
         addedName.focus({ preventScroll: true });
       }
     });
@@ -429,52 +397,31 @@
 
     const fields = document.createElement('div');
     fields.className = 'food-fields';
-    const name = input('text', '', data.name, copy('예: 현미밥', 'e.g. brown rice'));
+    const name = input('text', '', data.name, copy('예: 김밥 한 줄', 'e.g. one gimbap roll'));
     name.maxLength = 100;
     name.dataset.foodName = 'true';
-    const grams = input('number', '', data.grams, data.photoDraft && data.grams === null && Number.isFinite(data.kcalPer100g)
-      ? copy('먹은 양 입력', 'Enter amount') : copy('선택', 'Optional'));
-    grams.inputMode = 'decimal';
-    grams.min = '0';
-    grams.max = String(MAX_GRAMS);
-    grams.step = 'any';
+    // Preserve saved portions and AI metadata without a second input form.
+    // The user edits the total calories for the food they actually ate.
+    const grams = input('hidden', '', data.grams, '');
     grams.dataset.foodGrams = 'true';
-    const kcal = input('number', '', data.kcal, copy('kcal', 'kcal'));
+    const kcal = input('number', '', data.kcal, copy('예: 450', 'e.g. 450'));
     kcal.inputMode = 'decimal';
     kcal.min = '0';
     kcal.max = String(MAX_KCAL);
     kcal.step = 'any';
     kcal.dataset.foodKcal = 'true';
-    const density = input('number', '', data.kcalPer100g, copy('선택', 'Optional'));
-    density.inputMode = 'decimal';
-    density.min = '0';
-    density.max = String(MAX_DENSITY);
-    density.step = 'any';
+    const density = input('hidden', '', data.kcalPer100g, '');
     density.dataset.foodDensity = 'true';
 
-    grams.addEventListener('input', () => computeKcal(row));
-    density.addEventListener('input', () => computeKcal(row));
     kcal.addEventListener('input', () => {
       kcal.removeAttribute('data-calculated');
       updateTotal();
     });
     fields.append(
-      field(copy('음식 이름', 'Food name'), name),
-      field(copy('칼로리', 'Calories'), kcal)
+      field(copy('메뉴 이름', 'Menu name'), name),
+      field(copy('총 칼로리 (kcal)', 'Total calories (kcal)'), kcal)
     );
-    const more = document.createElement('details');
-    more.className = 'food-row-more';
-    const moreSummary = document.createElement('summary');
-    moreSummary.textContent = copy('양·100g당 칼로리로 계산', 'Calculate from amount and kcal per 100 g');
-    const moreFields = document.createElement('div');
-    moreFields.className = 'food-fields food-fields-more';
-    moreFields.append(
-      field(copy('양 (g)', 'Amount (g)'), grams),
-      field(copy('100g당 kcal', 'kcal per 100g'), density)
-    );
-    more.append(moreSummary, moreFields);
-    more.open = data.grams !== undefined || data.kcalPer100g !== undefined || Boolean(data.photoDraft);
-    row.append(header, fields, more);
+    row.append(header, fields, grams, density);
     container.append(row);
     if (data.photoDraft || data.textDraft) {
       const draftKey = data.textDraft ? 'foodTextDraft' : 'foodPhotoDraft';
@@ -796,7 +743,7 @@
       ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
       : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
-      ? copy(' 양이 비어 있는 음식은 먹은 양(g)을 입력하면 칼로리가 계산돼요.', 'Enter the amount eaten (g) for any blank portion to calculate its calories.') : '';
+      ? copy(' 칼로리가 비어 있는 메뉴는 총 칼로리를 직접 입력해 주세요.', 'Enter total calories for any item without a calorie value.') : '';
     const review = needsReview.length ? copy(' 국·찌개는 실제로 먹은 종류를 골라 주세요.', ' Select the soup or stew you ate.') : '';
     const manual = unmatched ? copy(` 직접 입력: ${unmatched}`, ` Enter manually: ${unmatched}`) : '';
     const limited = items.length > room ? copy(' 입력 칸이 부족해 일부만 추가했어요.', ' Only some items fit in the form.') : '';
@@ -1072,13 +1019,13 @@
       const kcalRaw = row.querySelector('[data-food-kcal]').value.trim();
       const densityRaw = row.querySelector('[data-food-density]').value.trim();
       if (row.hasAttribute('data-food-review') && !name) throw new Error(copy('국·찌개 종류를 고르거나 해당 음식 칸을 삭제해 주세요.', 'Choose the soup or stew, or remove that row.'));
-      if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 먹은 양(g)이나 칼로리를 입력해 주세요.`, `Enter the amount eaten (g) or calories for ${name}.`));
+      if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 총 칼로리를 입력해 주세요.`, `Enter the total calories for ${name}.`));
       if (!name && !gramsRaw && !kcalRaw && !densityRaw) continue;
       const grams = finiteNumber(gramsRaw);
       const kcal = finiteNumber(kcalRaw);
       const density = finiteNumber(densityRaw);
       if (!name || name.length > 100 || kcalRaw === '' || !Number.isFinite(kcal) || kcal < 0 || kcal > MAX_KCAL || (gramsRaw !== '' && (!Number.isFinite(grams) || grams <= 0 || grams > MAX_GRAMS)) || (densityRaw !== '' && (!Number.isFinite(density) || density < 0 || density > MAX_DENSITY))) {
-        throw new Error(copy('각 음식의 이름과 0 이상 칼로리를 입력해 주세요. 양은 0보다 커야 해요.', 'Enter a name and non-negative calories for each food. Amount must be greater than zero.'));
+        throw new Error(copy('메뉴 이름과 0 이상 총 칼로리를 확인해 주세요.', 'Check each menu name and enter non-negative total calories.'));
       }
       const item = { name, kcal };
       if (gramsRaw !== '') item.grams = grams;
