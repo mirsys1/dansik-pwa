@@ -34,6 +34,7 @@
   let providerDraftActive = false;
   let sharedQuotaDay = '';
   let qrSession = null;
+  let qrReadGeneration = 0;
   // A text-analysis response is only allowed to change rows from the revision
   // it started with.  Direct edits always win over a delayed suggestion.
   let foodRevision = 0;
@@ -177,6 +178,12 @@
 
   function setStatus(message, state = 'ready') {
     analysisStatus('photo', message, state);
+  }
+
+  function setConnectionStatus(message, state = 'ready') {
+    const node = byId('food-ai-connection-status');
+    setText(node, message);
+    if (node) node.dataset.state = state;
   }
 
   function finiteNumber(raw) {
@@ -732,6 +739,7 @@
     providerDraftActive = true;
     cancelAnalysis();
     noteEdited = false;
+    setText(byId('food-ai-connection-status'), '');
   }
 
   function commitProviderDraft() {
@@ -747,6 +755,7 @@
   }
 
   function revertProviderDraft() {
+    setText(byId('food-ai-connection-status'), '');
     if (providerDraftBaseline === null) return;
     const baseline = providerDraftBaseline;
     providerDraftBaseline = null;
@@ -824,7 +833,7 @@
 
   function showQrConnection(code) {
     const valid = Boolean(code && (!photoCode || photoCode === code));
-    setStatus(connectFromQr(code), valid ? 'ready' : 'error');
+    setConnectionStatus(connectFromQr(code), valid ? 'ready' : 'error');
   }
 
   function consumePhotoPairLink() {
@@ -852,6 +861,11 @@
   }
 
   function stopQrScan() {
+    qrReadGeneration += 1;
+    const button = byId('food-ai-scan');
+    const preview = byId('food-ai-qr-preview');
+    if (button) button.disabled = false;
+    if (preview) preview.hidden = true;
     if (!qrSession) return;
     const session = qrSession;
     qrSession = null;
@@ -866,19 +880,22 @@
   async function startQrScan(input, button) {
     const video = byId('food-ai-qr-video');
     const preview = byId('food-ai-qr-preview');
+    const dialog = preview?.closest('dialog');
+    if (!dialog?.open) return;
     if (!video || !preview || !navigator.mediaDevices?.getUserMedia) {
       input.click();
       return;
     }
     if (qrSession) return;
+    stopQrScan();
     stopCamera(false);
-    const session = { button, video, preview, stream: null, timer: null };
+    const session = { button, video, preview, dialog, stream: null, timer: null };
     qrSession = session;
     button.disabled = true;
-    setStatus(copy('카메라를 여는 중이에요.', 'Opening the camera.'), 'loading');
+    setConnectionStatus(copy('카메라를 여는 중이에요.', 'Opening the camera.'), 'loading');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
-      if (qrSession !== session || !byId('meal-dialog').open) {
+      if (qrSession !== session || !dialog.open || preview.closest('dialog') !== dialog) {
         stream.getTracks().forEach((track) => track.stop());
         if (qrSession === session) stopQrScan();
         return;
@@ -892,10 +909,11 @@
       const fail = () => {
         if (qrSession !== session) return;
         stopQrScan();
-        setStatus(copy('카메라로 읽지 못했어요. QR 사진 찍기를 눌러 다시 시도해 주세요.', 'Could not scan with the camera. Try Take QR photo.'), 'error');
+        setConnectionStatus(copy('카메라로 읽지 못했어요. QR 사진 찍기를 눌러 다시 시도해 주세요.', 'Could not scan with the camera. Try Take QR photo.'), 'error');
       };
       const read = () => {
         if (qrSession !== session) return;
+        if (!dialog.open || preview.closest('dialog') !== dialog) { stopQrScan(); return; }
         if (Date.now() >= deadline) { fail(); return; }
         if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
           let result;
@@ -909,21 +927,25 @@
         }
         session.timer = root.setTimeout(read, 220);
       };
-      setStatus('');
+      setConnectionStatus('');
       video.play().catch(fail);
       read();
     } catch {
       if (qrSession === session) {
         stopQrScan();
-        setStatus(copy('카메라 권한을 확인하거나 QR 사진 찍기를 눌러 주세요.', 'Check camera permission or tap Take QR photo.'), 'error');
+        setConnectionStatus(copy('카메라 권한을 확인하거나 QR 사진 찍기를 눌러 주세요.', 'Check camera permission or tap Take QR photo.'), 'error');
       }
     }
   }
 
   async function scanPhotoPairQr(file) {
     const button = byId('food-ai-scan');
+    const dialog = byId('food-ai-qr-file')?.closest('dialog');
+    stopQrScan();
+    const qrGeneration = qrReadGeneration;
     const generation = transientGeneration;
-    const active = () => isCurrentGeneration(generation) && byId('meal-dialog').open;
+    const active = () => isCurrentGeneration(generation) && qrGeneration === qrReadGeneration && dialog?.open && byId('food-ai-qr-file')?.closest('dialog') === dialog;
+    if (!active()) return;
     button.disabled = true;
     try {
       if (file.size > MAX_IMAGE_BYTES || typeof root.jsQR !== 'function') throw new Error('QR image unavailable');
@@ -946,9 +968,9 @@
       if (!result) throw new Error('QR code not found');
       showQrConnection(codeFromQrLink(result.data));
     } catch {
-      if (active()) setStatus(copy('QR을 읽지 못했어요. PC 화면의 QR 전체가 보이게 다시 찍어 주세요.', 'Could not read the QR code. Capture the entire code on your PC screen.'), 'error');
+      if (active()) setConnectionStatus(copy('QR을 읽지 못했어요. PC 화면의 QR 전체가 보이게 다시 찍어 주세요.', 'Could not read the QR code. Capture the entire code on your PC screen.'), 'error');
     } finally {
-      button.disabled = false;
+      if (qrGeneration === qrReadGeneration) button.disabled = false;
     }
   }
 
@@ -1868,11 +1890,11 @@
       const connect = () => {
         const code = codeInput.value.trim();
         if (!CODE_PATTERN.test(code)) {
-          setStatus(copy('사진 분석 연결 코드를 다시 확인해 주세요.', 'Check your photo analysis access code.'), 'error');
+          setConnectionStatus(copy('사진 분석 연결 코드를 다시 확인해 주세요.', 'Check your photo analysis access code.'), 'error');
           return;
         }
         setPhotoCode(code);
-        setStatus(accessCodeSavedMessage());
+        setConnectionStatus(accessCodeSavedMessage());
         if (!providerDraftActive) analyzePhoto();
       };
       byId('food-ai-connect')?.addEventListener('click', connect);
@@ -1882,7 +1904,7 @@
       byId('food-ai-disconnect')?.addEventListener('click', () => {
         cancelAnalysis();
         setPhotoCode('');
-        setStatus(copy('사진 분석을 껐어요. 음식은 직접 입력할 수 있어요.', 'Photo analysis is off. You can still enter food manually.'));
+        setConnectionStatus(copy('사진 분석을 껐어요. 음식은 직접 입력할 수 있어요.', 'Photo analysis is off. You can still enter food manually.'));
       });
     }
     root.addEventListener('dansik:language-changed', () => {
@@ -1961,6 +1983,7 @@
     });
     const dialog = byId('meal-dialog');
     if (dialog) dialog.addEventListener('close', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
+    byId('settings-dialog')?.addEventListener('close', stopQrScan);
     root.addEventListener('beforeunload', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); }, { once: true });
     root.addEventListener('pagehide', stopQrScan);
   }
