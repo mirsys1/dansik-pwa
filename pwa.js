@@ -222,7 +222,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.37 (PWA-110)', build: 'PWA-110' },
+      app: { version: '1.0.37 (PWA-111)', build: 'PWA-111' },
       lastBackupAt: lastBackupAt(),
       activityRecoveryNeeded: activityUnreadable,
       settingsRecoveryNeeded: prefsUnreadable,

@@ -155,15 +155,14 @@
           <div id="food-items"></div>
           <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
         </section>
-        <details id="meal-ai-tools" class="meal-ai-tools">
-          <summary><span data-i18n="intake.aiTools">사진·AI로 입력</span><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected">연결 안 됨</span></summary>
+        <section id="meal-ai-tools" class="meal-ai-tools" aria-labelledby="meal-ai-tools-title">
+          <div class="meal-ai-heading"><h3 id="meal-ai-tools-title" data-i18n="intake.aiTools">사진·AI로 입력</h3><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected">연결 안 됨</span></div>
           <div class="meal-ai-body">
           <p id="food-ai-transfer-help" class="field-help" data-i18n="intake.aiTransferHelp">AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.</p>
         <div id="food-text-options" hidden>
           <div class="food-text-actions"><button type="button" class="text-button" id="food-text-calculate" data-i18n="intake.calculate">칼로리 계산</button><button type="button" class="text-button" id="food-ai-settings-open" data-i18n="intake.aiSettings">AI 연결 설정</button></div>
         </div>
-        <button type="button" class="outline-button food-photo-add" id="food-photo-add" aria-controls="food-photo-choices" aria-expanded="false" data-i18n="intake.photoInput">사진으로 입력</button>
-        <div id="food-photo-choices" class="food-media-actions" hidden>
+        <div id="food-photo-choices" class="food-media-actions">
           <button type="button" class="outline-button" id="food-camera" data-i18n="intake.camera">카메라 촬영</button>
           <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPick">사진 올리기</button>
           <input type="file" id="food-photo-file" accept="image/*" hidden>
@@ -179,7 +178,7 @@
         <img id="food-photo-preview" class="food-media" alt="" hidden>
         <button type="button" class="text-button" id="food-photo-remove" hidden data-i18n="intake.removePhoto">사진 지우기</button>
           </div>
-        </details>
+        </section>
         <div id="meal-ai-feedback" class="meal-ai-feedback" hidden>
           <p id="food-text-status" class="field-help" role="status"></p>
           <p id="food-photo-status" class="field-help" role="status"></p>

@@ -1105,7 +1105,7 @@
     try {
       stopCamera(false);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-      if (!isCurrentGeneration(generation) || !byId('meal-dialog').open || !byId('meal-ai-tools').open) {
+      if (!isCurrentGeneration(generation) || !byId('meal-dialog').open) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -1122,13 +1122,13 @@
       const camera = byId('food-camera');
       if (camera) camera.disabled = true;
       await video.play();
-      if (!isCurrentGeneration(generation) || cameraStream !== stream || !byId('meal-ai-tools').open) {
+      if (!isCurrentGeneration(generation) || cameraStream !== stream || !byId('meal-dialog').open) {
         if (cameraStream === stream) stopCamera(false);
         return;
       }
       setStatus(copy('카메라가 켜졌어요. 사진 찍기를 눌러 주세요.', 'Camera is on. Tap Take photo when ready.'));
     } catch (_error) {
-      if (isCurrentGeneration(generation) && byId('meal-ai-tools').open) {
+      if (isCurrentGeneration(generation) && byId('meal-dialog').open) {
         stopCamera(false);
         setStatus(copy('카메라를 사용할 수 없어요. 권한을 확인하거나 사진 선택을 이용해 주세요.', 'Camera is unavailable. Check permission or choose a photo instead.'), 'error');
       }
@@ -1213,10 +1213,6 @@
     source.slice(0, MAX_FOODS).forEach((food) => addRow(food));
     if (source.length === 0) addRow();
     showRecentFoods(events);
-    const choices = byId('food-photo-choices');
-    if (choices) choices.hidden = true;
-    const tools = byId('meal-ai-tools');
-    if (tools) tools.open = false;
     updateTextActions();
     updateTotal();
   }
@@ -1368,15 +1364,6 @@
     byId('food-name-edit')?.addEventListener('click', () => {
       showMenuNames();
       byId('food-items')?.querySelector('[data-food-name]')?.focus();
-    });
-    byId('food-photo-add')?.addEventListener('click', () => {
-      const choices = byId('food-photo-choices');
-      if (!choices) return;
-      choices.hidden = !choices.hidden;
-      byId('food-photo-add').setAttribute('aria-expanded', String(!choices.hidden));
-    });
-    byId('meal-ai-tools')?.addEventListener('toggle', event => {
-      if (!event.currentTarget.open && cameraStream) stopCamera(false);
     });
     byId('food-photo-pick')?.addEventListener('click', () => byId('food-photo-file')?.click());
     byId('food-ai-settings-open')?.addEventListener('click', () => root.dispatchEvent(new CustomEvent('meal:ai-settings')));

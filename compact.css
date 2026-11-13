@@ -1437,9 +1437,7 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
 #food-text-status:empty, #food-photo-status:empty, #food-summary-help:empty { display: none; }
 #meal-dialog .food-text-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 #meal-dialog .food-text-actions button { padding-inline: 0; min-height: 44px; text-align: left; }
-#meal-dialog .food-photo-add { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 0; padding: 8px 14px; font-weight: 650; }
 #meal-dialog #food-photo-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
-#meal-dialog #food-photo-choices[hidden] { display: none; }
 #food-photo-choices > .field-help { flex: 1 0 100%; margin: 0; }
 #meal-dialog .food-media { margin-top: 10px; }
 #meal-dialog #food-photo-status { margin: 8px 0; }
@@ -1582,41 +1580,30 @@ body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select
   }
 }
 
-/* PWA-110: photo and AI assistance is optional to the main manual entry.
-   A separator is sufficient; adding another card competes with the form. */
+/* PWA-111: photo and AI actions stay visible alongside manual entry. */
 #meal-dialog .meal-ai-tools {
   margin: 8px 0 0;
   padding: 0;
   border: 0;
   border-top: 1px solid var(--line);
 }
-#meal-dialog .meal-ai-tools > summary {
+#meal-dialog .meal-ai-heading {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 8px;
-  min-height: 44px;
   padding: 8px 0;
-  cursor: pointer;
   color: var(--muted);
   font-size: var(--type-body);
   font-weight: 650;
   line-height: 1.35;
-  list-style: none;
 }
-#meal-dialog .meal-ai-tools > summary::-webkit-details-marker { display: none; }
-#meal-dialog .meal-ai-tools > summary::before {
-  content: '';
-  inline-size: 7px;
-  block-size: 7px;
-  flex: 0 0 auto;
-  border-inline-end: 1.5px solid currentColor;
-  border-block-end: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform .15s ease;
+#meal-dialog .meal-ai-heading h3 {
+  min-width: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
 }
-#meal-dialog .meal-ai-tools[open] > summary::before { transform: rotate(45deg); }
-#meal-dialog .meal-ai-tools > summary > :first-child { min-width: 0; }
 #meal-dialog .food-ai-state {
   max-width: 100%;
   margin-inline-start: auto;
@@ -1632,7 +1619,6 @@ body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select
 #meal-dialog .meal-ai-body { margin: 0 0 8px; padding: 0; }
 #meal-dialog .meal-ai-body #food-text-options { margin: 0 0 8px; }
 #meal-dialog .meal-ai-body #food-photo-choices { margin: 8px 0; }
-#meal-dialog .meal-ai-body .food-photo-add { margin-top: 0; }
 #meal-dialog #food-text-disclosure {
   margin: 4px 0 0;
   font-size: var(--type-meta);
