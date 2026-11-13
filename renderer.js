@@ -79,6 +79,7 @@ let busy = false;
 let editingId = null;
 let editingSnapshot = null;
 let settingsBaseline = null;
+let providerDraftCommitted = false;
 let mealStartsTimer = false;
 let returnToMealAfterSettings = false;
 let mealAutoType = false;
@@ -126,6 +127,7 @@ function translateDom() {
   document.querySelectorAll('[data-goal-preset]').forEach(el => { el.textContent = t('goal.hours', { h: el.dataset.goalPreset }); });
   document.querySelectorAll('[data-meal]').forEach(button => { const key = Object.keys(MEAL_KEYS).find(k => MEAL_KEYS[k] === button.dataset.meal); button.title = t('meal.hint', { meal: mealName(button.dataset.meal), key }); });
   if (windowInfo) applyWindowInfo(windowInfo);
+  window.dispatchEvent(new Event('dansik:language-changed'));
 }
 function placeToast(page = document.body.dataset.page || 'timer') {
   const element = $('toast');
@@ -1027,17 +1029,23 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   const scroller = $('meal-dialog').querySelector('.meal-form-body');
   if (scroller) scroller.scrollTop = 0;
 }
-function openMealAiSettings() {
-  const mealDialog = $('meal-dialog');
-  returnToMealAfterSettings = Boolean(mealDialog?.open);
-  if (!$('settings-dialog').open) openSettings(false);
+function showFoodAiSettings() {
   $('settings-profile').open = true;
+  const trigger = $('settings-food-ai-open');
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
   const section = $('settings-food-ai');
   if (section) {
     section.hidden = false;
     section.scrollIntoView({ block: 'nearest' });
+    requestAnimationFrame(() => $('settings-food-ai-title')?.focus({ preventScroll: true }));
   }
   $('food-ai-setup')?.setAttribute('open', '');
+}
+function openMealAiSettings() {
+  const mealDialog = $('meal-dialog');
+  returnToMealAfterSettings = Boolean(mealDialog?.open);
+  if (!$('settings-dialog').open) openSettings(false);
+  showFoodAiSettings();
 }
 function renderIntake() {
   const now = Date.now();
@@ -1106,10 +1114,13 @@ function openGoal() {
 }
 function openSettings(profileOnly = false) {
   const dialog = $('settings-dialog');
+  window.MealFoods?.beginProviderDraft?.();
+  providerDraftCommitted = false;
   const title = $('settings-title');
   title.dataset.i18n = profileOnly ? 'settings.group.profile' : 'settings.title';
   title.textContent = t(title.dataset.i18n);
   dialog.classList.toggle('settings-profile-only', profileOnly);
+  $('settings-food-ai-open')?.setAttribute('aria-expanded', 'false');
   dialog.querySelectorAll('.settings-group').forEach(group => {
     group.open = profileOnly && group.id === 'settings-profile';
   });
@@ -1239,7 +1250,6 @@ $('meal-last-time').addEventListener('click', () => {
   setMealDateTime(last.at, last);
   $('meal-error').textContent = ''; clearMealFieldErrors();
 });
-$('food-photo-pick').addEventListener('click', () => $('food-photo-file').click());
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
 $('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
 $('goal-enabled').addEventListener('change', () => {
@@ -1362,6 +1372,7 @@ $('meal-dialog').addEventListener('close', () => {
 
 
 $('settings-button').addEventListener('click', () => openSettings());
+$('settings-food-ai-open').addEventListener('click', showFoodAiSettings);
 $('restore-recovery-shortcut').addEventListener('click', () => { openSettings(); $('settings-backup').open = true; $('restore-recovery').scrollIntoView({ block: 'nearest' }); });
 $('energy-profile').addEventListener('click', () => openSettings(true));
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
@@ -1372,6 +1383,8 @@ $('timer-gradient-input').addEventListener('change',()=>{
   renderDialGradient(dialGradientProgress, dialGradientActive);
 });
 $('settings-dialog').addEventListener('close', () => {
+  if (!providerDraftCommitted) window.MealFoods?.revertProviderDraft?.();
+  providerDraftCommitted = false;
   applyColorTheme(prefs.colorTheme);
   discardTimerGradientPreview();
   if (returnToMealAfterSettings && $('meal-dialog').open) {
@@ -1665,6 +1678,8 @@ $('settings-form').addEventListener('submit', async event => {
       if (!result) throw new Error(lastActionError || t('settings.saveFailed'));
       canUndo = result.canUndo;
     }
+    window.MealFoods?.commitProviderDraft?.();
+    providerDraftCommitted = true;
     dialog.close();
     toast(t('toast.settingsSaved'), canUndo);
   } catch (cause) {

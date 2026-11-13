@@ -8,19 +8,31 @@
   const MAX_GRAMS = 10000;
   const MAX_DENSITY = 20000;
   const MAX_AI_BYTES = 1024 * 1024;
+  const MAX_PHOTO_BATCH = 8;
+  const MAX_PHOTO_BATCH_BYTES = 32 * 1024 * 1024;
   const CODE_PATTERN = /^[A-Za-z0-9_-]{24,128}$/;
   const PAIR_LINK = 'https://mirsys1.github.io/dansik-pwa/#photo-connect=';
   const TEXT_AUTO_KEY = 'dansik:meal-text-auto:v1';
+  const AI_PROVIDER_KEY = 'dansik:food-ai-provider:v1';
   let cameraStream = null;
   let initialized = false;
   let transientGeneration = 0;
   let currentPhoto = null;
   let analysisRequest = null;
+  let photoBatch = null;
+  let photoSelectionGeneration = 0;
+  let photoSelectionPending = null;
   let photoReadGeneration = null;
   let noteEdited = false;
   let endpoint = null;
   let photoCode = '';
-  let quotaDay = '';
+  let aiProvider = 'cloudflare';
+  let savedProvider = 'cloudflare';
+  let savedPhotoCode = '';
+  let savedTextAuto = true;
+  let providerDraftBaseline = null;
+  let providerDraftActive = false;
+  let sharedQuotaDay = '';
   let qrSession = null;
   // A text-analysis response is only allowed to change rows from the revision
   // it started with.  Direct edits always win over a delayed suggestion.
@@ -33,6 +45,20 @@
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
   const copy = (korean, english) => (isEnglish() ? english : korean);
   const valueOrEmpty = (value) => value === undefined || value === null ? '' : String(value);
+
+  function normalizeProvider(value) {
+    return value === 'gemini' ? 'gemini' : 'cloudflare';
+  }
+
+  function providerNeedsSetup(provider = aiProvider) {
+    // Both providers use the existing app access code. This is not a Gemini
+    // API key, which remains registered only on the server.
+    return provider === 'cloudflare' || provider === 'gemini';
+  }
+
+  function providerReady(provider = aiProvider) {
+    return Boolean(endpoint && (!providerNeedsSetup(provider) || photoCode));
+  }
 
   function canonicalFoodName(value) {
     return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
@@ -414,6 +440,7 @@
     const needsCorrection = incomplete || missingAmount;
     const aiDraft = Boolean(document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]'));
     const showAiResult = aiDraft && calculated > 0;
+    positionFoodSummary();
     const formatted = roundKcal(total).toLocaleString(isEnglish() ? 'en-US' : 'ko-KR', { maximumFractionDigits: 1 });
     const message = needsCorrection
       ? (calculated ? copy(`계산된 합계 ${formatted} kcal · 입력 확인 필요`, `Calculated subtotal ${formatted} kcal · review needed`)
@@ -434,6 +461,25 @@
       ? copy('빠진 정보가 있는 음식은 합계에 포함되지 않아요. 수정에서 음식 이름과 칼로리를 확인해 주세요.', 'Items with missing information are not included. Check the food name and calories in Edit.')
       : copy('계산 결과를 확인한 뒤 기록 저장을 누르세요.', 'Check the result, then save the meal.'));
     root.dispatchEvent(new CustomEvent('meal:foods-changed', { detail: { count: calculated, total: calculated ? roundKcal(total) : null, incomplete: needsCorrection } }));
+  }
+
+  function positionFoodSummary() {
+    const summary = byId('food-summary');
+    const items = byId('food-items');
+    const aiTools = byId('meal-ai-tools');
+    if (!summary) return;
+    if (summary.hasAttribute('data-multi-photo-summary') && items) {
+      // Reuse the one existing summary instead of creating a second total.
+      // This keeps the confirmed total beside the food rows for multi-photo
+      // review while preserving the normal single-photo layout.
+      if (summary.previousElementSibling !== items) items.after(summary);
+      const summaryItems = byId('food-summary-items');
+      if (summaryItems) summaryItems.hidden = true;
+    } else if (aiTools && summary.previousElementSibling !== aiTools) {
+      aiTools.after(summary);
+      const summaryItems = byId('food-summary-items');
+      if (summaryItems) summaryItems.hidden = Boolean(document.querySelector('#food-items [data-food-name-compact]'));
+    }
   }
 
   // The calorie path opens below the short meal form. Keep the first row's
@@ -573,6 +619,12 @@
         heading.append(estimate);
         [name, density, kcal].forEach((control) => control.addEventListener('input', () => estimate.remove(), { once: true }));
       }
+      if (data.photoSource) {
+        const source = document.createElement('small');
+        source.className = 'food-photo-source';
+        source.textContent = copy(` · 사진 ${data.photoSource}`, ` · Photo ${data.photoSource}`);
+        heading.append(source);
+      }
     }
     if (data.choices?.length) {
       row.dataset.foodReview = 'true';
@@ -608,6 +660,105 @@
 
   function codeKey() { return `dansik:food-photo-code:v1:${endpoint.origin}`; }
 
+  function providerTransferHelp(provider = aiProvider) {
+    return provider === 'gemini'
+      ? copy('AI 계산 시 음식 글·사진이 Cloudflare 중계 서버를 거쳐 Gemini로 전송돼요.', 'AI calculation sends food descriptions and photos to Gemini through the Cloudflare relay server.')
+      : copy('AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.', 'AI calculation sends food descriptions and photos to Cloudflare AI.');
+  }
+
+  function providerDisclosure(provider = aiProvider) {
+    return provider === 'gemini'
+      ? copy('계산할 음식 글과 고른 사진이 Cloudflare 중계 서버를 거쳐 Gemini로 전송돼요. Gemini 무료 등급에서는 전송한 데이터가 Google 서비스 개선에 사용될 수 있어요. 결과를 확인한 뒤 저장하세요.', 'Food descriptions you calculate and selected photos are sent to Gemini through the Cloudflare relay server. With the Gemini free tier, submitted data may be used to improve Google services. Check the result before saving.')
+      : copy('계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요.', 'Food descriptions you calculate and selected photos are sent to Cloudflare AI. Check the result before saving.');
+  }
+
+  function providerTextHelp(provider = aiProvider) {
+    return provider === 'gemini'
+      ? copy('예: 두부 150g. 자동 계산을 켜면 음식 칸에서 나올 때 글이 Cloudflare 중계 서버를 거쳐 Gemini로 전송돼요.', 'Example: 150 g tofu. With automatic calculation on, leaving the food field sends the text to Gemini through the Cloudflare relay server.')
+      : copy('예: 두부 150g. 자동 계산을 켜면 음식 칸에서 나올 때 글이 Cloudflare AI로 전송돼요.', 'Example: 150 g tofu. With automatic calculation on, leaving the food field sends the text to Cloudflare AI.');
+  }
+
+  function accessCodeSavedMessage() {
+    if (providerDraftActive) {
+      return copy('AI 연결 코드를 임시 적용했어요. 설정 저장을 누르면 이 기기에 저장돼요.', 'The AI access code is applied temporarily. Choose Save settings to store it on this device.');
+    }
+    return aiProvider === 'gemini'
+      ? copy('AI 연결 코드를 저장했어요. Gemini 서버 준비 상태는 분석할 때 확인돼요.', 'The AI access code is saved. Gemini server readiness is checked when you analyze.')
+      : copy('사진 분석을 연결했어요. 음식 사진을 찍거나 올려 보세요.', 'Photo analysis is connected. Take or add a food photo.');
+  }
+
+  function updateProviderUi() {
+    const select = byId('food-ai-provider');
+    if (select) select.value = aiProvider;
+    const help = byId('food-ai-provider-help');
+    if (help) {
+      setText(help, aiProvider === 'gemini'
+        ? copy('Gemini API 키는 이 앱에 입력하지 않아요. 서버에 안전하게 등록되어 있어야 해요. Gemini 무료 등급 전송 데이터는 Google 서비스 개선에 사용될 수 있어요.', 'A Gemini API key is never entered in this app. It must be securely registered on the server. Gemini free-tier submitted data may be used to improve Google services.')
+        : copy('Cloudflare AI 분석을 사용해요. 이 기기의 AI 연결 코드가 필요해요.', 'Cloudflare AI analysis is selected. This device needs an AI access code.'));
+    }
+    setText(byId('food-ai-disclosure-detail'), providerDisclosure());
+    setText(byId('food-text-help'), providerTextHelp());
+    const setup = byId('food-ai-setup');
+    if (setup) setup.hidden = Boolean(photoCode);
+    const disconnect = byId('food-ai-disconnect');
+    if (disconnect) disconnect.hidden = !photoCode;
+    const textAuto = byId('food-text-auto');
+    if (textAuto) textAuto.disabled = !providerReady();
+    const quotaCheck = byId('food-quota-check');
+    if (quotaCheck) quotaCheck.hidden = false;
+    const quotaStatus = byId('food-quota-status');
+    if (quotaStatus && aiProvider === 'gemini') {
+      setText(quotaStatus, copy('Gemini 공급자 한도와 별개로 Cloudflare 중계 서버의 앱 공통 잔여 분석 횟수를 아래에서 확인할 수 있어요.', 'You can check the app-wide remaining analyses on the Cloudflare relay server below; this is separate from Gemini provider limits.'));
+    } else if (quotaStatus?.dataset.providerNotice === 'gemini') {
+      setText(quotaStatus, '');
+    }
+    if (quotaStatus) quotaStatus.dataset.providerNotice = aiProvider;
+  }
+
+  function setAiProvider(value) {
+    const nextProvider = normalizeProvider(value);
+    if (nextProvider !== aiProvider) {
+      cancelAnalysis();
+      setText(byId('food-text-status'), '');
+      setText(byId('food-photo-status'), '');
+    }
+    aiProvider = nextProvider;
+    updateProviderUi();
+    updateTextActions();
+  }
+
+  function beginProviderDraft() {
+    providerDraftBaseline = { provider: savedProvider, photoCode: savedPhotoCode, textAuto: savedTextAuto };
+    providerDraftActive = true;
+    cancelAnalysis();
+    noteEdited = false;
+  }
+
+  function commitProviderDraft() {
+    savedProvider = aiProvider;
+    savedPhotoCode = photoCode;
+    savedTextAuto = Boolean(byId('food-text-auto')?.checked);
+    providerDraftBaseline = null;
+    providerDraftActive = false;
+    noteEdited = false;
+    try { root.localStorage.setItem(AI_PROVIDER_KEY, savedProvider); } catch { /* optional persistence */ }
+    persistPhotoCode(savedPhotoCode);
+    try { root.localStorage.setItem(TEXT_AUTO_KEY, savedTextAuto ? '1' : '0'); } catch { /* optional persistence */ }
+  }
+
+  function revertProviderDraft() {
+    if (providerDraftBaseline === null) return;
+    const baseline = providerDraftBaseline;
+    providerDraftBaseline = null;
+    providerDraftActive = false;
+    noteEdited = false;
+    setAiProvider(baseline.provider);
+    setPhotoCode(baseline.photoCode, { persist: false });
+    const textAuto = byId('food-text-auto');
+    if (textAuto) textAuto.checked = baseline.textAuto;
+    updateTextActions();
+  }
+
   function updateTextActions() {
     const calculate = byId('food-text-calculate');
     const settings = byId('food-ai-settings-open');
@@ -615,35 +766,44 @@
     // With a working automatic connection the note stays intentionally quiet.
     // Manual calculation appears after opting out or an analysis error, and
     // setup remains one clear action away when the device is disconnected.
-    if (calculate) calculate.hidden = !photoCode || Boolean(auto?.checked);
-    if (settings) settings.hidden = Boolean(photoCode);
-    const automatic = Boolean(endpoint && photoCode && auto?.checked);
+    const ready = providerReady();
+    if (calculate) calculate.hidden = !ready || Boolean(auto?.checked);
+    if (settings) settings.hidden = !endpoint;
+    const automatic = Boolean(ready && auto?.checked);
     const disclosure = byId('food-text-disclosure');
     if (disclosure) disclosure.hidden = !automatic;
+    if (disclosure) setText(disclosure, automatic ? providerTransferHelp() : '');
     const note = byId('meal-note');
     if (note) note.setAttribute('aria-describedby', automatic ? 'food-text-disclosure food-text-status' : 'food-text-status');
     const transferHelp = byId('food-ai-transfer-help');
-    if (transferHelp) transferHelp.hidden = !endpoint;
+    if (transferHelp) {
+      transferHelp.hidden = !endpoint;
+      setText(transferHelp, providerTransferHelp());
+    }
+    const photoTransferHelp = byId('food-photo-transfer-help');
+    if (photoTransferHelp) setText(photoTransferHelp, providerReady() ? providerTransferHelp() : copy('AI 연결 후 고른 사진을 분석할 수 있어요.', 'Connect AI to analyze selected photos.'));
     const badge = byId('food-ai-state');
-    if (badge) badge.dataset.i18n = !endpoint ? 'intake.aiStateManual' : !photoCode ? 'intake.aiStateDisconnected' : automatic ? 'intake.aiStateAuto' : 'intake.aiStateConnected';
-    setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
+    if (badge) badge.dataset.i18n = !endpoint ? 'intake.aiStateManual' : !photoCode ? 'intake.aiStateDisconnected' : aiProvider === 'gemini' ? 'intake.aiStateGemini' : automatic ? 'intake.aiStateAuto' : 'intake.aiStateConnected';
+    setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : aiProvider === 'gemini' ? copy('Gemini 선택됨', 'Gemini selected') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
   }
 
-  function setPhotoCode(code) {
-    if (code) stopQrScan();
-    photoCode = code;
+  function persistPhotoCode(code) {
     try {
       if (code) root.localStorage.setItem(codeKey(), code);
       else root.localStorage.removeItem(codeKey());
     } catch { /* storage can be unavailable in private browser sessions */ }
+  }
+
+  function setPhotoCode(code, { persist = !providerDraftActive } = {}) {
+    if (code) stopQrScan();
+    photoCode = code;
+    if (persist) {
+      savedPhotoCode = code;
+      persistPhotoCode(code);
+    }
     const codeInput = byId('food-ai-code');
     if (codeInput) codeInput.value = '';
-    const setup = byId('food-ai-setup');
-    if (setup) setup.hidden = Boolean(code);
-    const disconnect = byId('food-ai-disconnect');
-    if (disconnect) disconnect.hidden = !code;
-    const textAuto = byId('food-text-auto');
-    if (textAuto) textAuto.disabled = !code;
+    updateProviderUi();
     // No standing hint without a code: pressing Calculate explains and opens the setup.
     setText(byId('food-text-status'), '');
     updateTextActions();
@@ -659,7 +819,7 @@
     if (!code) return copy('단식 타이머 연결용 QR을 찍어 주세요.', 'Scan the QR code for Dansik Timer.');
     if (photoCode && photoCode !== code) return copy('이미 연결되어 있어요. 바꾸려면 기존 연결을 먼저 꺼 주세요.', 'Already connected. Turn off the current connection to replace it.');
     setPhotoCode(code);
-    return copy('사진 분석을 연결했어요. 음식 사진을 찍거나 올려 보세요.', 'Photo analysis is connected. Take or add a food photo.');
+    return accessCodeSavedMessage();
   }
 
   function showQrConnection(code) {
@@ -793,7 +953,51 @@
   }
 
   function analysisPending() {
-    return !!analysisRequest || photoReadGeneration !== null;
+    return !!analysisRequest || !!photoBatch || !!photoSelectionPending || photoReadGeneration !== null;
+  }
+
+  function batchIsActive(batch) {
+    return photoBatch === batch && !batch.cancelled && isCurrentGeneration(batch.generation) && byId('meal-dialog')?.open;
+  }
+
+  function setPhotoBatchProgress(batch, message) {
+    const progress = byId('food-photo-progress');
+    const text = byId('food-photo-progress-text');
+    if (progress) progress.hidden = !batch;
+    if (text) text.textContent = message || '';
+    const cancel = byId('food-photo-analysis-cancel');
+    if (cancel) cancel.hidden = !batch;
+  }
+
+  function setPhotoBatchItem(batch, index, state, label, src) {
+    const item = byId('food-photo-preview-list')?.querySelector(`[data-photo-index="${index}"]`);
+    if (!item || photoBatch !== batch) return;
+    item.dataset.photoState = state;
+    const thumb = item.querySelector('.food-photo-preview-thumb');
+    if (thumb && src) thumb.src = src;
+    const text = item.querySelector('.food-photo-preview-label');
+    if (text && label) text.textContent = label;
+  }
+
+  function renderPhotoBatch(batch) {
+    const list = byId('food-photo-preview-list');
+    if (!list) return;
+    list.replaceChildren();
+    batch.files.forEach((file, index) => {
+      const item = document.createElement('li');
+      item.className = 'food-photo-preview-item';
+      item.dataset.photoIndex = String(index);
+      item.dataset.photoState = 'pending';
+      const thumb = document.createElement('img');
+      thumb.className = 'food-photo-preview-thumb';
+      thumb.alt = copy(`선택한 음식 사진 ${index + 1}`, `Selected food photo ${index + 1}`);
+      const label = document.createElement('span');
+      label.className = 'food-photo-preview-label';
+      label.textContent = copy(`사진 ${index + 1} 대기 중`, `Photo ${index + 1} waiting`);
+      item.append(thumb, label);
+      list.append(item);
+    });
+    list.hidden = !batch.files.length;
   }
 
   function updateAnalysisActions() {
@@ -812,6 +1016,16 @@
     if (analysisRequest?.kind === 'text') setText(byId('food-text-status'), '');
     analysisRequest?.controller.abort();
     analysisRequest = null;
+    if (photoBatch) {
+      photoBatch.cancelled = true;
+      photoBatch.controller?.abort();
+    }
+    if (photoSelectionPending) {
+      photoSelectionPending.cancelled = true;
+      photoSelectionPending = null;
+      photoSelectionGeneration += 1;
+      setPhotoBatchProgress(null, '');
+    }
     updateAnalysisActions();
   }
 
@@ -839,7 +1053,23 @@
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
   }
 
-  function insertAnalyzedFoods(result, kind, status) {
+  function photoThumbnail(image) {
+    const width = image.naturalWidth;
+    const height = image.naturalHeight;
+    if (!width || !height) return '';
+    const scale = Math.min(1, 192 / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return '';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.72);
+  }
+
+  function insertAnalyzedFoods(result, kind, status, options = {}) {
     if (!Array.isArray(result?.foods) || !Array.isArray(result.unmatched)) throw new Error('Invalid analysis result');
     const fromText = kind === 'text';
     const allowedSource = (food) => food?.source === 'mfds' || (fromText && food?.source === 'ai');
@@ -862,24 +1092,30 @@
       const grams = Number.isFinite(item.grams) && item.grams > 0 && item.grams <= MAX_GRAMS ? item.grams : null;
       return choices.length ? [{ grams, choices, photoDraft: true }] : [];
     });
-    const unmatched = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, 3).map((item) => typeof item?.name === 'string' ? item.name.slice(0, 60) : '').filter(Boolean).join(', ');
+    const unmatchedNames = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, 3)
+      .map((item) => typeof item?.name === 'string' ? item.name.trim().slice(0, 60) : '').filter(Boolean);
+    const unmatched = unmatchedNames.join(', ');
     items.push(...needsReview);
     if (items.length) {
-      discardDrafts('photo');
-      discardDrafts('text');
+      // AI sources must never erase each other. Text refreshes only replace
+      // an earlier text suggestion; photos always append so prior photos and
+      // user-entered rows remain available for review.
+      if (options.replaceTextDrafts) discardDrafts('text');
+      if (options.replacePhotoDrafts) discardDrafts('photo');
       document.querySelectorAll('#food-items [data-food-row]').forEach((row) => {
         if ([...row.querySelectorAll('input')].every((control) => !control.value.trim() && !control.validity.badInput)) row.remove();
       });
     }
     const room = MAX_FOODS - rowCount();
     const inserted = items.slice(0, room);
+    if (options.photoSource && !fromText) inserted.forEach((item) => { item.photoSource = options.photoSource; });
     inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
       revealFoodEntry();
       status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
         : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'), 'error');
-      return;
+      return { inserted: 0, unresolved: result.unmatched.length, needsManual: 0, overflow: false, unmatchedNames };
     }
     updateTotal();
     revealFoodEntry();
@@ -892,9 +1128,16 @@
     const manual = unmatched ? copy(` 직접 입력: ${unmatched}`, ` Enter manually: ${unmatched}`) : '';
     const limited = items.length > room ? copy(' 입력 칸이 부족해 일부만 추가했어요.', ' Only some items fit in the form.') : '';
     status(message + amount + review + manual + limited);
+    return {
+      inserted: inserted.length,
+      unresolved: result.unmatched.length,
+      needsManual: inserted.filter((item) => item.grams === null || Array.isArray(item.choices)).length,
+      overflow: items.length > room,
+      unmatchedNames
+    };
   }
 
-  function analysisError(code, kind) {
+  function analysisError(code, kind, provider = aiProvider) {
     if (kind === 'text') {
       const calculate = byId('food-text-calculate');
       if (calculate) calculate.hidden = false;
@@ -904,8 +1147,19 @@
         setPhotoCode('');
         return copy('연결 코드가 맞지 않아요. 다시 연결해 주세요.', 'The access code is invalid. Please reconnect.');
       case 'QUOTA':
-        quotaDay = new Date().toISOString().slice(0, 10);
-        return copy('오늘 무료 분석 한도에 도달했어요. UTC 자정 이후 다시 시도하거나 직접 입력해 주세요.', 'The daily free analysis limit is reached. Retry after midnight UTC or enter food manually.');
+        return provider === 'gemini'
+          ? copy('Gemini 분석 한도에 도달했거나 요청이 많아요. 잠시 후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'Gemini is rate-limited or its analysis limit is reached. Try again shortly or enter food manually. We will not switch models automatically.')
+          : copy('Cloudflare AI 분석 한도에 도달했거나 요청이 많아요. 잠시 후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'Cloudflare AI is rate-limited or its analysis limit is reached. Try again shortly or enter food manually. We will not switch models automatically.');
+      case 'BUSY':
+        return copy('분석 요청이 많아 잠시 처리할 수 없어요. 남은 사진은 보내지 않았어요.', 'The analysis service is busy. Remaining photos were not sent.');
+      case 'UNAVAILABLE':
+        return copy('분석 연결이 끊겨 남은 사진은 보내지 않았어요. 완료된 결과는 남아 있어요.', 'The analysis connection stopped. Remaining photos were not sent; completed results are kept.');
+      case 'SHARED_QUOTA':
+        sharedQuotaDay = new Date().toISOString().slice(0, 10);
+        return copy('Cloudflare 중계 서버의 앱 공통 무료 분석 한도에 도달했어요. UTC 자정 이후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'The app-wide free analysis limit on the Cloudflare relay server is reached. Retry after midnight UTC or enter food manually. We will not switch models automatically.');
+      case 'GEMINI_NOT_CONFIGURED':
+      case 'NOT_CONFIGURED':
+        return copy('Gemini는 서버에 안전하게 등록한 뒤 사용할 수 있어요. 설정에서 AI 분석 모델을 확인하거나 직접 입력해 주세요.', 'Gemini needs secure server registration before it can be used. Check the AI model in Settings or enter food manually.');
       case 'TEXT':
         return copy('음식 이름과 양을 200자 이내로 적어 주세요.', 'Enter food names and amounts in up to 200 characters.');
       case 'IMAGE':
@@ -919,20 +1173,25 @@
   }
 
   async function analyze(kind, input) {
-    if (!endpoint || !photoCode || !byId('meal-dialog').open) return;
+    const provider = aiProvider;
     const fromText = kind === 'text';
     const status = (message, state = 'ready') => analysisStatus(kind, message, state);
-    if (quotaDay === new Date().toISOString().slice(0, 10)) {
-      status(analysisError('QUOTA', kind), 'error');
+    if (fromText && (photoBatch || photoSelectionPending)) {
+      status(copy('사진 분석이 끝난 뒤 음식 메모 분석을 실행할 수 있어요. 직접 입력한 내용은 그대로 남아 있어요.', 'Text analysis can run after photo analysis finishes. Your manual entries are kept.'));
+      return;
+    }
+    if (!providerReady(provider) || !byId('meal-dialog').open) return;
+    if (sharedQuotaDay === new Date().toISOString().slice(0, 10)) {
+      status(analysisError('SHARED_QUOTA', kind, provider), 'error');
       return;
     }
     cancelAnalysis();
     setText(byId(fromText ? 'food-photo-status' : 'food-text-status'), '');
     const controller = new AbortController();
-    const request = { kind, controller, foodRevision, noteRevision };
+    const request = { kind, controller, foodRevision, noteRevision, provider };
     analysisRequest = request;
     updateAnalysisActions();
-    const isActive = () => analysisRequest === request && byId('meal-dialog').open &&
+    const isActive = () => analysisRequest === request && request.provider === aiProvider && byId('meal-dialog').open &&
       (!fromText || (request.foodRevision === foodRevision && request.noteRevision === noteRevision));
     const timeout = root.setTimeout(() => controller.abort(), 30000);
     status(fromText ? copy('입력한 음식의 칼로리를 계산하고 있어요…', 'Calculating calories from your note…')
@@ -945,20 +1204,25 @@
         return;
       }
       const url = fromText ? new URL('/meal-text/analyze', endpoint).href : endpoint.href;
+      const headers = {
+        Authorization: `Bearer ${photoCode}`,
+        'Content-Type': fromText ? 'text/plain;charset=UTF-8' : 'image/jpeg',
+        'X-AI-Provider': provider
+      };
       const response = await fetch(url, {
         method: 'POST', body,
-        headers: { Authorization: `Bearer ${photoCode}`, 'Content-Type': fromText ? 'text/plain;charset=UTF-8' : 'image/jpeg' },
+        headers,
         credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal
       });
       const result = await response.json();
       if (!isActive()) return;
       if (response.ok) {
-        insertAnalyzedFoods(result, kind, status);
+        insertAnalyzedFoods(result, kind, status, fromText ? { replaceTextDrafts: true } : { preserveDrafts: true });
         if (document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]')) updateTextActions();
       }
-      else status(analysisError(result?.code, kind), 'error');
+      else status(analysisError(result?.code, kind, provider), 'error');
     } catch {
-      if (isActive()) status(analysisError('UNAVAILABLE', kind), 'error');
+      if (isActive()) status(analysisError('UNAVAILABLE', kind, provider), 'error');
     } finally {
       root.clearTimeout(timeout);
       if (analysisRequest === request) {
@@ -969,13 +1233,14 @@
   }
 
   function analyzePhoto() {
+    if (providerDraftActive) return;
     const photo = currentPhoto;
     if (photo && isCurrentGeneration(photo.generation)) return analyze('photo', photo.preview);
   }
 
   function analyzeNote() {
-    if (analysisRequest?.kind === 'photo' || photoReadGeneration !== null) return;
-    if (!noteEdited || !photoCode || !byId('food-text-auto')?.checked) return;
+    if (analysisRequest?.kind === 'photo' || photoReadGeneration !== null || photoBatch || photoSelectionPending) return;
+    if (providerDraftActive || !noteEdited || !providerReady() || !byId('food-text-auto')?.checked) return;
     const note = byId('meal-note').value.trim();
     if (!note) return;
     noteEdited = false;
@@ -990,10 +1255,17 @@
     return false;
   }
 
-  function clearPhoto(showStatus, invalidate) {
-    if (invalidate !== false) nextTransientGeneration();
+  function clearPhoto(showStatus, invalidate, discardPhotoDrafts = false) {
+    if (photoBatch) {
+      photoBatch.cancelled = true;
+      photoBatch.controller?.abort();
+    }
+    if (invalidate !== false) {
+      photoSelectionGeneration += 1;
+      nextTransientGeneration();
+    }
     currentPhoto = null;
-    discardDrafts('photo');
+    if (discardPhotoDrafts) discardDrafts('photo');
     const preview = byId('food-photo-preview');
     const remove = byId('food-photo-remove');
     if (preview) {
@@ -1002,11 +1274,21 @@
       preview.alt = '';
     }
     if (remove) remove.hidden = true;
+    const batchList = byId('food-photo-preview-list');
+    if (batchList) {
+      batchList.replaceChildren();
+      batchList.hidden = true;
+    }
+    setPhotoBatchProgress(null, '');
     ['food-photo-file', 'food-photo-capture'].forEach((id) => {
       const control = byId(id);
       if (control) control.value = '';
     });
-    if (showStatus) setStatus(copy('사진을 지웠어요.', 'Photo removed.'));
+    if (showStatus) {
+      setStatus(discardPhotoDrafts
+        ? copy('사진과 자동 입력한 음식 항목을 지웠어요.', 'The photo and automatically added food items were removed.')
+        : copy('사진 미리보기만 지웠어요. 이미 분석된 음식은 그대로 남아 있어요.', 'Only the photo preview was removed. Analyzed food items are still kept.'));
+    }
   }
 
   function showPhoto(file, generation) {
@@ -1020,7 +1302,7 @@
       setStatus(copy('사진은 12MB 이하로 올려 주세요.', 'Choose an image smaller than 12 MB.'), 'error');
       return;
     }
-    if (photoCode && endpoint) {
+    if (providerReady()) {
       photoReadGeneration = generation;
       updateAnalysisActions();
     }
@@ -1048,14 +1330,14 @@
         preview.hidden = false;
         if (remove) remove.hidden = false;
         currentPhoto = { preview, generation };
-        if (photoCode) analyzePhoto();
+        if (!providerDraftActive && providerReady()) analyzePhoto();
         else setStatus(endpoint
           ? copy('연결하면 선택한 사진에서 음식을 자동으로 채워요.', 'Connect to fill in food from the selected photo.')
           : copy('사진은 이 입력 화면에서만 참고용으로 사용돼요. 음식과 칼로리를 확인해 주세요.', 'This photo is temporary reference only. Please confirm the food and calories.'));
       }).catch(() => {
         if (!isCurrentGeneration(generation)) return;
         finishReading();
-        clearPhoto(false, false);
+        clearPhoto(false, false, false);
         setStatus(copy('사진을 표시하지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be displayed. Please choose another one.'), 'error');
       });
     };
@@ -1063,10 +1345,273 @@
   }
 
   function selectPhoto(file) {
+    photoSelectionGeneration += 1;
+    const generation = nextTransientGeneration();
+    cancelAnalysis();
+    stopCamera(false);
+    clearPhoto(false, false, false);
+    showPhoto(file, generation);
+  }
+
+  async function photoByteFingerprint(file) {
+    if (typeof file?.arrayBuffer !== 'function') return null;
+    const bytes = await file.arrayBuffer();
+    if (!root.crypto?.subtle) return null;
+    const digest = await root.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function uniquePhotoFiles(files, selectionGeneration) {
+    const hashes = new Set();
+    const unique = [];
+    let duplicates = 0;
+    let hashUnavailable = 0;
+    for (const file of files) {
+      if (selectionGeneration !== photoSelectionGeneration) return null;
+      try {
+        const hash = await photoByteFingerprint(file);
+        if (selectionGeneration !== photoSelectionGeneration) return null;
+        if (hash && hashes.has(hash)) { duplicates += 1; continue; }
+        if (hash) hashes.add(hash);
+        else hashUnavailable += 1;
+      } catch {
+        // A failed local hash never justifies dropping a user-selected photo.
+        hashUnavailable += 1;
+      }
+      unique.push(file);
+    }
+    return { unique, duplicates, hashUnavailable };
+  }
+
+  function readBatchPhoto(file, batch, index) {
+    return new Promise((resolve) => {
+      if (!batchIsActive(batch)) { resolve(null); return; }
+      if (!String(file?.type || '').startsWith('image/') || file.size > MAX_IMAGE_BYTES) { resolve({ error: 'IMAGE' }); return; }
+      const reader = new FileReader();
+      reader.onerror = reader.onabort = () => resolve({ error: 'IMAGE' });
+      reader.onload = () => {
+        if (!batchIsActive(batch) || typeof reader.result !== 'string') { resolve(null); return; }
+        const image = new Image();
+        image.onload = () => {
+          if (!batchIsActive(batch)) { resolve(null); return; }
+          let thumbnail = '';
+          try { thumbnail = photoThumbnail(image); } catch { thumbnail = ''; }
+          if (!thumbnail) { resolve({ error: 'IMAGE' }); return; }
+          const preview = byId('food-photo-preview');
+          if (preview) {
+            preview.src = thumbnail;
+            preview.alt = copy(`음식 사진 ${index + 1}`, `Food photo ${index + 1}`);
+            preview.hidden = false;
+          }
+          const remove = byId('food-photo-remove');
+          if (remove) remove.hidden = false;
+          setPhotoBatchItem(batch, index, 'analyzing', copy(`사진 ${index + 1} 분석 중`, `Analyzing photo ${index + 1}`), thumbnail);
+          resolve({ image, src: thumbnail });
+        };
+        image.onerror = () => resolve({ error: 'IMAGE' });
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function emitPhotoBatchEvent(name, detail) {
+    root.dispatchEvent(new CustomEvent(name, { detail }));
+  }
+
+  function photoBatchSummary(batch) {
+    return {
+      batchId: batch.id, provider: batch.provider, selected: batch.selected, total: batch.files.length,
+      analyzed: batch.analyzed, succeeded: batch.succeeded, failed: batch.failed, unresolved: batch.unresolved,
+      inserted: batch.inserted, duplicates: batch.duplicates, limited: batch.limited,
+      hashUnavailable: batch.hashUnavailable,
+      unmatchedNames: batch.unmatchedNames.slice(),
+      cancelled: batch.cancelled, blocked: batch.blocked,
+      complete: !batch.cancelled && !batch.blocked && !batch.duplicates && !batch.hashUnavailable && !batch.limited &&
+        batch.files.length >= 2 && batch.analyzed === batch.files.length && batch.succeeded === batch.files.length &&
+        batch.failed === 0 && batch.unresolved === 0 && batch.inserted > 0
+    };
+  }
+
+  function finishPhotoBatch(batch) {
+    if (photoBatch !== batch) return;
+    photoBatch = null;
+    setPhotoBatchProgress(photoSelectionPending, photoSelectionPending?.message || '');
+    updateAnalysisActions();
+    const summary = photoBatchSummary(batch);
+    const partial = summary.failed || summary.unresolved || summary.duplicates || summary.hashUnavailable || summary.limited || summary.blocked;
+    const unprocessed = Math.max(0, summary.total - summary.analyzed);
+    const duplicateNotice = summary.duplicates
+      ? copy(` 같은 사진 ${summary.duplicates}장은 제외했어요.`, ` ${summary.duplicates} identical photo(s) were excluded.`) : '';
+    const hashNotice = summary.hashUnavailable
+      ? copy(' 일부 사진은 중복 확인을 할 수 없었어요. 같은 사진이 있다면 결과를 확인해 주세요.', ' Some photos could not be checked for duplicates. Review the result if the same photo was selected.') : '';
+    const unmatchedNotice = summary.unmatchedNames.length
+      ? copy(` 직접 칼로리를 입력할 음식: ${summary.unmatchedNames.slice(0, 3).join(', ')}.`, ` Enter calories manually for: ${summary.unmatchedNames.slice(0, 3).join(', ')}.`) : '';
+    const dishNotice = copy(' 같은 접시를 여러 장 찍었다면 중복 음식은 삭제해 주세요.', ' If the same plate appears in multiple photos, remove duplicate foods.');
+    if (summary.cancelled) {
+      setStatus(copy(`사진 분석을 중단했어요. ${summary.succeeded}장 완료, ${unprocessed}장은 분석하지 않았고 완료된 결과와 합계는 남아 있어요.`, `Photo analysis stopped. ${summary.succeeded} completed and ${unprocessed} were not analyzed; completed results and totals are kept.`) + duplicateNotice + hashNotice + unmatchedNotice + dishNotice, 'error');
+    } else if (partial) {
+      const reason = batch.blockedMessage ? ` ${batch.blockedMessage}` : '';
+      setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 기록 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + dishNotice, 'error');
+    } else {
+      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + dishNotice);
+    }
+    // Completion permits UI feedback only. A meal is never saved without the
+    // user's explicit Record save action.
+    emitPhotoBatchEvent('meal:photo-analysis-complete', summary);
+  }
+
+  async function runPhotoBatch(batch) {
+    try {
+      for (let index = 0; index < batch.files.length; index += 1) {
+        if (!batchIsActive(batch)) break;
+        if (rowCount() >= MAX_FOODS) {
+          batch.blocked = true;
+          batch.unresolved += batch.files.length - index;
+          break;
+        }
+        const step = await readBatchPhoto(batch.files[index], batch, index);
+        if (!batchIsActive(batch)) break;
+        if (!step?.image) {
+          batch.analyzed += 1;
+          batch.failed += 1;
+          setPhotoBatchItem(batch, index, 'error', copy(`사진 ${index + 1}을 읽지 못했어요`, `Could not read photo ${index + 1}`));
+          setPhotoBatchProgress(batch, copy(`${index + 1}/${batch.files.length}장 확인 중`, `Checking ${index + 1}/${batch.files.length}`));
+          continue;
+        }
+        const body = await photoJpeg(step.image);
+        if (!batchIsActive(batch)) break;
+        if (!body || body.type !== 'image/jpeg' || !body.size || body.size > MAX_AI_BYTES) {
+          batch.analyzed += 1;
+          batch.failed += 1;
+          setPhotoBatchItem(batch, index, 'error', copy(`사진 ${index + 1}을 분석할 수 없어요`, `Could not analyze photo ${index + 1}`), step.src);
+          continue;
+        }
+        const controller = new AbortController();
+        batch.controller = controller;
+        const timeout = root.setTimeout(() => controller.abort(), 30000);
+        try {
+          const response = await fetch(endpoint.href, {
+            method: 'POST', body,
+            headers: { Authorization: `Bearer ${photoCode}`, 'Content-Type': 'image/jpeg', 'X-AI-Provider': batch.provider },
+            credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal
+          });
+          let result = null;
+          try { result = await response.json(); } catch { result = { code: 'UNAVAILABLE' }; }
+          if (!batchIsActive(batch)) break;
+          batch.analyzed += 1;
+          if (!response.ok) {
+            batch.failed += 1;
+            const code = result?.code || (response.status === 429 ? 'QUOTA' : 'UNAVAILABLE');
+            setPhotoBatchItem(batch, index, 'error', copy(`사진 ${index + 1} 분석 실패`, `Photo ${index + 1} failed`), step.src);
+            // Only the Worker’s documented per-photo failures may continue.
+            // Unknown non-2xx responses can mean an upstream or quota fault,
+            // so stop before spending more shared free requests.
+            if ((response.status === 422 && code === 'NO_FOOD') || (response.status === 400 && code === 'IMAGE')) continue;
+            batch.blocked = true;
+            batch.blockedMessage = analysisError(code, 'photo', batch.provider);
+            break;
+          }
+          const outcome = insertAnalyzedFoods(result, 'photo', () => {}, { preserveDrafts: true, photoSource: index + 1 });
+          // Keep names that the model saw but could not price. They are
+          // deliberately incomplete AI drafts, so the user can fill a total
+          // calorie value instead of losing the recognition result.
+          outcome.unmatchedNames.forEach((name) => {
+            if (rowCount() >= MAX_FOODS) return;
+            addRow({ name, photoDraft: true, photoSource: index + 1 });
+          });
+          if (outcome.unmatchedNames.length) updateTotal();
+          outcome.unmatchedNames.forEach((name) => {
+            if (!batch.unmatchedNames.includes(name)) batch.unmatchedNames.push(name);
+          });
+          batch.inserted += outcome.inserted;
+          batch.unresolved += outcome.unresolved + outcome.needsManual + (outcome.overflow ? 1 : 0);
+          if (outcome.inserted > 0) batch.succeeded += 1;
+          else batch.failed += 1;
+          const review = outcome.unresolved || outcome.needsManual || outcome.overflow;
+          setPhotoBatchItem(batch, index, review ? 'error' : 'done', review
+            ? copy(`사진 ${index + 1} 확인 필요`, `Photo ${index + 1} needs review`)
+            : copy(`사진 ${index + 1} 완료`, `Photo ${index + 1} complete`), step.src);
+        } catch {
+          if (!batchIsActive(batch)) break;
+          batch.analyzed += 1;
+          batch.failed += 1;
+          setPhotoBatchItem(batch, index, 'error', copy(`사진 ${index + 1} 분석 실패`, `Photo ${index + 1} failed`), step.src);
+          batch.blocked = true;
+          batch.blockedMessage = analysisError('UNAVAILABLE', 'photo', batch.provider);
+        } finally {
+          root.clearTimeout(timeout);
+          if (photoBatch === batch) batch.controller = null;
+        }
+        if (batchIsActive(batch)) setPhotoBatchProgress(batch, copy(`${batch.analyzed}/${batch.files.length}장 분석 · 완료 ${batch.succeeded} · 실패 ${batch.failed}`, `${batch.analyzed}/${batch.files.length} analyzed · ${batch.succeeded} complete · ${batch.failed} failed`));
+      }
+    } finally {
+      finishPhotoBatch(batch);
+    }
+  }
+
+  async function selectPhotos(fileList) {
+    const selectedFiles = Array.from(fileList || []).filter(Boolean);
+    if (selectedFiles.length <= 1) { selectPhoto(selectedFiles[0]); return; }
+    if (selectedFiles.length > MAX_PHOTO_BATCH) {
+      setStatus(copy(`한 번에 ${MAX_PHOTO_BATCH}장까지 분석할 수 있어요. 사진 수를 줄여 다시 선택해 주세요.`, `You can analyze up to ${MAX_PHOTO_BATCH} photos at once. Select fewer photos and try again.`), 'error');
+      return;
+    }
+    const totalBytes = selectedFiles.reduce((total, file) => total + Math.max(0, Number(file.size) || 0), 0);
+    if (totalBytes > MAX_PHOTO_BATCH_BYTES) {
+      setStatus(copy(`선택한 사진이 너무 커요. 합계 ${Math.round(MAX_PHOTO_BATCH_BYTES / 1024 / 1024)}MB 이하로 줄여 다시 선택해 주세요.`, `The selected photos are too large. Keep the total under ${Math.round(MAX_PHOTO_BATCH_BYTES / 1024 / 1024)} MB and try again.`), 'error');
+      return;
+    }
+    if (providerDraftActive || !providerReady()) {
+      setStatus(copy(`${selectedFiles.length}장 사진은 아직 분석하지 않았어요. AI 연결을 확인한 뒤 다시 선택해 주세요.`, `${selectedFiles.length} photos were not analyzed. Check the AI connection, then select them again.`), 'error');
+      return;
+    }
+    cancelAnalysis();
+    const selectionGeneration = ++photoSelectionGeneration;
+    const preparation = { selectionGeneration, provider: aiProvider, cancelled: false,
+      message: copy('사진 중복을 확인하고 있어요…', 'Checking selected photos for duplicates…') };
+    photoSelectionPending = preparation;
+    setPhotoBatchProgress(preparation, preparation.message);
+    updateAnalysisActions();
+    const selection = await uniquePhotoFiles(selectedFiles, selectionGeneration);
+    if (photoSelectionPending !== preparation || preparation.cancelled || !selection || selectionGeneration !== photoSelectionGeneration ||
+      !byId('meal-dialog')?.open || providerDraftActive || aiProvider !== preparation.provider || !providerReady(preparation.provider)) {
+      if (photoSelectionPending === preparation) {
+        photoSelectionPending = null;
+        setPhotoBatchProgress(null, '');
+        updateAnalysisActions();
+      }
+      return;
+    }
+    photoSelectionPending = null;
+    setPhotoBatchProgress(null, '');
+    updateAnalysisActions();
+    const files = selection.unique;
+    if (!files.length) return;
     const generation = nextTransientGeneration();
     stopCamera(false);
-    clearPhoto(false, false);
-    showPhoto(file, generation);
+    clearPhoto(false, false, false);
+    const batch = {
+      id: `photo-batch-${Date.now()}-${generation}`,
+      generation, files, selected: selectedFiles.length,
+      duplicates: selection.duplicates,
+      hashUnavailable: selection.hashUnavailable,
+      limited: 0,
+      analyzed: 0, succeeded: 0, failed: 0, unresolved: 0, inserted: 0,
+      cancelled: false, blocked: false, blockedMessage: '', controller: null, provider: aiProvider,
+      unmatchedNames: []
+    };
+    photoBatch = batch;
+    byId('food-summary')?.setAttribute('data-multi-photo-summary', '');
+    positionFoodSummary();
+    renderPhotoBatch(batch);
+    setPhotoBatchProgress(batch, copy(`${files.length}장 사진을 차례로 분석해요.`, `Analyzing ${files.length} photos one at a time.`));
+    if (batch.duplicates) {
+      setStatus(copy(`같은 사진 ${batch.duplicates}장은 중복으로 제외했어요. 나머지 사진을 분석해요.`, `${batch.duplicates} identical photo(s) were excluded. Analyzing the rest.`));
+    }
+    updateAnalysisActions();
+    emitPhotoBatchEvent('meal:photo-analysis-start', { batchId: batch.id, selected: batch.selected, total: files.length, provider: batch.provider });
+    runPhotoBatch(batch);
   }
 
   function stopCamera(showStatus) {
@@ -1204,6 +1749,8 @@
     noteRevision += 1;
     skipNextNoteAnalysisRevision = null;
     manualNamesVisible = false;
+    byId('food-summary')?.removeAttribute('data-multi-photo-summary');
+    positionFoodSummary();
     setText(byId('food-text-status'), '');
     stopCamera(false);
     clearPhoto(false, false);
@@ -1224,10 +1771,17 @@
     if (endpoint) {
       const settings = byId('settings-food-ai');
       if (settings) settings.hidden = false;
+      const settingsOpen = byId('settings-food-ai-open');
+      if (settingsOpen) settingsOpen.hidden = false;
       const panel = byId('food-ai-panel');
       if (panel) panel.hidden = false;
       const manualHelp = byId('food-photo-manual-help');
       if (manualHelp) manualHelp.hidden = true;
+      try { aiProvider = normalizeProvider(root.localStorage.getItem(AI_PROVIDER_KEY)); } catch { aiProvider = 'cloudflare'; }
+      savedProvider = aiProvider;
+      byId('food-ai-provider')?.addEventListener('change', (event) => {
+        setAiProvider(event.currentTarget.value);
+      });
       let saved = '';
       try { saved = root.localStorage.getItem(codeKey()) || ''; } catch { /* optional persistence */ }
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
@@ -1241,21 +1795,21 @@
             setText(output, copy('먼저 AI 연결 코드를 등록해 주세요.', 'Connect your AI access code first.'));
             return;
           }
-          const button = event.currentTarget, code = photoCode;
+          const button = event.currentTarget, code = photoCode, provider = aiProvider;
           const controller = new AbortController();
           const timeout = root.setTimeout(() => controller.abort(), 10000);
           button.disabled = true;
           setText(output, copy('공유 한도를 확인하고 있어요…', 'Checking the shared limit…'));
           try {
-            const response = await fetch(new URL('/meal-ai/quota', endpoint).href, { headers: { Authorization: `Bearer ${code}` }, cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal });
+            const response = await fetch(new URL('/meal-ai/quota', endpoint).href, { headers: { Authorization: `Bearer ${code}`, 'X-AI-Provider': provider }, cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal });
             if (!response.ok) throw new Error('Unavailable');
             const quota = await response.json();
             if (!Number.isInteger(quota.remaining) || !Number.isInteger(quota.dailyLimit) || quota.remaining < 0 || quota.remaining > quota.dailyLimit || quota.dailyLimit > 100000 || quota.shared !== true || !Number.isFinite(Date.parse(quota.resetsAtUtc))) throw new Error('Invalid response');
-            if (photoCode !== code) return;
+            if (photoCode !== code || aiProvider !== provider) return;
             const reset = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(quota.resetsAtUtc));
-            setText(output, copy(`앱 공유 한도 ${quota.remaining}/${quota.dailyLimit}회 · 초기화 ${reset}. 실제 서비스 사용 가능 횟수는 다를 수 있어요.`, `App shared limit ${quota.remaining}/${quota.dailyLimit} · resets ${reset}. Actual service availability may differ.`));
+            setText(output, copy(`Cloudflare 중계 서버 공통 한도 ${quota.remaining}/${quota.dailyLimit}회 · UTC 초기화 ${reset}. 공급자별 실제 사용 가능 횟수는 다를 수 있어요.`, `Cloudflare relay shared limit ${quota.remaining}/${quota.dailyLimit} · UTC reset ${reset}. Actual provider availability may differ.`));
           } catch (_) {
-            if (photoCode === code) setText(output, copy('지금은 남은 횟수를 확인할 수 없어요. 음식은 직접 기록할 수 있어요.', 'Remaining analyses are unavailable. You can still log food manually.'));
+            if (photoCode === code && aiProvider === provider) setText(output, copy('지금은 남은 횟수를 확인할 수 없어요. 음식은 직접 기록할 수 있어요.', 'Remaining analyses are unavailable. You can still log food manually.'));
           } finally { root.clearTimeout(timeout); button.disabled = false; }
         });
         byId('food-text-calculate')?.addEventListener('click', () => {
@@ -1274,9 +1828,17 @@
           const stored = root.localStorage.getItem(TEXT_AUTO_KEY);
           textAuto.checked = stored !== '0';
         } catch { textAuto.checked = true; }
+        savedTextAuto = textAuto.checked;
         textAuto.addEventListener('change', () => {
-          try { root.localStorage.setItem(TEXT_AUTO_KEY, textAuto.checked ? '1' : '0'); } catch { /* optional persistence */ }
+          if (!providerDraftActive) {
+            savedTextAuto = textAuto.checked;
+            try { root.localStorage.setItem(TEXT_AUTO_KEY, textAuto.checked ? '1' : '0'); } catch { /* optional persistence */ }
+          }
           updateTextActions();
+          if (providerDraftActive) {
+            if (analysisRequest?.kind === 'text') cancelAnalysis();
+            return;
+          }
           if (textAuto.checked) analyzeNote();
           else if (analysisRequest?.kind === 'text') cancelAnalysis();
         });
@@ -1310,8 +1872,8 @@
           return;
         }
         setPhotoCode(code);
-        setStatus(copy('사진을 찍거나 올리면 분석이 시작돼요.', 'Take or select a photo to start analysis.'));
-        analyzePhoto();
+        setStatus(accessCodeSavedMessage());
+        if (!providerDraftActive) analyzePhoto();
       };
       byId('food-ai-connect')?.addEventListener('click', connect);
       codeInput?.addEventListener('keydown', (event) => {
@@ -1323,6 +1885,10 @@
         setStatus(copy('사진 분석을 껐어요. 음식은 직접 입력할 수 있어요.', 'Photo analysis is off. You can still enter food manually.'));
       });
     }
+    root.addEventListener('dansik:language-changed', () => {
+      updateProviderUi();
+      updateTextActions();
+    });
     const note = byId('meal-note');
     if (note) {
       note.addEventListener('input', () => {
@@ -1369,7 +1935,12 @@
     byId('food-ai-settings-open')?.addEventListener('click', () => root.dispatchEvent(new CustomEvent('meal:ai-settings')));
     ['food-photo-file', 'food-photo-capture'].forEach((id) => {
       const picker = byId(id);
-      if (picker) picker.addEventListener('change', () => selectPhoto(picker.files && picker.files[0]));
+      if (!picker) return;
+      if (id === 'food-photo-file') picker.multiple = true;
+      picker.addEventListener('change', () => {
+        if (id === 'food-photo-file') selectPhotos(picker.files);
+        else selectPhoto(picker.files && picker.files[0]);
+      });
     });
     const camera = byId('food-camera');
     if (camera) camera.addEventListener('click', startCamera);
@@ -1379,6 +1950,9 @@
     if (stop) stop.addEventListener('click', () => { nextTransientGeneration(); stopCamera(true); });
     const remove = byId('food-photo-remove');
     if (remove) remove.addEventListener('click', () => clearPhoto(true));
+    byId('food-photo-analysis-cancel')?.addEventListener('click', () => {
+      if (photoBatch || photoSelectionPending) cancelAnalysis();
+    });
     byId('meal-analysis-stop')?.addEventListener('click', () => {
       noteEdited = false;
       nextTransientGeneration();
@@ -1386,12 +1960,12 @@
       byId('save-meal').focus({ preventScroll: true });
     });
     const dialog = byId('meal-dialog');
-    if (dialog) dialog.addEventListener('close', () => { nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
-    root.addEventListener('beforeunload', () => { nextTransientGeneration(); stopCamera(false); }, { once: true });
+    if (dialog) dialog.addEventListener('close', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
+    root.addEventListener('beforeunload', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); }, { once: true });
     root.addEventListener('pagehide', stopQrScan);
   }
 
-  root.MealFoods = { open, read, prepareSave, recentFoods };
+  root.MealFoods = { open, read, prepareSave, recentFoods, beginProviderDraft, commitProviderDraft, revertProviderDraft };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
   else initialize();
 }(window));

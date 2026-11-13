@@ -164,11 +164,18 @@
         </div>
         <div id="food-photo-choices" class="food-media-actions">
           <button type="button" class="outline-button" id="food-camera" data-i18n="intake.camera">카메라 촬영</button>
-          <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPick">사진 올리기</button>
-          <input type="file" id="food-photo-file" accept="image/*" hidden>
+          <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPickMultiple">사진 여러 장 올리기</button>
+          <input type="file" id="food-photo-file" accept="image/*" multiple hidden>
           <input type="file" id="food-photo-capture" accept="image/*" capture="environment" hidden>
-          <p class="field-help" data-i18n="intake.photoTransferShort">AI 연결 후 고른 사진은 Cloudflare AI로 전송돼요.</p>
+          <p class="field-help" id="food-photo-transfer-help" data-i18n="intake.photoTransferShort">AI 연결 후 고른 사진은 Cloudflare AI로 전송돼요.</p>
         </div>
+        <p id="food-photo-multiple-note" class="field-help" data-i18n="intake.photoMultipleNote">사진 1장당 분석 1회가 사용돼요. 같은 접시는 한 장만 선택하세요.</p>
+        <div id="food-photo-progress" class="food-photo-progress" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <span class="food-photo-progress-spinner" aria-hidden="true"></span>
+          <span id="food-photo-progress-text" data-i18n="intake.photoProgress">사진 분석 중</span>
+          <button type="button" class="text-button food-photo-analysis-cancel" id="food-photo-analysis-cancel" hidden data-i18n="intake.stopAnalysis">분석 중단</button>
+        </div>
+        <p id="food-photo-save-help" class="field-help" data-i18n="intake.photoSaveConfirm">분석 결과와 총 칼로리를 확인한 뒤 기록 저장을 누르세요.</p>
         <p class="field-help" id="food-photo-manual-help" data-i18n="intake.photoHelp" hidden>사진을 보며 음식과 양을 적을 수 있어요.</p>
         <video id="food-camera-video" class="food-media" autoplay playsinline muted hidden></video>
         <div id="food-camera-actions" class="food-media-actions" hidden>
@@ -176,6 +183,7 @@
           <button type="button" class="outline-button" id="food-camera-stop" data-i18n="intake.stopCamera">카메라 끄기</button>
         </div>
         <img id="food-photo-preview" class="food-media" alt="" hidden>
+        <div id="food-photo-preview-list" class="food-photo-preview-list" role="list" hidden></div>
         <button type="button" class="text-button" id="food-photo-remove" hidden data-i18n="intake.removePhoto">사진 지우기</button>
           </div>
         </section>
@@ -319,14 +327,20 @@
             <span class="settings-row-copy"><strong data-i18n="activity.open">활동·건강 데이터</strong><small data-i18n="settings.group.healthHint">운동 기록, 건강 데이터 가져오기, 칼로리 계산 기준</small></span>
           </button>
           <section id="settings-food-ai" class="settings-subsection" aria-labelledby="settings-food-ai-title" hidden>
-            <h3 id="settings-food-ai-title" class="settings-subheading" data-i18n="intake.aiSettings">AI 연결 설정</h3>
+            <h3 id="settings-food-ai-title" class="settings-subheading" tabindex="-1" data-i18n="intake.aiSettings">AI 연결 설정</h3>
             <p class="field-help" data-i18n="intake.aiSettingsHelp">음식 글과 사진의 칼로리를 자동으로 계산해요. 결과를 확인한 뒤 기록하세요.</p>
+            <label for="food-ai-provider" data-i18n="intake.aiProvider">AI 분석 모델</label>
+            <select id="food-ai-provider">
+              <option value="cloudflare" data-i18n="intake.aiProviderCloudflare">Cloudflare AI</option>
+              <option value="gemini" data-i18n="intake.aiProviderGemini">Gemini</option>
+            </select>
+            <p id="food-ai-provider-help" class="field-help" role="note"></p>
             <div id="food-tools">
         <div id="food-ai-panel" class="food-ai-panel" hidden>
           <details id="food-ai-setup">
             <summary data-i18n="intake.aiSetupTitle">AI 음식 분석 연결 · QR / 연결 코드</summary>
             <label for="food-ai-code" data-i18n="intake.aiCode">AI 연결 코드</label>
-            <aside class="food-ai-disclosure" role="note"><strong data-i18n="intake.aiDisclosureTitle">외부 AI 전송 안내</strong><span data-i18n="intake.aiDisclosure">연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요.</span></aside>
+            <aside class="food-ai-disclosure" role="note"><strong data-i18n="intake.aiDisclosureTitle">외부 AI 전송 안내</strong><span id="food-ai-disclosure-detail" data-i18n="intake.aiDisclosure">연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요.</span></aside>
             <button type="button" class="outline-button" id="food-ai-scan" data-i18n="intake.aiScan" hidden>QR 코드 스캔</button>
             <button type="button" class="text-button" id="food-ai-qr-photo" data-i18n="intake.aiQrPhoto" hidden>QR 사진 찍기</button>
             <input type="file" id="food-ai-qr-file" accept="image/*" capture="environment" hidden>
@@ -352,6 +366,9 @@
           </section>
         </div>
       </details>
+      <button type="button" class="settings-link" id="settings-food-ai-open" aria-controls="settings-food-ai" aria-expanded="false" hidden>
+        <span class="settings-row-copy"><strong data-i18n="settings.aiFood">AI 음식 분석</strong><small data-i18n="settings.aiFoodHint">분석 모델, 연결 코드와 자동 계산</small></span>
+      </button>
       <details class="settings-group" id="settings-display">
         <summary>
           <span class="settings-row-copy"><strong data-i18n="settings.group.look">화면·언어</strong><small data-i18n="settings.group.lookHint">밝기·색상·언어·시간대</small></span>

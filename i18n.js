@@ -41,12 +41,12 @@
     'intake.noCalories': '칼로리 미기록', 'intake.coverage': '기록한 식사 {total}회 중 칼로리 입력 {logged}회',
     'intake.empty': '오늘 기록한 식사가 없어요.', 'intake.stopAnalysis': '분석 중단',
     'intake.foods': '섭취한 음식', 'intake.calorieEntry': '섭취 칼로리 입력', 'intake.basicFoodHelp': '칼로리를 모르면 위 칸에 음식만 적고 저장할 수 있어요.', 'intake.quotaCheck': '남은 분석 횟수 확인', 'intake.photoAiTools': '사진·AI 자동 계산과 자세한 입력', 'intake.foodHelp': '먹은 양과 100g당 열량으로 계산하거나 칼로리를 직접 입력할 수 있어요.',
-    'intake.foodAdd': '음식 추가', 'intake.photoPick': '사진 올리기', 'intake.camera': '카메라 촬영',
+    'intake.foodAdd': '음식 추가', 'intake.photoPick': '사진 올리기', 'intake.photoPickMultiple': '사진 여러 장 올리기', 'intake.camera': '카메라 촬영',
     'intake.takePhoto': '사진 찍기', 'intake.stopCamera': '카메라 끄기', 'intake.removePhoto': '사진 지우기',
-    'intake.aiCode': '사진 분석 연결 코드', 'intake.aiDisclosureTitle': '외부 AI 전송 안내', 'intake.aiDisclosure': '연결하면 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요.', 'intake.textDisclosure': '‘칼로리 계산’을 누르면 음식 글이 Cloudflare AI로 전송돼요.',
+    'intake.aiCode': '사진 분석 연결 코드', 'intake.aiDisclosureTitle': '외부 AI 전송 안내', 'intake.aiDisclosure': '연결하면 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요.', 'intake.textDisclosure': '‘칼로리 계산’을 누르면 음식 글이 Cloudflare AI로 전송돼요.',
     'intake.aiConnect': '연결', 'intake.aiDisconnect': '사진 분석 끄기', 'intake.aiScan': 'QR 코드 스캔',
     'intake.aiQrPhoto': 'QR 사진 찍기', 'intake.aiQrAim': 'PC 화면의 QR을 사각형 안에 맞춰 주세요.',
-    'intake.photoTransferShort': 'AI 연결 후 고른 사진은 Cloudflare AI로 전송돼요.', 'intake.autoSettings': '자동 계산 설정', 'intake.calculate': '칼로리 계산', 'intake.textAuto': '음식 자동 계산', 'intake.textHelp': '예: 두부 150g. 자동 계산을 켜면 음식 칸에서 나올 때 글이 Cloudflare AI로 전송돼요.',
+    'intake.photoTransferShort': 'AI 연결 후 고른 사진은 Cloudflare AI로 전송돼요.', 'intake.photoMultipleNote': '사진 1장당 분석 1회가 사용돼요. 같은 접시는 한 장만 선택하세요.', 'intake.photoProgress': '사진 분석 중', 'intake.photoSaveConfirm': '분석 결과와 총 칼로리를 확인한 뒤 기록 저장을 누르세요.', 'intake.autoSettings': '자동 계산 설정', 'intake.calculate': '칼로리 계산', 'intake.textAuto': '음식 자동 계산', 'intake.textHelp': '예: 두부 150g. 자동 계산을 켜면 음식 칸에서 나올 때 글이 Cloudflare AI로 전송돼요.',
     'intake.photoHelp': '사진을 보며 음식과 양을 적을 수 있어요.',
     'energy.homeAria': '오늘 소비 칼로리 {amount}, 내역 보기',
     'energy.todayRange': '오늘 0시부터 {time}까지', 'energy.basal': '기초 대사량',
@@ -273,12 +273,12 @@
     'intake.noCalories': 'Calories not logged', 'intake.coverage': 'Calories logged for {logged} of {total} meals',
     'intake.empty': 'No meals recorded today.', 'intake.stopAnalysis': 'Stop analysis',
     'intake.foods': 'Foods eaten', 'intake.calorieEntry': 'Enter calories', 'intake.basicFoodHelp': 'If you do not know the calories, save just the food in the field above.', 'intake.quotaCheck': 'Check remaining analyses', 'intake.photoAiTools': 'Photo, AI, and detailed entry', 'intake.foodHelp': 'Calculate calories from the amount and kcal per 100 g, or enter them directly.',
-    'intake.foodAdd': 'Add food', 'intake.photoPick': 'Add photo', 'intake.camera': 'Use camera',
+    'intake.foodAdd': 'Add food', 'intake.photoPick': 'Add photo', 'intake.photoPickMultiple': 'Add multiple photos', 'intake.camera': 'Use camera',
     'intake.takePhoto': 'Take photo', 'intake.stopCamera': 'Stop camera', 'intake.removePhoto': 'Remove photo',
-    'intake.aiCode': 'Photo analysis access code', 'intake.aiDisclosureTitle': 'External AI transfer notice', 'intake.aiDisclosure': 'Once connected, photos you pick are sent to Cloudflare AI and not kept. Check the result before saving.', 'intake.textDisclosure': 'Calculate calories sends your food text to Cloudflare AI.',
+    'intake.aiCode': 'Photo analysis access code', 'intake.aiDisclosureTitle': 'External AI transfer notice', 'intake.aiDisclosure': 'Once connected, photos you pick are sent to Cloudflare AI. Check the result before saving.', 'intake.textDisclosure': 'Calculate calories sends your food text to Cloudflare AI.',
     'intake.aiConnect': 'Connect', 'intake.aiDisconnect': 'Turn off photo analysis', 'intake.aiScan': 'Scan QR code',
     'intake.aiQrPhoto': 'Take QR photo', 'intake.aiQrAim': 'Fit the QR code on your PC inside the square.',
-    'intake.photoTransferShort': 'Once AI is connected, photos you pick go to Cloudflare AI.', 'intake.autoSettings': 'Automatic calculation settings', 'intake.calculate': 'Calculate calories', 'intake.textAuto': 'Calculate food calories automatically', 'intake.textHelp': 'Example: 150 g tofu. With this on, leaving the food field sends the text to Cloudflare AI.',
+    'intake.photoTransferShort': 'Once AI is connected, photos you pick go to Cloudflare AI.', 'intake.photoMultipleNote': 'Each photo uses one analysis. Select only one photo of the same plate.', 'intake.photoProgress': 'Analyzing photos', 'intake.photoSaveConfirm': 'Review the analysis and total calories, then tap Save record.', 'intake.autoSettings': 'Automatic calculation settings', 'intake.calculate': 'Calculate calories', 'intake.textAuto': 'Calculate food calories automatically', 'intake.textHelp': 'Example: 150 g tofu. With this on, leaving the food field sends the text to Cloudflare AI.',
     'intake.photoHelp': 'Use a photo as a guide for food and amount.',
     'energy.homeAria': 'Calories burned today {amount}, view breakdown',
     'energy.todayRange': 'Today from midnight to {time}', 'energy.basal': 'Basal energy',
@@ -484,9 +484,11 @@
   "intake.aiTransferHelp": "AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.",
   "intake.aiResult": "AI 계산 결과",
   "intake.aiStateManual": "직접 입력", "intake.aiStateDisconnected": "연결 안 됨",
-  "intake.aiStateAuto": "자동 계산 켜짐", "intake.aiStateConnected": "연결됨",
+  "intake.aiStateAuto": "자동 계산 켜짐", "intake.aiStateConnected": "연결됨", "intake.aiStateGemini": "Gemini 선택됨",
   "intake.aiSettings": "AI 연결 설정",
   "intake.aiSettingsHelp": "음식 글과 사진의 칼로리를 자동으로 계산해요. 결과를 확인한 뒤 기록하세요.",
+  "intake.aiProvider": "AI 분석 모델", "intake.aiProviderCloudflare": "Cloudflare AI", "intake.aiProviderGemini": "Gemini",
+  "settings.aiFood": "AI 음식 분석", "settings.aiFoodHint": "분석 모델, 연결 코드와 자동 계산",
   "intake.photoInput": "사진으로 입력",
   "intake.calorieSummary": "섭취 칼로리",
   "intake.editResult": "수정",
@@ -495,7 +497,7 @@
   "intake.basicFoodHelp": "음식은 한 번만 적고, 총 칼로리를 입력하세요.",
   "intake.editNames": "메뉴명 편집",
   "intake.aiCode": "AI 연결 코드",
-  "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요."
+  "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요."
 });
   Object.assign(en, {
   "meal.timerStarted": "The meal time is saved.\nUse ‘Save details’ to save food and calories.",
@@ -508,9 +510,11 @@
   "intake.aiTransferHelp": "AI calculation sends food descriptions and photos to Cloudflare AI.",
   "intake.aiResult": "AI result",
   "intake.aiStateManual": "Manual", "intake.aiStateDisconnected": "Not connected",
-  "intake.aiStateAuto": "Auto on", "intake.aiStateConnected": "Connected",
+  "intake.aiStateAuto": "Auto on", "intake.aiStateConnected": "Connected", "intake.aiStateGemini": "Gemini selected",
   "intake.aiSettings": "AI connection settings",
   "intake.aiSettingsHelp": "Calculate calories from food descriptions and photos. Check the result before saving.",
+  "intake.aiProvider": "AI analysis model", "intake.aiProviderCloudflare": "Cloudflare AI", "intake.aiProviderGemini": "Gemini",
+  "settings.aiFood": "AI food analysis", "settings.aiFoodHint": "Analysis model, access code, and automatic calculation",
   "intake.photoInput": "Add a photo",
   "intake.calorieSummary": "Calories eaten",
   "intake.editResult": "Edit",
@@ -519,7 +523,7 @@
   "intake.basicFoodHelp": "Describe your food once, then enter the total calories.",
   "intake.editNames": "Edit names",
   "intake.aiCode": "AI access code",
-  "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. They are not stored. Check the result before saving."
+  "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. Check the result before saving."
 });
 
   Object.assign(ko, {
