@@ -108,7 +108,7 @@
     return out;
   }
   const SETTING_KEYS = ['goalHours', 'goalEnabled', 'plan', 'windowStart'];
-  const BODY_KEYS = ['sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySource', 'energyMode'];
+  const BODY_KEYS = ['sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySource', 'energyMode', 'profileConfirmed'];
 
   function snapshot(state, prefs) {
     const doc = { v: 1, meals: {}, weights: {}, activity: {}, groups: { settings: pick(state.settings, SETTING_KEYS), body: pick(prefs, BODY_KEYS) } };
@@ -157,6 +157,12 @@
   function apply(state, prefs, doc, helpers) {
     const { Core, Activity } = helpers;
     checkDoc(doc);
+    // Timer controls are device-local, but a newly newer meal arriving from another
+    // device must become the active timer.  Keep an intentional historical anchor
+    // until the latest meal actually changes; otherwise a hidden pause/reset tied to
+    // the old meal can unexpectedly reappear after a later remote deletion.
+    const previousLatest = state.events[0] || null;
+    const previousSelected = (prefs.timerAnchorId && state.events.find((event) => event.id === prefs.timerAnchorId)) || previousLatest;
     const next = Core.clone(state);
     next.events = Object.values(doc.meals).sort((a, b) => (b.at - a.at) || (a.id < b.id ? -1 : 1));
     if (Object.keys(doc.weights).length || state.weightMeasurements !== undefined) {
@@ -177,14 +183,22 @@
       Object.assign(nextPrefs, Core.normalizeProfile({ ...prefs, ...body }));
       nextPrefs.activitySource = body.activitySource || '';
       nextPrefs.energyMode = body.energyMode === 'activity' ? 'activity' : 'estimate';
+      // Older synced documents omit this optional confirmation; omission is false.
+      nextPrefs.profileConfirmed = body.profileConfirmed === true;
     }
     // Energy from activity needs one selected source that still has data.
     if (nextPrefs.energyMode === 'activity' && !nextPrefs.activitySamples.some((s) => s.source === nextPrefs.activitySource)) {
       nextPrefs.energyMode = 'estimate'; nextPrefs.activitySource = '';
     }
     if (nextPrefs.activitySource && !nextPrefs.activitySamples.some((s) => s.source === nextPrefs.activitySource)) nextPrefs.activitySource = '';
-    // The running timer follows a meal; if that meal was removed elsewhere, restart the timer control.
-    if (nextPrefs.timerAnchorId && !next.events.some((e) => e.id === nextPrefs.timerAnchorId)) {
+    const mergedLatest = next.events[0] || null;
+    const latestChanged = (!previousLatest && mergedLatest)
+      || (previousLatest && mergedLatest && (previousLatest.id !== mergedLatest.id || previousLatest.at !== mergedLatest.at));
+    const selectedStillCurrent = previousSelected && mergedLatest
+      && previousSelected.id === mergedLatest.id && previousSelected.at === mergedLatest.at;
+    // The running timer follows a meal; clear controls when its anchored meal was
+    // removed, or when a newly changed latest meal replaces the selected meal.
+    if ((nextPrefs.timerAnchorId && !next.events.some((e) => e.id === nextPrefs.timerAnchorId)) || (latestChanged && !selectedStillCurrent)) {
       Object.assign(nextPrefs, { timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false });
     }
     return { state: next, prefs: nextPrefs };

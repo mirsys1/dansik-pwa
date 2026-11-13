@@ -23,6 +23,7 @@
   <script src="activity.js" defer></script>
   <script src="sync.js" defer></script>
   <script src="qr.js" defer></script>
+  <script src="portable-backup.js" defer></script>
   <script src="pwa.js" defer></script>
   <script src="activity-ui.js" defer></script>
   <script src="vendor/jsQR.js" defer></script>
@@ -90,9 +91,23 @@
         <div class="rhythm-strip"><span class="strip-icon" data-icon="leaf"></span><div><strong data-i18n="strip.title">좋은 리듬은, 편안한 기록에서.</strong><p data-i18n="strip.text">정해진 숫자보다 오늘의 컨디션을 먼저 살펴주세요.</p></div><span class="strip-sign">a little space for you</span></div>
       </section>
       <section id="page-history" class="page" hidden><div class="page-heading"><div><h1 data-i18n-html="history.heading"><span>식사 기록</span></h1></div><button class="text-button header-action" id="add-history"><span data-icon="plus"></span><span data-i18n="history.add">식사 추가</span></button></div><div class="history-toolbar"><span id="history-count"></span><button class="outline-button" id="export-history"><span data-icon="download"></span><span data-i18n="history.export">기록 내보내기</span></button></div><div class="history-filters"><label for="history-search" class="sr-only" data-i18n="history.searchLabel">식사 기록 검색</label><input type="search" id="history-search" autocomplete="off" placeholder="음식이나 메모 검색" data-i18n-attr="placeholder=history.searchPlaceholder"><label for="history-type-filter" class="sr-only" data-i18n="history.typeLabel">식사 종류</label><select id="history-type-filter"><option value="" data-i18n="history.allTypes">모든 식사</option><option value="breakfast" data-i18n="meal.breakfast">아침</option><option value="lunch" data-i18n="meal.lunch">점심</option><option value="dinner" data-i18n="meal.dinner">저녁</option><option value="snack" data-i18n="meal.snack">간식</option></select><div class="history-date-filter"><label for="history-date-filter" data-i18n="history.dateLabel">날짜</label><input type="date" id="history-date-filter"></div></div><div class="history-panel" id="history-list"></div><button class="outline-button load-more" id="load-more" hidden data-i18n="history.more">기록 더 보기</button></section>
-      <section id="page-insights" class="page" hidden><div class="page-heading"><h1 data-i18n="stats.title">단식 통계</h1></div><p class="stat-scope" data-i18n="stats.scope">최근 7일</p><div class="stat-grid"><article><span data-i18n="stats.meals">기록한 식사</span><strong id="stat-meals">0<small>회</small></strong></article><article><span data-i18n="stats.days">기록한 날</span><strong id="stat-days">0<small>일</small></strong></article><article><span data-i18n="stats.gap">최장 단식 시간</span><strong id="stat-gap">—</strong></article></div><section class="chart-panel"><div class="panel-header"><h2 data-i18n="stats.weekTitle">날짜별 최장 단식 시간</h2><button type="button" class="text-button chart-date-button" id="chart-date-menu" aria-haspopup="dialog" aria-controls="chart-date-dialog" data-i18n="stats.chooseDay">날짜 선택</button></div><p id="goal-summary" class="goal-summary" hidden></p><div id="weekly-chart" class="weekly-chart" role="group" aria-label="날짜별 최장 단식 시간" data-i18n-attr="aria-label=stats.weekTitle"></div><p class="chart-hint" data-i18n="stats.completedRule">그래프는 하루 중 완료된 가장 긴 단식입니다.
-현재 단식은 타이머에서 확인하세요.</p></section><section class="period-panel" aria-labelledby="period-title"><h2 id="period-title" data-i18n="stats.periodTitle">평균 단식 시간</h2><div class="period-grid"><article><span data-i18n="stats.weekPeriod">1주 · 최근 7일</span><strong id="period-week-average">—</strong><small id="period-week-count">기록 없음</small></article><article><span data-i18n="stats.monthPeriod">1개월 · 최근 30일</span><strong id="period-month-average">—</strong><small id="period-month-count">기록 없음</small></article></div><p data-i18n="stats.periodHelp">하루의 최장 식사 간격만 계산합니다.
-식사 누락 시 간격이 길어질 수 있습니다.</p></section><section class="month-panel" aria-labelledby="month-title"><h2 id="month-title" data-i18n="stats.monthTitle">최근 30일</h2><div id="month-strip" class="month-strip" role="img"></div><p class="month-legend"><span class="legend-met" data-i18n="stats.legendMet">목표 달성</span><span class="legend-logged" data-i18n="stats.legendLogged">기록 있음</span><span class="legend-empty" data-i18n="stats.legendEmpty">기록 없음</span></p></section><section id="weight-trend" class="weight-panel" aria-labelledby="weight-trend-title" hidden><h2 id="weight-trend-title" data-i18n="stats.weightTitle">체중 변화</h2><svg id="weight-chart" class="weight-chart" viewBox="0 0 300 80" aria-hidden="true"></svg><p id="weight-summary" class="weight-summary"></p></section><section class="interval-panel"><h2 data-i18n="stats.intervals">최근 식사 간격</h2><div id="interval-list"></div></section></section>
+      <section id="page-insights" class="page" hidden>
+        <div class="page-heading"><h1 data-i18n="stats.title">단식 통계</h1></div>
+        <p class="stat-scope" data-i18n="stats.scope">최근 7일</p>
+        <div class="stat-grid stats-primary">
+          <article><span data-i18n="stats.averageDailyLongest">평균 단식 시간</span><strong id="stat-average">—</strong></article>
+          <article><span data-i18n="stats.gap">최장 단식 시간</span><strong id="stat-gap">—</strong></article>
+        </div>
+        <section class="chart-panel"><div class="panel-header"><h2 data-i18n="stats.weekTitle">날짜별 최장 단식 시간</h2><button type="button" class="text-button chart-date-button" id="chart-date-menu" aria-haspopup="dialog" aria-controls="chart-date-dialog" data-i18n="stats.chooseDay">날짜 선택</button></div><p id="goal-summary" class="goal-summary" hidden></p><div id="weekly-chart" class="weekly-chart" role="group" aria-label="날짜별 최장 단식 시간" data-i18n-attr="aria-label=stats.weekTitle"></div><p class="chart-hint" data-i18n="stats.completedRule">그래프는 하루 중 완료된 가장 긴 단식입니다.
+현재 단식은 타이머에서 확인하세요.</p></section>
+        <details id="stats-period-details" class="stats-secondary"><summary data-i18n="stats.periodCompare">1주·1개월 비교</summary><section class="period-panel" aria-labelledby="period-title"><h2 id="period-title" data-i18n="stats.periodTitle">평균 단식 시간</h2><div class="period-grid"><article><span data-i18n="stats.weekPeriod">1주 · 최근 7일</span><strong id="period-week-average">—</strong><small id="period-week-count">기록 없음</small></article><article><span data-i18n="stats.monthPeriod">1개월 · 최근 30일</span><strong id="period-month-average">—</strong><small id="period-month-count">기록 없음</small></article></div><p data-i18n="stats.periodHelp">하루의 최장 식사 간격만 계산합니다.
+식사 누락 시 간격이 길어질 수 있습니다.</p></section></details>
+        <details id="stats-record-summary" class="stats-secondary"><summary data-i18n="stats.recordSummary">기록 요약</summary>
+          <div class="stat-grid stats-record-counts"><article><span data-i18n="stats.meals">기록한 식사</span><strong id="stat-meals">0<small>회</small></strong></article><article><span data-i18n="stats.days">기록한 날</span><strong id="stat-days">0<small>일</small></strong></article></div>
+          <section class="month-panel" aria-labelledby="month-title"><h2 id="month-title" data-i18n="stats.monthTitle">최근 30일</h2><div id="month-strip" class="month-strip" role="img"></div><p class="month-legend"><span class="legend-met" data-i18n="stats.legendMet">목표 달성</span><span class="legend-logged" data-i18n="stats.legendLogged">기록 있음</span><span class="legend-empty" data-i18n="stats.legendEmpty">기록 없음</span></p></section><section id="weight-trend" class="weight-panel" aria-labelledby="weight-trend-title" hidden><h2 id="weight-trend-title" data-i18n="stats.weightTitle">체중 변화</h2><svg id="weight-chart" class="weight-chart" viewBox="0 0 300 80" aria-hidden="true"></svg><p id="weight-summary" class="weight-summary"></p></section>
+        </details>
+        <details id="stats-interval-details" class="stats-secondary"><summary data-i18n="stats.intervals">최근 식사 간격</summary><section class="interval-panel"><h2 data-i18n="stats.intervals">최근 식사 간격</h2><div id="interval-list"></div></section></details>
+      </section>
       <footer class="main-footer"><span data-i18n="footer.tagline">가볍게 기록하고, 편안하게 이어가세요.</span><span id="save-status" data-i18n="footer.preparing">로컬 저장 준비 중</span></footer>
     </main>
   </div>
@@ -134,7 +149,7 @@
         <div id="food-recent-slot" hidden></div>
         <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
           <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
-          <p class="field-help" data-i18n="intake.basicFoodHelp">먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.</p>
+          <p class="field-help" data-i18n="intake.basicFoodHelp">위에 음식을 적었다면 총 칼로리만 입력하세요.</p>
           <div id="food-items"></div>
           <div class="food-total-row"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><output id="food-total"></output></div>
         </section>
@@ -177,6 +192,10 @@
   <dialog id="activity-dialog" aria-labelledby="activity-title"><div id="activity-content"></div></dialog>
   <dialog id="workout-dialog" aria-labelledby="workout-title"><div id="workout-content"></div></dialog>
   <dialog id="fasting-dialog" aria-labelledby="fasting-title" aria-describedby="fasting-estimate-note"><div class="dialog-heading"><h2 id="fasting-title" data-i18n="effects.liveTitle">지금의 에너지 사용</h2><button type="button" class="icon-button" data-close="fasting-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
+    <div id="energy-view-tabs" class="energy-view-tabs" role="tablist" aria-label="칼로리 계산 기간" data-i18n-attr="aria-label=energy.periodLabel" hidden>
+      <button type="button" id="energy-view-today" class="energy-view-tab" data-energy-view="today" role="tab" aria-selected="true" aria-controls="energy-today" data-i18n="energy.viewToday">오늘 전체</button>
+      <button type="button" id="energy-view-fast" class="energy-view-tab" data-energy-view="fast" role="tab" aria-selected="false" tabindex="-1" aria-controls="fasting-detail" data-i18n="energy.viewFast">이번 단식</button>
+    </div>
     <section id="energy-day" class="energy-breakdown day-calories" hidden></section>
     <section id="energy-today" class="energy-breakdown" hidden></section>
     <div id="energy-actions" class="food-media-actions" hidden>
@@ -286,6 +305,7 @@
           <input id="weight-input" type="number" inputmode="decimal" min="25" max="300" step="0.1" required></div>
           </div><label for="activity-input" data-i18n="settings.activity">평소 활동 수준</label>
           <select id="activity-input"><option value="sedentary" data-i18n="activity.sedentary">안정 · 주로 앉아서 생활</option><option value="light" data-i18n="activity.light">가벼운 활동 · 일상 이동</option><option value="moderate" data-i18n="activity.moderate">보통 활동 · 주 3~4회 운동</option><option value="active" data-i18n="activity.active">활발한 활동 · 매일 운동</option></select>
+          <label class="check-label"><input id="profile-confirmed-input" type="checkbox"><span data-i18n="settings.profileConfirmed">내 신체 정보를 확인했어요</span></label><p class="field-help" id="profile-basis-note" data-i18n="energy.profileDefault">신체 정보 미확인 · 기본값 기준</p>
           </div>
           <button type="button" class="settings-link" data-open-activity>
             <span class="settings-row-copy"><strong data-i18n="activity.open">활동·건강 데이터</strong><small data-i18n="settings.group.healthHint">운동 기록, 건강 데이터 가져오기, 칼로리 계산 기준</small></span>
@@ -371,6 +391,7 @@
           <h3 class="settings-subheading" data-i18n="sync.title">기기 동기화</h3>
           <p class="field-help" data-i18n="sync.about">기록을 이 기기에서 암호화해 올리고, 같은 코드를 넣은 기기끼리 맞춰요. 서버는 내용을 읽을 수 없어요.</p>
           <p id="sync-status" class="field-help" role="status"></p>
+          <button type="button" class="text-button" id="sync-check-service" data-i18n="sync.checkService">서버 연결 확인</button>
           <div id="sync-off" class="sync-actions">
             <button type="button" class="outline-button" id="sync-create" data-i18n="sync.create">새 코드로 동기화 켜기</button>
             <label for="sync-code-input" data-i18n="sync.joinLabel">다른 기기에서 받은 코드</label>
@@ -458,6 +479,7 @@
       <p class="help-about" id="about-version"></p>
     </div>
     <div class="dialog-actions"><button class="primary-button" data-close="help-dialog" data-i18n="dialog.close">닫기</button></div></dialog>
+  <div id="pwa-update-notice" class="pwa-update-notice" role="status" hidden><span data-i18n="update.ready">새 버전이 준비됐어요.</span><button type="button" class="outline-button" id="pwa-update-apply" data-i18n="update.apply">새 버전 적용</button></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden><span id="toast-message"></span><button id="undo-button" hidden data-i18n="toast.undo">되돌리기</button><button id="toast-close" aria-label="알림 닫기" data-i18n-attr="aria-label=toast.close">✕</button></div>
 </body>
 </html>

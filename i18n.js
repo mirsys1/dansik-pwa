@@ -55,6 +55,9 @@
     'energy.fasting': '단식 중 소비', 'energy.fastingHelp': '이번 단식 동안의 소비만 보여줘요.',
     'dayEnergy.title': '하루 칼로리', 'dayEnergy.fullDay': '0시부터 다음 날 0시까지', 'dayEnergy.burned': '소비 칼로리',
     'dayEnergy.balance': '기록 차이 (섭취 − 소비)', 'dayEnergy.todayBalance': '오늘의 칼로리 차이', 'dayEnergy.weight': '실측 체중', 'dayEnergy.measureWeight': '기록 없음',
+    'sync.checkService': '서버 연결 확인',
+    'sync.serviceUnavailable': '동기화 서버에 연결할 수 없어요. 잠시 후 설정을 다시 열어 주세요.',
+    'energy.homeDefault': '소비 · 기본값', 'energy.profileDefault': '신체 정보 미확인 · 기본값 기준', 'settings.profileConfirmed': '내 신체 정보를 확인했어요', 'update.ready': '새 버전이 준비됐어요.', 'update.apply': '새 버전 적용',
     'dayEnergy.noAmount': '— kcal', 'dayEnergy.noIntake': '기록 없음', 'dayEnergy.partial': '{kcal} · 일부 기록',
     'dayEnergy.homePartialIntake': '섭취 칼로리 · 일부', 'dayEnergy.homePartialBurned': '소비 칼로리 · 일부', 'dayEnergy.homeBasal': '소비 · 기초 대사량',
     'dayEnergy.activityConflict': '겹친 기록 확인 필요',
@@ -284,6 +287,9 @@
     'energy.fasting': 'Burned during fast', 'energy.fastingHelp': 'Shows energy burned during the current fast only.',
     'dayEnergy.title': 'Daily calories', 'dayEnergy.fullDay': 'Midnight to the following midnight', 'dayEnergy.burned': 'Calories burned',
     'dayEnergy.balance': 'Logged difference (eaten − burned)', 'dayEnergy.todayBalance': 'Today’s calorie difference', 'dayEnergy.weight': 'Measured weight', 'dayEnergy.measureWeight': 'No record',
+    'sync.checkService': 'Check server connection',
+    'sync.serviceUnavailable': 'The sync server is unavailable. Reopen settings in a moment to check again.',
+    'energy.homeDefault': 'Burned · default', 'energy.profileDefault': 'Body profile unconfirmed · default values used', 'settings.profileConfirmed': 'I have checked my body profile', 'update.ready': 'A new version is ready.', 'update.apply': 'Apply update',
     'dayEnergy.noAmount': '— kcal', 'dayEnergy.noIntake': 'No records', 'dayEnergy.partial': '{kcal} · partial log',
     'dayEnergy.homePartialIntake': 'Eaten · partial', 'dayEnergy.homePartialBurned': 'Burned · partial', 'dayEnergy.homeBasal': 'Burned · basal',
     'dayEnergy.activityConflict': 'Check overlapping records',
@@ -480,7 +486,7 @@
   "intake.editResult": "수정",
   "intake.manualEntry": "칼로리 직접 입력",
   "intake.foodAdd": "메뉴 추가",
-  "intake.basicFoodHelp": "먹은 메뉴 전체의 칼로리를 입력하세요. 예: 450 kcal.",
+  "intake.basicFoodHelp": "위에 음식을 적었다면 총 칼로리만 입력하세요.",
   "intake.aiCode": "AI 연결 코드",
   "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요."
 });
@@ -497,10 +503,19 @@
   "intake.editResult": "Edit",
   "intake.manualEntry": "Enter calories manually",
   "intake.foodAdd": "Add menu item",
-  "intake.basicFoodHelp": "Enter the total calories for the portion you ate, e.g. 450 kcal.",
+  "intake.basicFoodHelp": "Described your food above? Just enter its total calories.",
   "intake.aiCode": "AI access code",
   "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. They are not stored. Check the result before saving."
 });
+
+  Object.assign(ko, {
+    'energy.periodLabel': '칼로리 계산 기간', 'energy.viewToday': '오늘 전체', 'energy.viewFast': '이번 단식', 'energy.fastRange': '{from} → {to}',
+    'stats.averageDailyLongest': '평균 단식 시간', 'stats.recordSummary': '기록 요약', 'stats.periodCompare': '1주·1개월 비교'
+  });
+  Object.assign(en, {
+    'energy.periodLabel': 'Calorie time period', 'energy.viewToday': 'Today total', 'energy.viewFast': 'This fast', 'energy.fastRange': '{from} → {to}',
+    'stats.averageDailyLongest': 'Average fasting time', 'stats.recordSummary': 'Record summary', 'stats.periodCompare': 'Week and month comparison'
+  });
 
   const errEn = {
     '저장 파일의 절대 경로가 필요합니다.': 'An absolute path is required for the storage file.',
@@ -576,6 +591,11 @@
     '백업 파일을 읽지 못했어요. 파일이 너무 크거나 다른 프로그램에서 열려 있을 수 있어요.': "Couldn't read the file. It may be too large or open in another program.",
     '가져올 파일을 먼저 선택해 주세요.': 'Please choose a file to import first.',
     '가져오기 방식이 올바르지 않습니다.': 'The import method is not valid.',
+    '백업 알림 시작 시간이 올바르지 않습니다.': 'The backup reminder start time is invalid.',
+    '이전 백업 복원이 중단되었어요. 복구 파일을 확인해 주세요.': 'A previous backup restore was interrupted. Check the recovery file.',
+    '이전 백업 복원 정보가 올바르지 않아요.': 'The previous backup restore information is invalid.',
+    '백업 복원 중 다른 변경을 발견했어요. 현재 기록을 보존하기 위해 자동 복원을 중단했어요.': 'Other changes were detected during restore. Automatic recovery stopped to preserve the current records.',
+    '중단된 백업 복원을 안전하게 되돌리지 못했어요. 앱을 다시 시작한 뒤 복구 상태를 확인해 주세요.': 'The interrupted restore could not be rolled back safely. Restart the app and check recovery status.',
     '설정 값이 올바르지 않습니다.': 'The setting value is not valid.',
     '언어 설정이 올바르지 않습니다.': 'The language setting is not valid.',
     '시간대 설정이 올바르지 않습니다.': 'The time zone setting is not valid.',

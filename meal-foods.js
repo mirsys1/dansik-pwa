@@ -22,12 +22,70 @@
   let photoCode = '';
   let quotaDay = '';
   let qrSession = null;
-  let skipNextNoteAnalysis = false;
+  // A text-analysis response is only allowed to change rows from the revision
+  // it started with.  Direct edits always win over a delayed suggestion.
+  let foodRevision = 0;
+  let noteRevision = 0;
+  let skipNextNoteAnalysisRevision = null;
 
   const byId = (id) => document.getElementById(id);
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
   const copy = (korean, english) => (isEnglish() ? english : korean);
   const valueOrEmpty = (value) => value === undefined || value === null ? '' : String(value);
+
+  function canonicalFoodName(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function sameVisibleFood(row, food) {
+    const name = row.querySelector('[data-food-name]')?.value;
+    const kcalRaw = row.querySelector('[data-food-kcal]')?.value.trim();
+    const kcal = Number(kcalRaw);
+    return canonicalFoodName(name) === canonicalFoodName(food.name) && kcalRaw !== '' && Number.isFinite(kcal) && kcal === food.kcal;
+  }
+
+  function reviseFoods() {
+    foodRevision += 1;
+    if (analysisRequest?.kind === 'text') cancelAnalysis();
+  }
+
+  function applyNoteDefaultName(row) {
+    if (!row?.hasAttribute('data-food-note-default')) return false;
+    const name = row.querySelector('[data-food-name]');
+    const kcal = row.querySelector('[data-food-kcal]');
+    const note = byId('meal-note')?.value.trim() || '';
+    // A blank optional row stays blank for note-only meals.  It becomes a
+    // named food only when the user supplies an actual total calorie value.
+    if (!name || !kcal || !note) return false;
+    if (!kcal.value.trim()) {
+      if (!name.value) return false;
+      name.value = '';
+      return true;
+    }
+    const defaultName = note.length <= 100 ? note : copy('식사 전체', 'Whole meal');
+    if (name.value === defaultName) return false;
+    name.value = defaultName;
+    return true;
+  }
+
+  function syncNoteDefaultNames() {
+    const note = byId('meal-note')?.value.trim() || '';
+    let changed = false;
+    document.querySelectorAll('#food-items [data-food-note-default]').forEach((row) => {
+      const name = row.querySelector('[data-food-name]');
+      const kcal = row.querySelector('[data-food-kcal]');
+      if (!name || !kcal?.value.trim()) return;
+      // Clearing the description cannot leave its former automatic value
+      // masquerading as a deliberate menu.  Keep the total for correction,
+      // or clear it too to return to a note-only record.
+      const defaultName = note ? (note.length <= 100 ? note : copy('식사 전체', 'Whole meal')) : '';
+      if (name.value !== defaultName) {
+        name.value = defaultName;
+        changed = true;
+      }
+    });
+    if (changed) updateTotal();
+  }
 
   function setText(node, value) {
     if (node) node.textContent = value;
@@ -140,18 +198,17 @@
         chip.addEventListener('click', () => {
           const note = byId('meal-note');
           if (!note) return;
-          skipNextNoteAnalysis = true;
+          // Pointer activation keeps the note focused, so its blur is deferred.
+          // Bind suppression to this exact note revision; a later user edit must
+          // never inherit it.
+          skipNextNoteAnalysisRevision = noteRevision;
+          reviseFoods();
           const existingNote = note.value.trim();
           if (!existingNote) note.value = food.name;
           else if (!existingNote.toLocaleLowerCase().includes(food.name.toLocaleLowerCase())) note.value = `${existingNote}, ${food.name}`;
           noteEdited = false;
           const rows = [...document.querySelectorAll('#food-items [data-food-row]')];
-          const same = rows.find((row) => {
-            const grams = row.querySelector('[data-food-grams]')?.value.trim();
-            return row.querySelector('[data-food-name]')?.value.trim() === food.name &&
-              Number(row.querySelector('[data-food-kcal]')?.value) === food.kcal &&
-              (grams === '' ? food.grams === undefined : Number(grams) === food.grams);
-          });
+          const same = rows.find((row) => sameVisibleFood(row, food));
           if (!same) {
             const blank = rows.find(row => [...row.querySelectorAll('input')].every(control => !control.value.trim() && !control.validity.badInput));
             if (blank) blank.remove();
@@ -225,10 +282,7 @@
       }
       const choice = selected.food;
       const rows = [...container.querySelectorAll('[data-food-row]')];
-      const existing = rows.find((row) => row.querySelector('[data-food-name]').value.trim() === choice.name &&
-        row.querySelector('[data-food-kcal]').value.trim() !== '' &&
-        Number(row.querySelector('[data-food-kcal]').value) === choice.kcal &&
-        (row.querySelector('[data-food-grams]').value.trim() === '' ? choice.grams === undefined : Number(row.querySelector('[data-food-grams]').value) === choice.grams));
+      const existing = rows.find((row) => sameVisibleFood(row, choice));
       if (existing) {
         help.textContent = copy('이미 추가된 음식이에요. 양과 칼로리를 확인해 주세요.', 'This food is already added. Check its amount and calories.');
         existing.querySelector('[data-food-name]').focus({ preventScroll: true });
@@ -237,6 +291,7 @@
       const blank = rows.find((row) => !row.hasAttribute('data-food-review') &&
         [...row.querySelectorAll('input')].every((control) => !control.value.trim() && !control.validity.badInput));
       if (blank) blank.remove();
+      reviseFoods();
       const added = addRow(choice);
       if (added) {
         const addedName = added.querySelector('[data-food-name]');
@@ -347,6 +402,7 @@
   }
 
   function removeRow(row) {
+    reviseFoods();
     row.remove();
     if (rowCount() === 0) addRow();
     updateTotal();
@@ -364,6 +420,7 @@
     const row = document.createElement('section');
     row.className = 'food-row';
     row.dataset.foodRow = 'true';
+    if (!food) row.dataset.foodNoteDefault = 'true';
 
     const header = document.createElement('div');
     header.className = 'food-row-head';
@@ -397,8 +454,28 @@
     const density = input('hidden', '', data.kcalPer100g, '');
     density.dataset.foodDensity = 'true';
 
+    const originalName = canonicalFoodName(data.name);
+
     kcal.addEventListener('input', () => {
+      applyNoteDefaultName(row);
       kcal.removeAttribute('data-calculated');
+      reviseFoods();
+      updateTotal();
+    });
+    name.addEventListener('input', () => {
+      // Any user name edit takes ownership away from the note.  Later note
+      // changes must not overwrite an explicitly named second menu.
+      delete row.dataset.foodNoteDefault;
+      // The g and density inputs are hidden metadata.  If a saved/AI menu is
+      // renamed, they no longer describe the visible food and must not leak
+      // into the next save or duplicate check.
+      if (canonicalFoodName(name.value) !== originalName) {
+        grams.value = '';
+        density.value = '';
+        if (kcal.hasAttribute('data-calculated')) kcal.value = '';
+        kcal.removeAttribute('data-calculated');
+      }
+      reviseFoods();
       updateTotal();
     });
     name.addEventListener('keydown', (event) => {
@@ -429,12 +506,6 @@
         heading.append(estimate);
         [name, density, kcal].forEach((control) => control.addEventListener('input', () => estimate.remove(), { once: true }));
       }
-      name.addEventListener('input', () => {
-        density.value = '';
-        if (kcal.hasAttribute('data-calculated')) kcal.value = '';
-        kcal.removeAttribute('data-calculated');
-        updateTotal();
-      });
     }
     if (data.choices?.length) {
       row.dataset.foodReview = 'true';
@@ -772,10 +843,11 @@
     }
     cancelAnalysis();
     const controller = new AbortController();
-    const request = { kind, controller };
+    const request = { kind, controller, foodRevision, noteRevision };
     analysisRequest = request;
     updateAnalysisActions();
-    const isActive = () => analysisRequest === request && byId('meal-dialog').open;
+    const isActive = () => analysisRequest === request && byId('meal-dialog').open &&
+      (!fromText || (request.foodRevision === foodRevision && request.noteRevision === noteRevision));
     const timeout = root.setTimeout(() => controller.abort(), 30000);
     status(fromText ? copy('입력한 음식의 칼로리를 계산하고 있어요…', 'Calculating calories from your note…')
       : copy('사진 속 음식과 양을 확인하고 있어요…', 'Identifying food and portions…'));
@@ -1035,6 +1107,9 @@
     if (!container) return;
     nextTransientGeneration();
     noteEdited = false;
+    foodRevision += 1;
+    noteRevision += 1;
+    skipNextNoteAnalysisRevision = null;
     if (photoCode) setText(byId('food-text-status'), '');
     stopCamera(false);
     clearPhoto(false, false);
@@ -1158,18 +1233,24 @@
     const note = byId('meal-note');
     if (note) {
       note.addEventListener('input', () => {
+        noteRevision += 1;
+        // A chip only suppresses the blur caused by that exact selection.
+        if (skipNextNoteAnalysisRevision !== null && skipNextNoteAnalysisRevision !== noteRevision) skipNextNoteAnalysisRevision = null;
         noteEdited = true;
         if (analysisRequest?.kind === 'text') cancelAnalysis();
         discardDrafts('text');
+        syncNoteDefaultNames();
         if (photoCode) setText(byId('food-text-status'), '');
       });
       note.addEventListener('focus', () => { const slot = byId('food-recent-slot'); if (slot?.children.length) slot.hidden = false; });
       note.addEventListener('blur', () => {
+        const blurRevision = noteRevision;
         root.setTimeout(() => {
           const slot = byId('food-recent-slot');
           if (slot?.contains(document.activeElement)) return;
           if (slot) slot.hidden = true;
-          if (skipNextNoteAnalysis) { skipNextNoteAnalysis = false; return; }
+          if (skipNextNoteAnalysisRevision === blurRevision) { skipNextNoteAnalysisRevision = null; return; }
+          if (skipNextNoteAnalysisRevision !== null) skipNextNoteAnalysisRevision = null;
           analyzeNote();
         }, 0);
       });
@@ -1182,7 +1263,7 @@
       });
     }
     const add = byId('food-add');
-    if (add) add.addEventListener('click', () => addRow()?.querySelector('[data-food-name]').focus());
+    if (add) add.addEventListener('click', () => { reviseFoods(); addRow({})?.querySelector('[data-food-name]').focus(); });
     byId('food-photo-add')?.addEventListener('click', () => {
       const choices = byId('food-photo-choices');
       if (!choices) return;

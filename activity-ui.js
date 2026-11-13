@@ -27,9 +27,10 @@
     return source === 'manual' ? text('직접 기록','Manual records') : source;
   }
   function activityNote(value, prefs) {
+    const basis = prefs.profileConfirmed === true ? '' : text('신체 정보 미확인 · 기본값 기준 · ','Body profile unconfirmed · default values used · ');
     const warning = value.activityOmitted ? text('중지 이력이 있어 활동 합산 제외','Activity excluded because paused windows are unknown') : value.calculationStatus === 'overlap-detected' ? text('활동 기록이 겹쳐 합산을 보류했어요. 활동 기록 관리를 확인해 주세요.','Overlapping activity was not totaled. Check activity record management.') : value.activeKcal == null ? text('활동 자료 없음 · 기초 소비만 표시','Activity missing · basal only') : text('기록된 활동만 포함 · 미기록 활동은 알 수 없음','Recorded activity only · unrecorded activity unknown');
     const excluded = value.activity?.excludedBoundary || 0;
-    return `${warning}${excluded ? text(` · 시간 경계에 걸친 ${excluded}개 기록 제외`, ` · ${excluded} boundary-crossing record(s) excluded`) : ''} · ${sourceName(prefs.activitySource) || text('출처 미선택','No source selected')}`;
+    return `${basis}${warning}${excluded ? text(` · 시간 경계에 걸친 ${excluded}개 기록 제외`, ` · ${excluded} boundary-crossing record(s) excluded`) : ''} · ${sourceName(prefs.activitySource) || text('출처 미선택','No source selected')}`;
   }
   function describe(value, prefs) {
     if (prefs.energyMode !== 'activity') return '';

@@ -8,6 +8,7 @@
   const Csv = window.FastingCsv;
   const Activity = window.FastingActivity;
   const Sync = window.FastingSync;
+  const Portable = window.FastingPortableBackup;
   if (!Core || !I18n || !Csv) return;
 
   const STATE_KEY = 'dansik:records:v1';
@@ -22,10 +23,10 @@
   const RECORDS_UNREADABLE = '저장된 식사 기록을 읽지 못했어요. 원본은 그대로 보관했어요. 기록 백업에서 복구해 주세요.';
   const PREFS_UNREADABLE = '저장된 설정을 읽지 못했어요. 설정을 덮어쓰지 않았어요.';
   const STORAGE_UNAVAILABLE = '저장소를 사용할 수 없어요. 브라우저의 사이트 데이터 설정을 확인한 뒤 다시 시도해 주세요.';
-  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'backupReminder', 'language', 'timeZone', 'colorTheme', 'timerGradient', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
-  const PORTABLE_PREF_KEYS = ['firstRunDone', 'backupReminder', 'language', 'timeZone', 'colorTheme', 'timerGradient', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
+  const PREF_KEYS = ['tray', 'autoStart', 'firstRunDone', 'backupReminder', 'profileConfirmed', 'backupReminderStartedAt', 'language', 'timeZone', 'colorTheme', 'timerGradient', 'sex', 'age', 'heightCm', 'weightKg', 'activityLevel', 'activitySamples', 'activitySource', 'energyMode'];
+  const PORTABLE_PREF_KEYS = Portable.PORTABLE_PREF_KEYS;
   const SETTINGS_KEYS = ['goalHours', 'goalEnabled', 'notifications', 'theme', 'themeAuto', 'plan', 'windowStart'];
-  const BOOLEAN_PREFS = ['tray', 'autoStart', 'firstRunDone', 'backupReminder'];
+  const BOOLEAN_PREFS = ['tray', 'autoStart', 'firstRunDone', 'backupReminder', 'profileConfirmed'];
   const LANGUAGE_SETTINGS = ['auto', ...I18n.LANGS];
 
   const THEME_COLORS = {
@@ -46,9 +47,10 @@
   }
 
   function loadPrefs(raw) {
-    const prefs = { tray: false, autoStart: false, firstRunDone: false, backupReminder: false, language: 'auto', timeZone: 'auto', colorTheme: 'sage', timerGradient: 'p05', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
+    const prefs = { tray: false, autoStart: false, firstRunDone: false, backupReminder: false, profileConfirmed: false, backupReminderStartedAt: null, language: 'auto', timeZone: 'auto', colorTheme: 'sage', timerGradient: 'p05', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
     if (raw) {
       for (const key of BOOLEAN_PREFS) if (typeof raw[key] === 'boolean') prefs[key] = raw[key];
+      if (Number.isSafeInteger(raw.backupReminderStartedAt) && raw.backupReminderStartedAt > 0) prefs.backupReminderStartedAt = raw.backupReminderStartedAt;
       if (LANGUAGE_SETTINGS.includes(raw.language)) prefs.language = raw.language;
       if (Core.validTimeZone(raw.timeZone)) prefs.timeZone = raw.timeZone;
       if (Core.validColorTheme(raw.colorTheme)) prefs.colorTheme = raw.colorTheme;
@@ -90,25 +92,11 @@
   // A portable backup contains only the explicit data/settings allowlist, never
   // pairing codes, authentication data or the per-device timer state.
   function portablePrefs(source) {
-    return Object.fromEntries(PORTABLE_PREF_KEYS.map(key => [key, Core.clone(source[key])]));
+    return Portable.portablePrefs(source, Core.clone);
   }
 
   function parsePortableBackup(raw) {
-    if (!Object.prototype.hasOwnProperty.call(raw, 'portableBackup')) return null;
-    const portable = raw.portableBackup;
-    if (!portable || portable.format !== 'dansik-full' || portable.version !== 1 || !portable.prefs || typeof portable.prefs !== 'object' || Array.isArray(portable.prefs)) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    const incoming = portable.prefs;
-    if (PORTABLE_PREF_KEYS.some(key => key !== 'backupReminder' && !Object.prototype.hasOwnProperty.call(incoming, key))) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    if ('backupReminder' in incoming && typeof incoming.backupReminder !== 'boolean') throw new TypeError('입력 형식이 올바르지 않습니다.');
-    if (typeof incoming.firstRunDone !== 'boolean' || !LANGUAGE_SETTINGS.includes(incoming.language) || !Core.validTimeZone(incoming.timeZone) || !Core.validColorTheme(incoming.colorTheme) || !Core.validTimerGradient(incoming.timerGradient)) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    if (!['male', 'female'].includes(incoming.sex) || !Number.isInteger(incoming.age) || incoming.age < 10 || incoming.age > 120 || !Number.isFinite(incoming.heightCm) || incoming.heightCm < 100 || incoming.heightCm > 250 || !Number.isFinite(incoming.weightKg) || incoming.weightKg < 25 || incoming.weightKg > 300 || !Object.prototype.hasOwnProperty.call(Core.ACTIVITY_MULTIPLIERS, incoming.activityLevel)) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    if (!Array.isArray(incoming.activitySamples) || (!Activity && incoming.activitySamples.length)) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    const samples = Activity ? Activity.normalizeSamples(incoming.activitySamples) : [];
-    if (typeof incoming.activitySource !== 'string' || incoming.activitySource.length > 200 || (incoming.activitySource && !samples.some(sample => sample.source === incoming.activitySource)) || !['estimate', 'activity'].includes(incoming.energyMode) || (incoming.energyMode === 'activity' && !incoming.activitySource)) throw new TypeError('입력 형식이 올바르지 않습니다.');
-    const parsed = { ...portablePrefs({ ...incoming, backupReminder: incoming.backupReminder ?? false }), activitySamples: samples };
-    // Backups from before reminders existed must not change the user's choice.
-    if (!Object.prototype.hasOwnProperty.call(incoming, 'backupReminder')) delete parsed.backupReminder;
-    return parsed;
+    return Portable.parsePortableBackup(raw, { Core, Activity, languages: LANGUAGE_SETTINGS });
   }
 
   function savePrefs(next) {
@@ -234,7 +222,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.33 (PWA-105)', build: 'PWA-105' },
+      app: { version: '1.0.37 (PWA-107)', build: 'PWA-107' },
       lastBackupAt: lastBackupAt(),
       activityRecoveryNeeded: activityUnreadable,
       settingsRecoveryNeeded: prefsUnreadable,
@@ -580,6 +568,8 @@
             throw new TypeError('Activity source must select one imported source.');
           }
           if (hasActivityPatch && nextEnergyMode === 'activity' && !nextActivitySource) throw new TypeError('Activity mode requires one selected activity source.');
+          if ('backupReminderStartedAt' in patch && patch.backupReminderStartedAt !== null && (!Number.isSafeInteger(patch.backupReminderStartedAt) || patch.backupReminderStartedAt <= 0 || patch.backupReminderStartedAt > now)) throw new TypeError('Invalid backup reminder date.');
+          if (patch.backupReminder === true && !prefs.backupReminderStartedAt) patch.backupReminderStartedAt = state.events.reduce((earliest, event) => Math.min(earliest, event.at), now);
           const nextPrefs = { ...prefs, ...patch };
           savePrefs(nextPrefs);
           invalidatePortableUndoOnPreferenceChange(nextPrefs);
@@ -783,7 +773,10 @@
     syncState.lastAttemptAt = Date.now();
     try {
       const keys = await Sync.deriveKeys(code);
-      const result = await Sync.syncOnce(keys, syncIo(keys, endpoint), options);
+      const io = syncIo(keys, endpoint);
+      const fetchRemote = io.fetch;
+      io.fetch = (method, body) => { if (method === 'PUT') options.onRemoteWriteAttempt?.(); return fetchRemote(method, body); };
+      const result = await Sync.syncOnce(keys, io, options);
       syncState.error = null; syncState.failedAt = 0;
       syncState.syncedToken = syncToken();
       return result;
@@ -794,26 +787,49 @@
   }
   function syncSummary(endpoint) {
     const base = readSyncBase();
-    return { available: Boolean(endpoint), enabled: Boolean(readSyncCode()), busy: syncState.busy, lastSyncAt: base && base.at || null, failed: Boolean(syncState.failedAt) };
+    return { available: Boolean(endpoint), enabled: Boolean(readSyncCode()), busy: syncState.busy, lastSyncAt: base && base.at || null, failed: Boolean(syncState.failedAt), serviceReady: syncHealth.at ? syncHealth.ready : null };
+  }
+  let syncHealth = { at: 0, ready: false };
+  async function checkSyncHealth(endpoint, force = false) {
+    if (!endpoint) return false;
+    if (!force && syncHealth.at && Date.now() - syncHealth.at < 30000) return syncHealth.ready;
+    let ready = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(new URL('/health', endpoint).href, { credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal });
+      const health = response.ok ? await response.json() : null;
+      ready = health?.service === 'dansik-sync' && health.status === 'ok';
+    } catch (_) { /* Settings explicitly reports unavailable and offers a fresh check. */ }
+    finally { clearTimeout(timeout); }
+    syncHealth = { at: Date.now(), ready };
+    return ready;
   }
   async function handleSync(payload) {
     const endpoint = syncEndpoint();
     const code = readSyncCode();
     switch (payload.type) {
       case 'sync-status': return { ok: true, sync: syncSummary(endpoint) };
+      case 'sync-check-service': await checkSyncHealth(endpoint, true); return { ok: true, sync: syncSummary(endpoint) };
       case 'sync-enable': {
         if (!endpoint) throw syncError('SYNC_UNAVAILABLE');
         if (code) throw syncError('SYNC_ON');
+        if (!await checkSyncHealth(endpoint)) throw syncError('SYNC_UNAVAILABLE');
         const join = payload.mode === 'join';
         if (!join && payload.mode !== 'create') throw new TypeError('요청 형식이 올바르지 않습니다.');
         const entered = join ? Sync.normalizeCode(payload.code) : null;
         if (join && !entered) throw syncError('SYNC_CODE');
         const fresh = join ? Sync.formatCode(entered) : Sync.generateCode();
-        try { localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { /* nothing to clear */ }
-        try { await runSync(fresh, endpoint, { requireRemote: join }); }
-        catch (error) { try { localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { /* leave nothing behind */ } throw error; }
-        try { localStorage.setItem(SYNC_CODE_KEY, fresh); }
-        catch (_) { try { localStorage.removeItem(SYNC_BASE_KEY); } catch (__) { /* ignore */ } throw syncError('SYNC_STORAGE'); }
+        // Persist the recoverable key before any remote write. If the network fails,
+        // retain it so retry/delete can still authenticate to a possibly-created copy.
+        try { localStorage.setItem(SYNC_CODE_KEY, fresh); localStorage.removeItem(SYNC_BASE_KEY); }
+        catch (_) { throw syncError('SYNC_STORAGE'); }
+        let remoteWriteAttempted = false;
+        try { await runSync(fresh, endpoint, { requireRemote: join, onRemoteWriteAttempt: () => { remoteWriteAttempted = true; } }); }
+        catch (error) {
+          if (!remoteWriteAttempted) { try { localStorage.removeItem(SYNC_CODE_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { /* stored key remains recoverable */ } }
+          throw error;
+        }
         return { ok: true, code: fresh, sync: syncSummary(endpoint) };
       }
       case 'sync-now': {
@@ -888,6 +904,12 @@
           refreshStorage(); broadcast();
           return snapshot();
         });
+      }
+      if (payload.type === 'apply-update') {
+        if (pendingWrites > 0 || document.querySelector('dialog[open]')) return { ok: false, error: I.lang === 'en' ? 'Save or close the open form first.' : '열린 창을 저장하거나 닫은 뒤 적용해 주세요.' };
+        if (document.body.dataset.pwaUpdateReady !== 'true') return { ok: false, error: I.lang === 'en' ? 'No update is ready.' : '준비된 업데이트가 없어요.' };
+        location.reload();
+        return { ok: true };
       }
       if (payload.type === 'settings' && checkPatch(payload.patch, SETTINGS_KEYS).notifications === true
           && 'Notification' in window && Notification.permission === 'default') {
@@ -1025,6 +1047,7 @@
           // Keep an unfinished form or queued write intact. Reopening the app applies the update.
           if (pendingWrites > 0 || document.querySelector('dialog[open]')) {
             document.body.dataset.pwaUpdateReady = 'true';
+            window.dispatchEvent(new Event('dansik:update-ready'));
             return;
           }
           if (document.body.dataset.pwaUpdateReady === 'true') return;

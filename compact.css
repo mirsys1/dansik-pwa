@@ -1477,3 +1477,68 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
   #meal-dialog #meal-note { min-height: 72px; }
   #meal-dialog .food-summary { padding: 10px 12px; }
 }
+
+.pwa-update-notice { position:fixed; z-index:15; bottom:calc(64px + env(safe-area-inset-bottom)); left:12px; right:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--text); box-shadow:0 4px 18px #0002; }
+.pwa-update-notice[hidden] { display:none; }
+.pwa-update-notice button { flex:none; }
+
+/* PWA-107: readable supporting screens; the fitted timer keeps its own scale. */
+:is(dialog, #page-history, #page-insights) {
+  --type-body: 16px;
+  --type-meta: 14px;
+  --type-label: 17px;
+}
+dialog :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea),
+.history-filters :is(input, select) { font-size: 16px; }
+dialog .field-help, dialog .optional, dialog .form-error { line-height: 1.5; }
+dialog .field-help { margin-block: 6px 10px; }
+#meal-dialog .meal-clock { font-size: 20px; height: 44px; min-height: 44px; }
+#meal-dialog .meal-form-body { padding-block: 12px 16px; }
+#meal-dialog #meal-details { margin-top: 12px; }
+#meal-dialog #meal-foods { margin-block: 12px; }
+#meal-dialog #meal-foods > .field-help { margin-bottom: 8px; }
+#meal-dialog .food-row label { margin-top: 8px; }
+#meal-dialog .food-row input { font-size: 16px; }
+#meal-dialog .quick-times button { font-size: 14px; }
+#meal-dialog .food-text-actions { gap: 4px 12px; }
+#page-history .history-edit-copy > span { font-size: 14px; line-height: 1.5; }
+#page-history .history-edit-copy > strong { font-size: 17px; }
+
+.energy-view-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 12px; background: var(--bg); }
+.energy-view-tab { flex: 1; min-width: 0; min-height: 44px; padding: 8px 10px; border-radius: 9px; font-size: 16px; line-height: 1.35; color: var(--muted); }
+.energy-view-tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 750; }
+#fasting-dialog .energy-breakdown { margin-top: 0; }
+#fasting-dialog .energy-breakdown dl { row-gap: 10px; }
+#fasting-dialog .effect-period { margin-bottom: 16px; }
+#fasting-dialog .effect-note { margin-block: 12px; }
+#fasting-dialog #energy-actions { gap: 8px 12px; margin-block: 12px; }
+
+#page-insights .stat-scope { font-size: 14px; margin-block: 0 8px; }
+#page-insights .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+#page-insights .stat-grid article { padding: 12px; }
+#page-insights .stat-grid article:last-child { grid-column: auto; display: block; }
+#page-insights .stat-grid article > span { font-size: 14px; }
+#page-insights .stat-grid strong { font-size: 22px; font-weight: 750; line-height: 1.35; margin-top: 6px; }
+#page-insights .chart-panel { padding: 12px; }
+#page-insights .chart-panel h2 { font-size: 17px; }
+#page-insights .chart-label, #page-insights .chart-value { font-size: 14px; }
+#page-insights .weekly-chart { gap: 0; height: 108px; }
+#page-insights .chart-hint { font-size: 14px; line-height: 1.5; margin-top: 10px; }
+.stats-secondary { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.stats-secondary > summary { min-height: 48px; padding: 12px 14px; cursor: pointer; font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.5; }
+.stats-secondary > summary::marker { color: var(--accent-dark); }
+.stats-secondary[open] > summary { border-bottom: 1px solid var(--line); }
+.stats-secondary > :not(summary) { margin: 0; padding: 12px; border: 0; border-radius: 0; box-shadow: none; }
+#page-insights .stats-record-counts { margin: 0; }
+#page-insights .stats-record-counts article { border: 0; border-radius: 8px; background: var(--bg); padding: 8px 10px; }
+#stats-interval-details .interval-panel > h2 { display: none; }
+.stats-secondary .period-grid strong { font-size: 18px; }
+.stats-secondary .period-grid :is(span, small), .stats-secondary .period-panel p { font-size: 14px; line-height: 1.5; }
+.stats-secondary .interval-row { gap: 6px; padding-block: 10px; font-size: 14px; }
+@media (max-width: 340px) {
+  #page-insights .stat-grid { gap: 8px; }
+  #page-insights .stat-grid article { padding: 10px 8px; }
+  #page-insights .stat-grid strong { font-size: 20px; }
+  .stats-secondary .period-grid { grid-template-columns: minmax(0, 1fr); }
+  .energy-view-tab { padding-inline: 6px; }
+}
