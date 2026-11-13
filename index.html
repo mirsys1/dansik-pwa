@@ -149,9 +149,9 @@
         <div id="food-recent-slot" hidden></div>
         <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
           <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
-          <p class="field-help" data-i18n="intake.basicFoodHelp">위에 음식을 적었다면 총 칼로리만 입력하세요.</p>
+          <p class="field-help" data-i18n="intake.basicFoodHelp">음식은 한 번만 적고, 총 칼로리를 입력하세요.</p>
           <div id="food-items"></div>
-          <div class="food-total-row"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><output id="food-total"></output></div>
+          <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
         </section>
         <div id="food-text-options" hidden>
           <p id="food-text-disclosure" class="field-help" role="note" data-i18n="intake.simpleTextDisclosure">자동 계산 시 음식 글이 Cloudflare AI로 전송돼요.</p>

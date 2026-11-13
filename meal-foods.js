@@ -27,6 +27,7 @@
   let foodRevision = 0;
   let noteRevision = 0;
   let skipNextNoteAnalysisRevision = null;
+  let manualNamesVisible = false;
 
   const byId = (id) => document.getElementById(id);
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
@@ -75,9 +76,13 @@
       const name = row.querySelector('[data-food-name]');
       const kcal = row.querySelector('[data-food-kcal]');
       if (!name || !kcal?.value.trim()) return;
-      // Clearing the description cannot leave its former automatic value
-      // masquerading as a deliberate menu.  Keep the total for correction,
-      // or clear it too to return to a note-only record.
+      // A filled food must remain editable if its description is removed.
+      // Retain the previous name and reveal it instead of hiding an error.
+      if (!note && name.value) {
+        delete row.dataset.foodNoteDefault;
+        manualNamesVisible = true;
+        return;
+      }
       const defaultName = note ? (note.length <= 100 ? note : copy('식사 전체', 'Whole meal')) : '';
       if (name.value !== defaultName) {
         name.value = defaultName;
@@ -85,6 +90,38 @@
       }
     });
     if (changed) updateTotal();
+    else refreshFoodRowPresentation();
+  }
+
+  function refreshFoodRowPresentation() {
+    const rows = [...document.querySelectorAll('#food-items [data-food-row]')];
+    const note = byId('meal-note')?.value.trim() || '';
+    let compact = false;
+    rows.forEach((row) => {
+      const name = row.querySelector('[data-food-name]');
+      const label = row.querySelector('[data-food-name-field]');
+      if (!label || !name) return;
+      // Equality changes presentation only. Saved/AI/recent food values never
+      // gain automatic-note ownership just because their names match.
+      const duplicate = note && canonicalFoodName(note) === canonicalFoodName(name.value);
+      const hideName = rows.length === 1 && !manualNamesVisible && !row.hasAttribute('data-food-review') &&
+        (row.hasAttribute('data-food-note-default') || duplicate);
+      label.hidden = Boolean(hideName);
+      row.toggleAttribute('data-food-name-compact', Boolean(hideName));
+      compact = compact || Boolean(hideName);
+    });
+    const edit = byId('food-name-edit');
+    if (edit) edit.hidden = !compact;
+    const summaryItems = byId('food-summary-items');
+    if (summaryItems) summaryItems.hidden = compact;
+  }
+
+  function showMenuNames() {
+    manualNamesVisible = true;
+    document.querySelectorAll('#food-items [data-food-note-default]').forEach(row => {
+      delete row.dataset.foodNoteDefault;
+    });
+    refreshFoodRowPresentation();
   }
 
   function setText(node, value) {
@@ -285,7 +322,8 @@
       const existing = rows.find((row) => sameVisibleFood(row, choice));
       if (existing) {
         help.textContent = copy('이미 추가된 음식이에요. 양과 칼로리를 확인해 주세요.', 'This food is already added. Check its amount and calories.');
-        existing.querySelector('[data-food-name]').focus({ preventScroll: true });
+        const target = existing.hasAttribute('data-food-name-compact') ? '[data-food-kcal]' : '[data-food-name]';
+        existing.querySelector(target).focus({ preventScroll: true });
         return;
       }
       const blank = rows.find((row) => !row.hasAttribute('data-food-review') &&
@@ -306,7 +344,7 @@
           updateTotal();
         });
         help.textContent = copy('음식을 추가했어요. 메뉴의 총 칼로리를 확인해 주세요.', 'Food added. Check the total calories for this item.');
-        addedName.focus({ preventScroll: true });
+        (added.hasAttribute('data-food-name-compact') ? addedKcal : addedName).focus({ preventScroll: true });
       }
     });
     section.append(label, help);
@@ -314,6 +352,7 @@
   }
 
   function updateTotal() {
+    refreshFoodRowPresentation();
     const output = byId('food-total');
     const summary = byId('food-summary');
     const summaryTotal = byId('food-summary-total');
@@ -415,6 +454,7 @@
       setStatus(copy(`음식은 최대 ${MAX_FOODS}개까지 추가할 수 있어요.`, `You can add up to ${MAX_FOODS} foods.`));
       return null;
     }
+    if (rowCount() > 0) showMenuNames();
 
     const data = food && typeof food === 'object' ? food : {};
     const row = document.createElement('section');
@@ -466,6 +506,7 @@
       // Any user name edit takes ownership away from the note.  Later note
       // changes must not overwrite an explicitly named second menu.
       delete row.dataset.foodNoteDefault;
+      manualNamesVisible = true;
       // The g and density inputs are hidden metadata.  If a saved/AI menu is
       // renamed, they no longer describe the visible food and must not leak
       // into the next save or duplicate check.
@@ -488,8 +529,10 @@
       event.preventDefault();
       kcal.blur();
     });
+    const nameField = field(copy('메뉴 이름', 'Menu name'), name);
+    nameField.dataset.foodNameField = 'true';
     fields.append(
-      field(copy('메뉴 이름', 'Menu name'), name),
+      nameField,
       field(copy('총 칼로리 (kcal)', 'Total calories (kcal)'), kcal)
     );
     row.append(header, fields, grams, density);
@@ -1078,6 +1121,10 @@
       const gramsRaw = row.querySelector('[data-food-grams]').value.trim();
       const kcalRaw = row.querySelector('[data-food-kcal]').value.trim();
       const densityRaw = row.querySelector('[data-food-density]').value.trim();
+      if (row.hasAttribute('data-food-note-default') && !name && kcalRaw !== '') {
+        byId('meal-note')?.focus();
+        throw new Error(copy('위에 음식 설명을 입력하거나 메뉴명을 따로 입력해 주세요.', 'Describe your food above, or choose Edit names to enter a menu name.'));
+      }
       if (row.hasAttribute('data-food-review') && !name) throw new Error(copy('국·찌개 종류를 고르거나 해당 음식 칸을 삭제해 주세요.', 'Choose the soup or stew, or remove that row.'));
       if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 총 칼로리를 입력해 주세요.`, `Enter the total calories for ${name}.`));
       if (!name && !gramsRaw && !kcalRaw && !densityRaw) continue;
@@ -1110,6 +1157,7 @@
     foodRevision += 1;
     noteRevision += 1;
     skipNextNoteAnalysisRevision = null;
+    manualNamesVisible = false;
     if (photoCode) setText(byId('food-text-status'), '');
     stopCamera(false);
     clearPhoto(false, false);
@@ -1263,7 +1311,15 @@
       });
     }
     const add = byId('food-add');
-    if (add) add.addEventListener('click', () => { reviseFoods(); addRow({})?.querySelector('[data-food-name]').focus(); });
+    if (add) add.addEventListener('click', () => {
+      showMenuNames();
+      reviseFoods();
+      addRow({})?.querySelector('[data-food-name]').focus();
+    });
+    byId('food-name-edit')?.addEventListener('click', () => {
+      showMenuNames();
+      byId('food-items')?.querySelector('[data-food-name]')?.focus();
+    });
     byId('food-photo-add')?.addEventListener('click', () => {
       const choices = byId('food-photo-choices');
       if (!choices) return;

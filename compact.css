@@ -1501,6 +1501,12 @@ dialog .field-help { margin-block: 6px 10px; }
 #meal-dialog .food-row { padding-block: 4px; }
 #meal-dialog .food-row label { margin: 0; }
 #meal-dialog .food-row input { margin-top: 4px; font-size: 16px; }
+#meal-dialog [data-food-name-field][hidden] { display: none; }
+#meal-dialog [data-food-name-compact] .food-fields { grid-template-columns: minmax(0, 1fr); }
+#meal-dialog .food-row:has(.food-ai-estimate) .food-row-head { display: flex; }
+#meal-dialog .food-entry-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+#meal-dialog #food-name-edit { min-height: 44px; padding-inline: 4px; }
+#meal-dialog .food-total-row { flex-wrap: wrap; }
 #meal-dialog .food-total-row { margin-top: 4px; }
 #meal-dialog .quick-times button { font-size: 14px; }
 #meal-dialog .food-text-actions { gap: 4px 12px; }
