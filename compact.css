@@ -1561,3 +1561,96 @@ dialog .field-help { margin-block: 6px 10px; }
   .stats-secondary .period-grid { grid-template-columns: minmax(0, 1fr); }
   .energy-view-tab { padding-inline: 6px; }
 }
+
+/* PWA-110: keep field focus inside the control. This applies the same quiet
+   treatment to PWA and desktop fields without changing checkbox/radio focus. */
+body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea):focus {
+  outline: none;
+  outline-offset: 0;
+  border-color: var(--focus);
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea):focus-visible {
+  border-color: var(--focus);
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+@media (forced-colors: active) {
+  body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
+
+/* PWA-110: photo and AI assistance is optional to the main manual entry.
+   A separator is sufficient; adding another card competes with the form. */
+#meal-dialog .meal-ai-tools {
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+#meal-dialog .meal-ai-tools > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--type-body);
+  font-weight: 650;
+  line-height: 1.35;
+  list-style: none;
+}
+#meal-dialog .meal-ai-tools > summary::-webkit-details-marker { display: none; }
+#meal-dialog .meal-ai-tools > summary::before {
+  content: '';
+  inline-size: 7px;
+  block-size: 7px;
+  flex: 0 0 auto;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform .15s ease;
+}
+#meal-dialog .meal-ai-tools[open] > summary::before { transform: rotate(45deg); }
+#meal-dialog .meal-ai-tools > summary > :first-child { min-width: 0; }
+#meal-dialog .food-ai-state {
+  max-width: 100%;
+  margin-inline-start: auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: var(--type-meta);
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+#meal-dialog .meal-ai-body { margin: 0 0 8px; padding: 0; }
+#meal-dialog .meal-ai-body #food-text-options { margin: 0 0 8px; }
+#meal-dialog .meal-ai-body #food-photo-choices { margin: 8px 0; }
+#meal-dialog .meal-ai-body .food-photo-add { margin-top: 0; }
+#meal-dialog #food-text-disclosure {
+  margin: 4px 0 0;
+  font-size: var(--type-meta);
+  line-height: 1.45;
+}
+#meal-dialog .meal-ai-feedback { min-height: 0; margin: 4px 0 0; }
+#meal-dialog .meal-ai-feedback p {
+  min-height: 0;
+  margin: 4px 0 0;
+  color: inherit;
+  font-size: var(--type-meta);
+  line-height: 1.45;
+}
+#meal-dialog .meal-ai-feedback p:empty { display: none; }
+#meal-dialog .meal-ai-feedback[data-state='loading'] { color: var(--muted); }
+#meal-dialog .meal-ai-feedback[data-state='ready'] { color: var(--accent-dark); }
+#meal-dialog .meal-ai-feedback[data-state='error'] { color: var(--danger); }
+
+/* The start notice intentionally keeps its existing surface and compact gap,
+   but its two saved-state instructions must remain distinct. */
+#meal-dialog .meal-recorded-notice { white-space: pre-line; line-height: 1.4; }

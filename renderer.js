@@ -261,6 +261,7 @@ async function recordMealAndEdit(meal) {
   $('meal-recorded-notice').textContent = t('meal.timerStarted');
   $('meal-recorded-notice').hidden = false;
   $('meal-cancel').textContent = t('dialog.close');
+  $('meal-cancel').setAttribute('aria-describedby', 'meal-recorded-notice');
   $('save-meal').textContent = t('meal.done');
   // A just-recorded meal can be undone from the toast. Keep this quick detail
   // screen focused on completing or closing instead of presenting a third action.
@@ -1017,6 +1018,7 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   $('delete-meal').hidden = !event;
   $('meal-recorded-notice').hidden = true;
   $('meal-cancel').textContent = t('dialog.cancel');
+  $('meal-cancel').removeAttribute('aria-describedby');
   $('save-meal').textContent = event ? t('meal.saveEdit') : t('meal.save');
   // Existing meal foods are presented through the compact summary first.
   // The detailed manual editor opens only from its explicit edit control.
@@ -1603,8 +1605,12 @@ $('meal-form').addEventListener('submit',async event=>{
   catch (error) { $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
   if (!timeUntouched) patch.at = at;
-  const result=await action(editingId?{type:'update',id:editingId,patch,expectedMeal:original}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
-  if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
+  const saveButton = $('save-meal'), saveLabel = saveButton.textContent;
+  saveButton.textContent = t('meal.saving');
+  try {
+    const result=await action(editingId?{type:'update',id:editingId,patch,expectedMeal:original}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
+    if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
+  } finally { saveButton.textContent = saveLabel; }
 });
 $('delete-meal').addEventListener('click',()=>{$('delete-error').textContent='';$('delete-dialog').showModal();});
 $('confirm-delete').addEventListener('click',async()=>{const result=await action({type:'delete',id:editingId,expectedMeal:editingSnapshot},t('toast.mealDeleted'));if(result){$('delete-dialog').close();$('meal-dialog').close();}else $('delete-error').textContent=lastActionError||t('delete.failed');});

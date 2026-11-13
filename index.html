@@ -134,7 +134,8 @@
   <dialog id="meal-dialog" aria-labelledby="meal-dialog-title"><form id="meal-form" novalidate>
     <div class="dialog-heading"><h2 id="meal-dialog-title" data-i18n="meal.dialogNew">식사 기록하기</h2><button type="button" class="icon-button" data-close="meal-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="meal-form-body">
-      <p id="meal-recorded-notice" class="field-help meal-recorded-notice" data-i18n="meal.timerStarted" hidden>타이머가 시작됐어요.</p>
+      <p id="meal-recorded-notice" class="field-help meal-recorded-notice" role="status" data-i18n="meal.timerStarted" hidden>식사 시간은 저장됐어요.
+음식·칼로리는 ‘내용 저장’으로 반영해요.</p>
     <details id="meal-when" class="meal-when"><summary><span id="meal-when-summary"></span><span data-i18n="meal.changeTime">변경</span></summary>
     <div class="meal-type-row"><label for="meal-type" data-i18n="meal.which">어떤 식사였나요?</label><select id="meal-type" aria-describedby="meal-auto-hint"><option value="breakfast" data-i18n="meal.breakfast">아침</option><option value="lunch" data-i18n="meal.lunch">점심</option><option value="dinner" data-i18n="meal.dinner">저녁</option><option value="snack" data-i18n="meal.snack">간식</option></select></div><p id="meal-auto-hint" class="field-help sr-only" data-i18n="meal.autoType">시간에 맞춰 골랐어요.</p>
     <div class="meal-date-heading"><span data-i18n="meal.date">날짜</span><button type="button" class="text-button" id="meal-other-toggle" aria-controls="meal-other-date" aria-expanded="false"><span data-i18n="meal.otherDate">다른 날짜</span><span id="meal-other-current"></span></button></div>
@@ -146,6 +147,7 @@
       <section id="meal-details" class="meal-details">
         <label for="meal-note" data-i18n-text="meal.foodPrompt">무엇을 드셨나요? <span class="optional" data-i18n="meal.optional">선택</span></label>
         <textarea id="meal-note" rows="2" maxlength="200" placeholder="예: 김밥 한 줄, 라떼 한 잔" data-i18n-attr="placeholder=meal.simpleExample" aria-describedby="food-text-disclosure food-text-status"></textarea>
+        <p id="food-text-disclosure" class="field-help" role="note" data-i18n="intake.simpleTextDisclosure" hidden>AI 자동 계산 켜짐 · 음식 설명이 Cloudflare AI로 전송돼요.</p>
         <div id="food-recent-slot" hidden></div>
         <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
           <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
@@ -153,9 +155,11 @@
           <div id="food-items"></div>
           <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
         </section>
+        <details id="meal-ai-tools" class="meal-ai-tools">
+          <summary><span data-i18n="intake.aiTools">사진·AI로 입력</span><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected">연결 안 됨</span></summary>
+          <div class="meal-ai-body">
+          <p id="food-ai-transfer-help" class="field-help" data-i18n="intake.aiTransferHelp">AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.</p>
         <div id="food-text-options" hidden>
-          <p id="food-text-disclosure" class="field-help" role="note" data-i18n="intake.simpleTextDisclosure">자동 계산 시 음식 글이 Cloudflare AI로 전송돼요.</p>
-          <p id="food-text-status" class="field-help" role="status"></p>
           <div class="food-text-actions"><button type="button" class="text-button" id="food-text-calculate" data-i18n="intake.calculate">칼로리 계산</button><button type="button" class="text-button" id="food-ai-settings-open" data-i18n="intake.aiSettings">AI 연결 설정</button></div>
         </div>
         <button type="button" class="outline-button food-photo-add" id="food-photo-add" aria-controls="food-photo-choices" aria-expanded="false" data-i18n="intake.photoInput">사진으로 입력</button>
@@ -172,11 +176,16 @@
           <button type="button" class="primary-button" id="food-camera-snap" data-i18n="intake.takePhoto">사진 찍기</button>
           <button type="button" class="outline-button" id="food-camera-stop" data-i18n="intake.stopCamera">카메라 끄기</button>
         </div>
-        <p id="food-photo-status" class="field-help" role="status"></p>
         <img id="food-photo-preview" class="food-media" alt="" hidden>
         <button type="button" class="text-button" id="food-photo-remove" hidden data-i18n="intake.removePhoto">사진 지우기</button>
+          </div>
+        </details>
+        <div id="meal-ai-feedback" class="meal-ai-feedback" hidden>
+          <p id="food-text-status" class="field-help" role="status"></p>
+          <p id="food-photo-status" class="field-help" role="status"></p>
+        </div>
         <section id="food-summary" class="food-summary" aria-labelledby="food-summary-label" hidden>
-          <div class="food-summary-head"><div><h3 id="food-summary-label" data-i18n="intake.calorieSummary">섭취 칼로리</h3><output id="food-summary-total"></output></div></div>
+          <div class="food-summary-head"><div><h3 id="food-summary-label" data-i18n="intake.aiResult">AI 계산 결과</h3><output id="food-summary-total"></output></div></div>
           <ul id="food-summary-items"></ul>
           <p id="food-summary-help" class="field-help"></p>
         </section>

@@ -474,11 +474,17 @@
   // Errors are thrown with Korean source text (core/csv/store/main); the UI shows them through err().
   // Simple meal entry shares the same Korean and English interaction states.
   Object.assign(ko, {
-  "meal.timerStarted": "타이머가 시작됐어요.",
-  "meal.done": "완료",
+  "meal.timerStarted": "식사 시간은 저장됐어요.\n음식·칼로리는 ‘내용 저장’으로 반영해요.",
+  "meal.done": "내용 저장",
+  "meal.saving": "저장 중…",
   "meal.saveEdit": "변경 저장",
   "meal.simpleExample": "예: 김밥 한 줄, 라떼 한 잔",
-  "intake.simpleTextDisclosure": "자동 계산 시 음식 글이 Cloudflare AI로 전송돼요.",
+  "intake.simpleTextDisclosure": "AI 자동 계산 켜짐 · 음식 설명이 Cloudflare AI로 전송돼요.",
+  "intake.aiTools": "사진·AI로 입력",
+  "intake.aiTransferHelp": "AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.",
+  "intake.aiResult": "AI 계산 결과",
+  "intake.aiStateManual": "직접 입력", "intake.aiStateDisconnected": "연결 안 됨",
+  "intake.aiStateAuto": "자동 계산 켜짐", "intake.aiStateConnected": "연결됨",
   "intake.aiSettings": "AI 연결 설정",
   "intake.aiSettingsHelp": "음식 글과 사진의 칼로리를 자동으로 계산해요. 결과를 확인한 뒤 기록하세요.",
   "intake.photoInput": "사진으로 입력",
@@ -492,11 +498,17 @@
   "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 보관되지 않으며, 결과를 확인한 뒤 저장하세요."
 });
   Object.assign(en, {
-  "meal.timerStarted": "The timer started.",
-  "meal.done": "Done",
+  "meal.timerStarted": "The meal time is saved.\nUse ‘Save details’ to save food and calories.",
+  "meal.done": "Save details",
+  "meal.saving": "Saving…",
   "meal.saveEdit": "Save changes",
   "meal.simpleExample": "e.g. one gimbap roll, one latte",
-  "intake.simpleTextDisclosure": "Automatic calculation sends your food description to Cloudflare AI.",
+  "intake.simpleTextDisclosure": "Auto AI is on · food descriptions are sent to Cloudflare AI.",
+  "intake.aiTools": "Photo & AI entry",
+  "intake.aiTransferHelp": "AI calculation sends food descriptions and photos to Cloudflare AI.",
+  "intake.aiResult": "AI result",
+  "intake.aiStateManual": "Manual", "intake.aiStateDisconnected": "Not connected",
+  "intake.aiStateAuto": "Auto on", "intake.aiStateConnected": "Connected",
   "intake.aiSettings": "AI connection settings",
   "intake.aiSettingsHelp": "Calculate calories from food descriptions and photos. Check the result before saving.",
   "intake.photoInput": "Add a photo",

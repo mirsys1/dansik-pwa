@@ -124,12 +124,33 @@
     refreshFoodRowPresentation();
   }
 
-  function setText(node, value) {
+  function setText(node, value, state = 'ready') {
     if (node) node.textContent = value;
+    if (node?.id === 'food-text-status' || node?.id === 'food-photo-status') {
+      node.dataset.analysisState = state;
+      refreshAnalysisFeedback();
+    }
   }
 
-  function setStatus(message) {
-    setText(byId('food-photo-status'), message);
+  function refreshAnalysisFeedback() {
+    const feedback = byId('meal-ai-feedback');
+    if (!feedback) return;
+    const messages = ['food-text-status', 'food-photo-status'].map(byId).filter(node => node?.textContent.trim());
+    feedback.hidden = messages.length === 0;
+    feedback.dataset.state = analysisPending() || messages.some(node => node.dataset.analysisState === 'loading') ? 'loading' : messages.some(node => node.dataset.analysisState === 'error') ? 'error' : 'ready';
+  }
+
+  function analysisStatus(kind, message, state = 'ready') {
+    const node = byId(kind === 'text' ? 'food-text-status' : 'food-photo-status');
+    setText(node, message, state);
+    if (kind === 'text' && state === 'error') {
+      const retry = byId('food-text-calculate');
+      if (retry && photoCode) retry.hidden = false;
+    }
+  }
+
+  function setStatus(message, state = 'ready') {
+    analysisStatus('photo', message, state);
   }
 
   function finiteNumber(raw) {
@@ -391,13 +412,16 @@
       }
     });
     const needsCorrection = incomplete || missingAmount;
+    const aiDraft = Boolean(document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]'));
+    const showAiResult = aiDraft && calculated > 0;
     const formatted = roundKcal(total).toLocaleString(isEnglish() ? 'en-US' : 'ko-KR', { maximumFractionDigits: 1 });
     const message = needsCorrection
       ? (calculated ? copy(`계산된 합계 ${formatted} kcal · 입력 확인 필요`, `Calculated subtotal ${formatted} kcal · review needed`)
         : copy('음식 이름과 칼로리를 확인하면 합계가 표시돼요.', 'Enter a food name and calories to show the total.'))
       : (calculated ? copy(`합계 ${formatted} kcal`, `Total ${formatted} kcal`) : '');
     setText(output, message);
-    if (summary) summary.hidden = calculated === 0;
+    if (output) output.hidden = !message || showAiResult || (!needsCorrection && rowCount() <= 1);
+    if (summary) summary.hidden = !showAiResult;
     if (summaryTotal) setText(summaryTotal, calculated ? `${formatted} kcal` : '');
     if (summaryItems) {
       summaryItems.replaceChildren(...names.map((item) => {
@@ -451,7 +475,7 @@
     const container = byId('food-items');
     if (!container) return null;
     if (rowCount() >= MAX_FOODS) {
-      setStatus(copy(`음식은 최대 ${MAX_FOODS}개까지 추가할 수 있어요.`, `You can add up to ${MAX_FOODS} foods.`));
+      setStatus(copy(`음식은 최대 ${MAX_FOODS}개까지 추가할 수 있어요.`, `You can add up to ${MAX_FOODS} foods.`), 'error');
       return null;
     }
     if (rowCount() > 0) showMenuNames();
@@ -541,7 +565,7 @@
       const draftKey = data.textDraft ? 'foodTextDraft' : 'foodPhotoDraft';
       row.dataset[draftKey] = 'true';
       if (data.kcalPer100g) kcal.dataset.calculated = 'true';
-      row.addEventListener('input', () => { delete row.dataset[draftKey]; }, { once: true });
+      row.addEventListener('input', () => { delete row.dataset[draftKey]; }, { once: true, capture: true });
       if (data.estimated) {
         const estimate = document.createElement('small');
         estimate.className = 'food-ai-estimate';
@@ -593,6 +617,16 @@
     // setup remains one clear action away when the device is disconnected.
     if (calculate) calculate.hidden = !photoCode || Boolean(auto?.checked);
     if (settings) settings.hidden = Boolean(photoCode);
+    const automatic = Boolean(endpoint && photoCode && auto?.checked);
+    const disclosure = byId('food-text-disclosure');
+    if (disclosure) disclosure.hidden = !automatic;
+    const note = byId('meal-note');
+    if (note) note.setAttribute('aria-describedby', automatic ? 'food-text-disclosure food-text-status' : 'food-text-status');
+    const transferHelp = byId('food-ai-transfer-help');
+    if (transferHelp) transferHelp.hidden = !endpoint;
+    const badge = byId('food-ai-state');
+    if (badge) badge.dataset.i18n = !endpoint ? 'intake.aiStateManual' : !photoCode ? 'intake.aiStateDisconnected' : automatic ? 'intake.aiStateAuto' : 'intake.aiStateConnected';
+    setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
   }
 
   function setPhotoCode(code) {
@@ -628,12 +662,19 @@
     return copy('사진 분석을 연결했어요. 음식 사진을 찍거나 올려 보세요.', 'Photo analysis is connected. Take or add a food photo.');
   }
 
+  function showQrConnection(code) {
+    const valid = Boolean(code && (!photoCode || photoCode === code));
+    setStatus(connectFromQr(code), valid ? 'ready' : 'error');
+  }
+
   function consumePhotoPairLink() {
     const link = root.location.href;
     if (!link.startsWith(PAIR_LINK)) return;
     root.history.replaceState(root.history.state, '', root.location.pathname);
-    const message = connectFromQr(codeFromQrLink(link));
-    if (byId('meal-dialog').open) setStatus(message);
+    const code = codeFromQrLink(link);
+    const valid = Boolean(code && (!photoCode || photoCode === code));
+    const message = connectFromQr(code);
+    if (byId('meal-dialog').open) setStatus(message, valid ? 'ready' : 'error');
     else root.dispatchEvent(new CustomEvent('dansik:photo-pair', { detail: message }));
   }
 
@@ -674,7 +715,7 @@
     const session = { button, video, preview, stream: null, timer: null };
     qrSession = session;
     button.disabled = true;
-    setStatus(copy('카메라를 여는 중이에요.', 'Opening the camera.'));
+    setStatus(copy('카메라를 여는 중이에요.', 'Opening the camera.'), 'loading');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
       if (qrSession !== session || !byId('meal-dialog').open) {
@@ -691,7 +732,7 @@
       const fail = () => {
         if (qrSession !== session) return;
         stopQrScan();
-        setStatus(copy('카메라로 읽지 못했어요. QR 사진 찍기를 눌러 다시 시도해 주세요.', 'Could not scan with the camera. Try Take QR photo.'));
+        setStatus(copy('카메라로 읽지 못했어요. QR 사진 찍기를 눌러 다시 시도해 주세요.', 'Could not scan with the camera. Try Take QR photo.'), 'error');
       };
       const read = () => {
         if (qrSession !== session) return;
@@ -702,7 +743,7 @@
           catch { fail(); return; }
           if (result) {
             stopQrScan();
-            setStatus(connectFromQr(codeFromQrLink(result.data)));
+            showQrConnection(codeFromQrLink(result.data));
             return;
           }
         }
@@ -714,7 +755,7 @@
     } catch {
       if (qrSession === session) {
         stopQrScan();
-        setStatus(copy('카메라 권한을 확인하거나 QR 사진 찍기를 눌러 주세요.', 'Check camera permission or tap Take QR photo.'));
+        setStatus(copy('카메라 권한을 확인하거나 QR 사진 찍기를 눌러 주세요.', 'Check camera permission or tap Take QR photo.'), 'error');
       }
     }
   }
@@ -743,9 +784,9 @@
       const result = readQrFrame(qrImage, qrImage.naturalWidth, qrImage.naturalHeight, canvas, 0.48, 1600)
         || readQrFrame(qrImage, qrImage.naturalWidth, qrImage.naturalHeight, canvas, 1, 1600);
       if (!result) throw new Error('QR code not found');
-      setStatus(connectFromQr(codeFromQrLink(result.data)));
+      showQrConnection(codeFromQrLink(result.data));
     } catch {
-      if (active()) setStatus(copy('QR을 읽지 못했어요. PC 화면의 QR 전체가 보이게 다시 찍어 주세요.', 'Could not read the QR code. Capture the entire code on your PC screen.'));
+      if (active()) setStatus(copy('QR을 읽지 못했어요. PC 화면의 QR 전체가 보이게 다시 찍어 주세요.', 'Could not read the QR code. Capture the entire code on your PC screen.'), 'error');
     } finally {
       button.disabled = false;
     }
@@ -759,6 +800,7 @@
     const pending = analysisPending();
     const stop = byId('meal-analysis-stop');
     if (stop) stop.hidden = !pending;
+    refreshAnalysisFeedback();
     const error = byId('meal-error');
     if (!pending && error?.hasAttribute('data-analysis-pending')) {
       error.removeAttribute('data-analysis-pending');
@@ -836,7 +878,7 @@
       revealFoodEntry();
       status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
-        : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'));
+        : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'), 'error');
       return;
     }
     updateTotal();
@@ -879,12 +921,13 @@
   async function analyze(kind, input) {
     if (!endpoint || !photoCode || !byId('meal-dialog').open) return;
     const fromText = kind === 'text';
-    const status = fromText ? (message) => setText(byId('food-text-status'), message) : setStatus;
+    const status = (message, state = 'ready') => analysisStatus(kind, message, state);
     if (quotaDay === new Date().toISOString().slice(0, 10)) {
-      status(analysisError('QUOTA', kind));
+      status(analysisError('QUOTA', kind), 'error');
       return;
     }
     cancelAnalysis();
+    setText(byId(fromText ? 'food-photo-status' : 'food-text-status'), '');
     const controller = new AbortController();
     const request = { kind, controller, foodRevision, noteRevision };
     analysisRequest = request;
@@ -893,12 +936,12 @@
       (!fromText || (request.foodRevision === foodRevision && request.noteRevision === noteRevision));
     const timeout = root.setTimeout(() => controller.abort(), 30000);
     status(fromText ? copy('입력한 음식의 칼로리를 계산하고 있어요…', 'Calculating calories from your note…')
-      : copy('사진 속 음식과 양을 확인하고 있어요…', 'Identifying food and portions…'));
+      : copy('사진 속 음식과 양을 확인하고 있어요…', 'Identifying food and portions…'), 'loading');
     try {
       const body = fromText ? input : await photoJpeg(input);
       if (!isActive()) return;
       if (!fromText && (!body || body.type !== 'image/jpeg' || !body.size || body.size > MAX_AI_BYTES)) {
-        status(analysisError('IMAGE', kind));
+        status(analysisError('IMAGE', kind), 'error');
         return;
       }
       const url = fromText ? new URL('/meal-text/analyze', endpoint).href : endpoint.href;
@@ -909,10 +952,13 @@
       });
       const result = await response.json();
       if (!isActive()) return;
-      if (response.ok) insertAnalyzedFoods(result, kind, status);
-      else status(analysisError(result?.code, kind));
+      if (response.ok) {
+        insertAnalyzedFoods(result, kind, status);
+        if (document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]')) updateTextActions();
+      }
+      else status(analysisError(result?.code, kind), 'error');
     } catch {
-      if (isActive()) status(analysisError('UNAVAILABLE', kind));
+      if (isActive()) status(analysisError('UNAVAILABLE', kind), 'error');
     } finally {
       root.clearTimeout(timeout);
       if (analysisRequest === request) {
@@ -967,11 +1013,11 @@
     if (!isCurrentGeneration(generation)) return;
     if (!file) return;
     if (!String(file.type || '').startsWith('image/')) {
-      setStatus(copy('이미지 파일만 올릴 수 있어요.', 'Please choose an image file.'));
+      setStatus(copy('이미지 파일만 올릴 수 있어요.', 'Please choose an image file.'), 'error');
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setStatus(copy('사진은 12MB 이하로 올려 주세요.', 'Choose an image smaller than 12 MB.'));
+      setStatus(copy('사진은 12MB 이하로 올려 주세요.', 'Choose an image smaller than 12 MB.'), 'error');
       return;
     }
     if (photoCode && endpoint) {
@@ -986,7 +1032,7 @@
     const reader = new FileReader();
     reader.onerror = reader.onabort = () => {
       finishReading();
-      if (isCurrentGeneration(generation)) setStatus(copy('사진을 읽지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be read. Please choose another one.'));
+      if (isCurrentGeneration(generation)) setStatus(copy('사진을 읽지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be read. Please choose another one.'), 'error');
     };
     reader.onload = () => {
       if (!isCurrentGeneration(generation)) return;
@@ -1010,7 +1056,7 @@
         if (!isCurrentGeneration(generation)) return;
         finishReading();
         clearPhoto(false, false);
-        setStatus(copy('사진을 표시하지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be displayed. Please choose another one.'));
+        setStatus(copy('사진을 표시하지 못했어요. 다른 사진을 선택해 주세요.', 'The photo could not be displayed. Please choose another one.'), 'error');
       });
     };
     reader.readAsDataURL(file);
@@ -1052,14 +1098,14 @@
       }
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus(copy('이 기기에서는 카메라 미리보기를 사용할 수 없어요. 사진 선택을 이용해 주세요.', 'Camera preview is not available here. Please choose a photo instead.'));
+      setStatus(copy('이 기기에서는 카메라 미리보기를 사용할 수 없어요. 사진 선택을 이용해 주세요.', 'Camera preview is not available here. Please choose a photo instead.'), 'error');
       return;
     }
     const generation = nextTransientGeneration();
     try {
       stopCamera(false);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-      if (!isCurrentGeneration(generation)) {
+      if (!isCurrentGeneration(generation) || !byId('meal-dialog').open || !byId('meal-ai-tools').open) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -1076,15 +1122,15 @@
       const camera = byId('food-camera');
       if (camera) camera.disabled = true;
       await video.play();
-      if (!isCurrentGeneration(generation)) {
+      if (!isCurrentGeneration(generation) || cameraStream !== stream || !byId('meal-ai-tools').open) {
         if (cameraStream === stream) stopCamera(false);
         return;
       }
       setStatus(copy('카메라가 켜졌어요. 사진 찍기를 눌러 주세요.', 'Camera is on. Tap Take photo when ready.'));
     } catch (_error) {
-      if (isCurrentGeneration(generation)) {
+      if (isCurrentGeneration(generation) && byId('meal-ai-tools').open) {
         stopCamera(false);
-        setStatus(copy('카메라를 사용할 수 없어요. 권한을 확인하거나 사진 선택을 이용해 주세요.', 'Camera is unavailable. Check permission or choose a photo instead.'));
+        setStatus(copy('카메라를 사용할 수 없어요. 권한을 확인하거나 사진 선택을 이용해 주세요.', 'Camera is unavailable. Check permission or choose a photo instead.'), 'error');
       }
     }
   }
@@ -1092,7 +1138,7 @@
   function snapshotCamera() {
     const video = byId('food-camera-video');
     if (!cameraStream || !video || !video.videoWidth || !video.videoHeight) {
-      setStatus(copy('카메라 화면이 준비된 뒤 다시 눌러 주세요.', 'Wait for the camera preview, then try again.'));
+      setStatus(copy('카메라 화면이 준비된 뒤 다시 눌러 주세요.', 'Wait for the camera preview, then try again.'), 'error');
       return;
     }
     const canvas = document.createElement('canvas');
@@ -1105,7 +1151,7 @@
     canvas.toBlob((blob) => {
       if (!isCurrentGeneration(generation)) return;
       if (!blob) {
-        setStatus(copy('사진을 만들지 못했어요. 다시 시도해 주세요.', 'The photo could not be created. Please try again.'));
+        setStatus(copy('사진을 만들지 못했어요. 다시 시도해 주세요.', 'The photo could not be created. Please try again.'), 'error');
         return;
       }
       showPhoto(new File([blob], 'meal-camera.jpg', { type: 'image/jpeg' }), generation);
@@ -1158,7 +1204,7 @@
     noteRevision += 1;
     skipNextNoteAnalysisRevision = null;
     manualNamesVisible = false;
-    if (photoCode) setText(byId('food-text-status'), '');
+    setText(byId('food-text-status'), '');
     stopCamera(false);
     clearPhoto(false, false);
     setStatus('');
@@ -1169,6 +1215,9 @@
     showRecentFoods(events);
     const choices = byId('food-photo-choices');
     if (choices) choices.hidden = true;
+    const tools = byId('meal-ai-tools');
+    if (tools) tools.open = false;
+    updateTextActions();
     updateTotal();
   }
 
@@ -1261,7 +1310,7 @@
       const connect = () => {
         const code = codeInput.value.trim();
         if (!CODE_PATTERN.test(code)) {
-          setStatus(copy('사진 분석 연결 코드를 다시 확인해 주세요.', 'Check your photo analysis access code.'));
+          setStatus(copy('사진 분석 연결 코드를 다시 확인해 주세요.', 'Check your photo analysis access code.'), 'error');
           return;
         }
         setPhotoCode(code);
@@ -1325,6 +1374,9 @@
       if (!choices) return;
       choices.hidden = !choices.hidden;
       byId('food-photo-add').setAttribute('aria-expanded', String(!choices.hidden));
+    });
+    byId('meal-ai-tools')?.addEventListener('toggle', event => {
+      if (!event.currentTarget.open && cameraStream) stopCamera(false);
     });
     byId('food-photo-pick')?.addEventListener('click', () => byId('food-photo-file')?.click());
     byId('food-ai-settings-open')?.addEventListener('click', () => root.dispatchEvent(new CustomEvent('meal:ai-settings')));
