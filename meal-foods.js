@@ -40,7 +40,7 @@
   let foodRevision = 0;
   let noteRevision = 0;
   let skipNextNoteAnalysisRevision = null;
-  let manualNamesVisible = false;
+  let manualNamesVisible = true;
 
   const byId = (id) => document.getElementById(id);
   const isEnglish = () => String(document.documentElement.lang || '').toLowerCase().startsWith('en');
@@ -549,7 +549,7 @@
 
     const fields = document.createElement('div');
     fields.className = 'food-fields';
-    const name = input('text', '', data.name, copy('예: 김밥 한 줄', 'e.g. one gimbap roll'));
+    const name = input('text', '', data.name, copy('예: 김밥', 'e.g. gimbap'));
     name.maxLength = 100;
     name.setAttribute('enterkeyhint', 'next');
     name.dataset.foodName = 'true';
@@ -602,11 +602,11 @@
       event.preventDefault();
       kcal.blur();
     });
-    const nameField = field(copy('메뉴 이름', 'Menu name'), name);
+    const nameField = field(copy('메뉴', 'Menu'), name);
     nameField.dataset.foodNameField = 'true';
     fields.append(
       nameField,
-      field(copy('총 칼로리 (kcal)', 'Total calories (kcal)'), kcal)
+      field(copy('총 칼로리', 'Total kcal'), kcal)
     );
     row.append(header, fields, grams, density);
     container.append(row);
@@ -677,7 +677,7 @@
 
   function accessCodeSavedMessage() {
     if (providerDraftActive) {
-      return copy('AI 연결 코드를 임시 적용했어요. 설정 저장을 누르면 이 기기에 저장돼요.', 'The AI access code is applied temporarily. Choose Save settings to store it on this device.');
+      return copy('AI 연결 코드를 임시 적용했어요. 저장을 누르면 이 기기에 저장돼요.', 'The AI access code is applied temporarily. Choose Save to store it on this device.');
     }
     return aiProvider === 'gemini'
       ? copy('AI 연결 코드를 저장했어요. Gemini 서버 준비 상태는 분석할 때 확인돼요.', 'The AI access code is saved. Gemini server readiness is checked when you analyze.')
@@ -1124,8 +1124,8 @@
     updateTotal();
     revealFoodEntry();
     const message = fromText
-      ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
-      : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
+      ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
+      : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
       ? (fromText
         ? copy(' 칼로리가 비어 있는 메뉴는 총 칼로리를 직접 입력해 주세요.', 'Enter total calories for any item without a calorie value.')
@@ -1467,9 +1467,9 @@
       setStatus(copy(`사진 분석을 중단했어요. ${summary.succeeded}장 완료, ${unprocessed}장은 분석하지 않았고 완료된 결과와 합계는 남아 있어요.`, `Photo analysis stopped. ${summary.succeeded} completed and ${unprocessed} were not analyzed; completed results and totals are kept.`) + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
     } else if (partial) {
       const reason = batch.blockedMessage ? ` ${batch.blockedMessage}` : '';
-      setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 기록 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
+      setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
     } else {
-      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + amountNotice + dishNotice);
+      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + amountNotice + dishNotice);
     }
     // Completion permits UI feedback only. A meal is never saved without the
     // user's explicit Record save action.
@@ -1729,8 +1729,8 @@
       const kcalRaw = row.querySelector('[data-food-kcal]').value.trim();
       const densityRaw = row.querySelector('[data-food-density]').value.trim();
       if (row.hasAttribute('data-food-note-default') && !name && kcalRaw !== '') {
-        byId('meal-note')?.focus();
-        throw new Error(copy('위에 음식 설명을 입력하거나 메뉴명을 따로 입력해 주세요.', 'Describe your food above, or choose Edit names to enter a menu name.'));
+        row.querySelector('[data-food-name]')?.focus();
+        throw new Error(copy('메뉴를 입력해 주세요.', 'Enter a menu name.'));
       }
       if (row.hasAttribute('data-food-review') && !name) throw new Error(copy('국·찌개 종류를 고르거나 해당 음식 칸을 삭제해 주세요.', 'Choose the soup or stew, or remove that row.'));
       if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 총 칼로리를 입력해 주세요.`, `Enter the total calories for ${name}.`));
@@ -1749,7 +1749,7 @@
     // the form's Save button.  This makes saving the explicit confirmation;
     // automatic analysis never records a meal by itself.
     if (!options.confirmAnalysis && document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]')) {
-      throw new Error(copy('AI 계산 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Review the AI result, then use Save meal.'));
+      throw new Error(copy('AI 계산 결과를 확인한 뒤 저장을 눌러 주세요.', 'Review the AI result, then use Save.'));
     }
     const core = root.FastingCore;
     return core && typeof core.normalizeFoods === 'function' ? core.normalizeFoods(foods) : foods;
@@ -1764,7 +1764,9 @@
     foodRevision += 1;
     noteRevision += 1;
     skipNextNoteAnalysisRevision = null;
-    manualNamesVisible = false;
+    // Both manual fields are immediately editable, even for one menu whose
+    // name matches the optional AI description above.
+    manualNamesVisible = true;
     byId('food-summary')?.removeAttribute('data-multi-photo-summary');
     positionFoodSummary();
     setText(byId('food-text-status'), '');
@@ -1903,6 +1905,23 @@
     });
     const note = byId('meal-note');
     if (note) {
+      let recentPointerId = null;
+      const hideRecentAfterBlur = () => {
+        const slot = byId('food-recent-slot');
+        if (slot && document.activeElement !== note && !slot.contains(document.activeElement)) slot.hidden = true;
+      };
+      document.addEventListener('pointerdown', event => {
+        if (document.activeElement === note && !note.contains(event.target)) recentPointerId = event.pointerId;
+      }, true);
+      const finishRecentPointer = event => {
+        if (event.pointerId !== recentPointerId) return;
+        recentPointerId = null;
+        // Hiding suggestions between pointerdown and click moves the action
+        // button away from the pointer. Collapse only after activation ends.
+        root.setTimeout(hideRecentAfterBlur, 0);
+      };
+      document.addEventListener('pointerup', finishRecentPointer, true);
+      document.addEventListener('pointercancel', finishRecentPointer, true);
       note.addEventListener('input', () => {
         noteRevision += 1;
         // A chip only suppresses the blur caused by that exact selection.
@@ -1919,7 +1938,7 @@
         root.setTimeout(() => {
           const slot = byId('food-recent-slot');
           if (slot?.contains(document.activeElement)) return;
-          if (slot) slot.hidden = true;
+          if (recentPointerId === null) hideRecentAfterBlur();
           if (skipNextNoteAnalysisRevision === blurRevision) { skipNextNoteAnalysisRevision = null; return; }
           if (skipNextNoteAnalysisRevision !== null) skipNextNoteAnalysisRevision = null;
           analyzeNote();
@@ -1971,7 +1990,10 @@
       byId('save-meal').focus({ preventScroll: true });
     });
     const dialog = byId('meal-dialog');
-    if (dialog) dialog.addEventListener('close', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); clearPhoto(false, false); });
+    if (dialog) dialog.addEventListener('close', () => {
+      if (dialog.open) return; // Ignore a queued close from the previous draft.
+      cancelAnalysis(); nextTransientGeneration(); stopCamera(false); clearPhoto(false, false);
+    });
     byId('settings-dialog')?.addEventListener('close', stopQrScan);
     root.addEventListener('beforeunload', () => { cancelAnalysis(); nextTransientGeneration(); stopCamera(false); }, { once: true });
     root.addEventListener('pagehide', stopQrScan);

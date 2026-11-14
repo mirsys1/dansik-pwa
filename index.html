@@ -58,7 +58,7 @@
       <section id="page-timer" class="page">
         <div class="dashboard-grid">
           <section class="meal-panel" aria-label="식사 기록" data-i18n-attr="aria-label=timer.mealsAria">
-            <div class="panel-header"><div class="meal-heading"><p class="eyebrow" id="today-label"></p><h1 data-i18n-html="timer.heading">오늘의 <span>단식</span></h1><div class="date-stamp" id="date-stamp"></div></div><button id="past-meal" class="text-button header-action"><span data-icon="plus"></span><span data-i18n="timer.pastMeal">이전 식사</span></button></div>
+            <div class="panel-header"><div class="meal-heading"><p class="eyebrow" id="today-label"></p><h1 data-i18n-html="timer.heading">오늘의 <span>단식</span></h1><div class="date-stamp" id="date-stamp"></div></div></div>
             <div class="meal-grid"><button class="meal-button" data-meal="breakfast"><span class="meal-art breakfast" data-icon="sunrise"></span><strong data-i18n="meal.breakfast">아침</strong></button><button class="meal-button" data-meal="lunch"><span class="meal-art lunch" data-icon="sun"></span><strong data-i18n="meal.lunch">점심</strong></button><button class="meal-button" data-meal="dinner"><span class="meal-art dinner" data-icon="moon"></span><strong data-i18n="meal.dinner">저녁</strong></button><button class="meal-button" data-meal="snack"><span class="meal-art snack" data-icon="cup"></span><strong data-i18n="meal.snack">간식</strong></button></div>
           </section>
           <section id="today-card" class="today-card" aria-labelledby="today-title">
@@ -134,8 +134,6 @@
   <dialog id="meal-dialog" aria-labelledby="meal-dialog-title"><form id="meal-form" novalidate>
     <div class="dialog-heading"><h2 id="meal-dialog-title" data-i18n="meal.dialogNew">식사 기록하기</h2><button type="button" class="icon-button" data-close="meal-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="meal-form-body">
-      <p id="meal-recorded-notice" class="field-help meal-recorded-notice" role="status" data-i18n="meal.timerStarted" hidden>식사 시간은 저장됐어요.
-음식·칼로리는 ‘내용 저장’으로 반영해요.</p>
     <details id="meal-when" class="meal-when"><summary><span id="meal-when-summary"></span><span data-i18n="meal.changeTime">변경</span></summary>
     <div class="meal-type-row"><label for="meal-type" data-i18n="meal.which">어떤 식사였나요?</label><select id="meal-type" aria-describedby="meal-auto-hint"><option value="breakfast" data-i18n="meal.breakfast">아침</option><option value="lunch" data-i18n="meal.lunch">점심</option><option value="dinner" data-i18n="meal.dinner">저녁</option><option value="snack" data-i18n="meal.snack">간식</option></select></div><p id="meal-auto-hint" class="field-help sr-only" data-i18n="meal.autoType">시간에 맞춰 골랐어요.</p>
     <div class="meal-date-heading"><span data-i18n="meal.date">날짜</span><button type="button" class="text-button" id="meal-other-toggle" aria-controls="meal-other-date" aria-expanded="false"><span data-i18n="meal.otherDate">다른 날짜</span><span id="meal-other-current"></span></button></div>
@@ -185,7 +183,7 @@
           <p id="food-summary-help" class="field-help"></p>
         </section>
         <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
-          <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
+          <h3 id="meal-foods-title" data-i18n="intake.manualEntry">직접 입력</h3>
           <div id="food-items"></div>
           <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
         </section>
@@ -194,7 +192,7 @@
     <div class="meal-form-footer">
       <p class="form-error" id="meal-error" role="alert"></p>
       <button type="button" class="text-button" id="meal-analysis-stop" hidden data-i18n="intake.stopAnalysis">분석 중단</button>
-      <div class="dialog-actions"><button type="button" class="danger-button" id="delete-meal" hidden data-i18n="meal.delete">기록 삭제</button><button type="button" class="outline-button" id="meal-cancel" data-close="meal-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" id="save-meal" type="submit" data-i18n="meal.save">기록 저장</button></div>
+      <div class="dialog-actions"><button type="button" class="danger-button" id="delete-meal" hidden data-i18n="meal.delete">기록 삭제</button><button type="button" class="outline-button" id="meal-cancel" data-close="meal-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" id="save-meal" type="submit" data-i18n="meal.save">저장</button></div>
     </div>
   </form></dialog>
   <dialog id="delete-dialog" aria-labelledby="delete-title"><div class="dialog-heading"><h2 id="delete-title" data-i18n="delete.title">이 식사 기록을 지울까요?</h2></div><p class="dialog-description" data-i18n-html="delete.text">타이머는 남아 있는 가장 최근 식사부터 이어져요.<br>삭제 후에도 바로 되돌릴 수 있어요.</p><p class="form-error" id="delete-error" role="alert"></p><div class="dialog-actions"><button class="outline-button" data-close="delete-dialog" data-i18n="delete.keep">유지하기</button><button class="danger-button filled" id="confirm-delete" data-i18n="meal.delete">기록 삭제</button></div></dialog>
@@ -228,7 +226,7 @@
       <div class="dialog-actions">
         <button type="button" class="danger-button" id="weight-delete" hidden>체중 기록 삭제</button>
         <button type="button" class="outline-button" data-close="weight-dialog" data-i18n="dialog.cancel">취소</button>
-        <button type="submit" class="primary-button" data-i18n="weight.save">체중 저장</button>
+        <button type="submit" class="primary-button" data-i18n="weight.save">저장</button>
       </div>
     </form>
   </dialog>
@@ -288,7 +286,7 @@
         <label class="check-label"><input id="notifications-input" type="checkbox"><span data-i18n-text="settings.notify">알림 받기<small data-i18n="settings.notifyHelp">목표 도착과 식사 시간의 시작·끝을 알려요. 앱을 닫거나 화면을 잠그면 늦거나 오지 않을 수 있어요.</small></span></label>
         <p id="notification-status" class="field-help" role="status"></p>
       </div>
-      <div class="goal-dialog-footer"><p id="goal-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="goal-dialog" data-i18n="dialog.cancel">취소</button><button id="goal-save" type="submit" class="primary-button" data-i18n="goal.save">목표 저장</button></div></div>
+      <div class="goal-dialog-footer"><p id="goal-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="goal-dialog" data-i18n="dialog.cancel">취소</button><button id="goal-save" type="submit" class="primary-button" data-i18n="goal.save">저장</button></div></div>
     </form>
   </dialog>
   <dialog id="settings-dialog" aria-labelledby="settings-title">
@@ -455,7 +453,7 @@
         <span class="settings-row-copy"><strong data-i18n="help.title">단식 타이머 사용 방법</strong><small data-i18n="help.settingsHint">식사 추가, 수정과 기록 보관</small></span>
       </button>
       <div id="settings-diagnostics"></div>
-      <p class="form-error" id="settings-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="settings-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" type="submit" data-i18n="settings.save">설정 저장</button></div>
+      <p class="form-error" id="settings-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-close="settings-dialog" data-i18n="dialog.cancel">취소</button><button class="primary-button" type="submit" data-i18n="settings.save">저장</button></div>
     </form>
   </dialog>
   <dialog id="export-dialog" aria-labelledby="export-title">
@@ -472,7 +470,7 @@
   <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-heading"><h2 id="help-title" data-i18n="help.title">단식 타이머 사용 방법</h2><button type="button" class="icon-button" data-close="help-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="help-body">
       <h3 data-i18n="help.start">처음 사용하기</h3>
-      <ol><li data-i18n-html="help.step1">식사를 마치면 <b>아침·점심·저녁·간식</b> 버튼을 눌러요. 누른 시각이 기록돼요.</li><li data-i18n="help.step2">가운데 타이머가 마지막 식사 이후 시간을 보여 줘요.</li><li data-i18n-html="help.step3">잘못 눌렀다면 <b>되돌리기</b>나 <kbd>Ctrl</kbd> + <kbd>Z</kbd>를 눌러요.</li></ol>
+      <ol><li data-i18n-html="help.step1">식사를 마치면 <b>아침·점심·저녁·간식</b> 버튼을 누르고 내용을 입력한 뒤 <b>저장</b>을 눌러요. 저장한 시각부터 타이머가 시작돼요.</li><li data-i18n="help.step2">가운데 타이머가 마지막 식사 이후 시간을 보여 줘요.</li><li data-i18n-html="help.step3">저장 전에는 <b>취소</b>나 닫기로 나갈 수 있어요. 저장 후에는 <b>되돌리기</b>로 복구해요.</li></ol>
       <div class="help-mobile">
         <h3 data-i18n="help.mobileTitle">휴대폰에서 쓰기</h3>
         <p data-i18n="help.mobileText">아래 탭을 누르거나 좌우로 밀어 이동해요. 통계에서 날짜를 누르면 하루 칼로리를 볼 수 있어요.</p>

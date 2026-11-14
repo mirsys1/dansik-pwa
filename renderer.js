@@ -81,6 +81,9 @@ let editingSnapshot = null;
 let settingsBaseline = null;
 let providerDraftCommitted = false;
 let mealStartsTimer = false;
+let mealUseSaveTime = false;
+const pendingMealEntries = [];
+let drainingMealEntry = false;
 let returnToMealAfterSettings = false;
 let mealAutoType = false;
 let mealDateDay = '';
@@ -174,6 +177,7 @@ function applySnapshot(snapshot) {
   if ($('meal-dialog').open) updateMealDateControls();
   render();
   maybeWelcome();
+  if (pendingMealEntries.length && !drainingMealEntry) setTimeout(drainPendingMealEntry, 0);
   if (!backupReminderShown && document.body.classList.contains('is-pwa') && prefs.backupReminder && backupReminderBase() && Date.now() - backupReminderBase() >= 30 * 86400000) {
     backupReminderShown = true;
     toast(t('settings.backupDue'));
@@ -241,34 +245,36 @@ async function action(payload, message, undo = true) {
   } finally {
     busy = false;
     document.querySelectorAll('[data-meal],#save-meal,#confirm-delete').forEach(button => { button.disabled = !ready; });
+    if (pendingMealEntries.length && !drainingMealEntry) setTimeout(drainPendingMealEntry, 0);
   }
 }
-async function recordMealAndEdit(meal) {
-  const result = await action({ type: 'record', meal }, t('toast.recorded', { meal: mealName(meal) }));
-  if (!result?.recordedMealId) return null;
-  // The response carries the exact persisted ID. Do not infer it from event order:
-  // a different tab can add or move another meal while this action is in flight.
-  if (!state.events.some(event => event.id === result.recordedMealId)) return null;
-  pulse(document.querySelector('.dial-wrap'), 'just-recorded', 900);
+async function openMealForType(meal) {
+  if (!ready || busy || !C.TYPES.includes(meal) || document.querySelector('dialog[open]')) return null;
   if (document.body.classList.contains('mini')) {
     const expanded = await action({ type: 'mini' }, null, false);
     const mini = expanded?.window?.mini ?? expanded?.mini;
     if (mini !== false) return null;
-    // The PWA changes mode through an event; use its confirmed response as a
-    // fallback so the dialog cannot be opened inside the compact window.
     document.body.classList.remove('mini');
   }
-  openMeal(result.recordedMealId);
-  $('meal-dialog-title').textContent = t('meal.dialogNew');
-  $('meal-recorded-notice').textContent = t('meal.timerStarted');
-  $('meal-recorded-notice').hidden = false;
-  $('meal-cancel').textContent = t('dialog.close');
-  $('meal-cancel').setAttribute('aria-describedby', 'meal-recorded-notice');
-  $('save-meal').textContent = t('meal.done');
-  // A just-recorded meal can be undone from the toast. Keep this quick detail
-  // screen focused on completing or closing instead of presenting a third action.
-  $('delete-meal').hidden = true;
-  return result;
+  if (document.querySelector('dialog[open]')) return null;
+  openMeal(null, false, true);
+  mealAutoType = false;
+  mealUseSaveTime = true;
+  $('meal-type').value = meal;
+  $('meal-auto-hint').hidden = true;
+  $('meal-when').open = false;
+  updateMealWhenSummary();
+  return true;
+}
+async function drainPendingMealEntry() {
+  if (drainingMealEntry || !pendingMealEntries.length || !ready || busy || document.querySelector('dialog[open]')) return;
+  drainingMealEntry = true;
+  try {
+    if (await openMealForType(pendingMealEntries[0])) pendingMealEntries.shift();
+  } finally {
+    // Failed window expansion keeps this request for the next safe drain.
+    drainingMealEntry = false;
+  }
 }
 const DIAL_MS = 24 * 3600000;
 const TIMER_GRADIENTS = Object.freeze({
@@ -396,6 +402,7 @@ function pulse(element, className, ms) {
 function tick() {
   if (!ready) return;
   const now = Date.now();
+  if (mealUseSaveTime && $('meal-dialog').open && mealLocalValue() !== localInput(now)) setMealDateTime(now);
   if ($('meal-dialog').open && (mealDateDay !== C.localDay(now, tz()) || mealLastKey !== mealLastStateKey(now))) updateMealDateControls();
   const meal = C.timerMeal(state, now, prefs);
   const timer = C.getTimer(state, now, prefs);
@@ -1006,6 +1013,7 @@ function updateMealWhenSummary() {
 function openMeal(id = null, showFoods = false, startTimer = false) {
   editingId = id;
   mealStartsTimer = !id && startTimer;
+  mealUseSaveTime = false;
   const event = state.events.find(item => item.id === id);
   mealAutoType = !id;
   $('meal-auto-hint').hidden = !mealAutoType;
@@ -1018,7 +1026,6 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   $('meal-error').textContent = '';
   clearMealFieldErrors();
   $('delete-meal').hidden = !event;
-  $('meal-recorded-notice').hidden = true;
   $('meal-cancel').textContent = t('dialog.cancel');
   $('meal-cancel').removeAttribute('aria-describedby');
   $('save-meal').textContent = event ? t('meal.saveEdit') : t('meal.save');
@@ -1196,9 +1203,9 @@ icons();
 $('dial-ticks').innerHTML = Array.from({length:60},(_,i) => { const a=i*Math.PI/30;const outer=187;const inner=i%5===0?179:183;return `<line class="dial-tick" x1="${180+inner*Math.sin(a)}" y1="${180-inner*Math.cos(a)}" x2="${180+outer*Math.sin(a)}" y2="${180-outer*Math.cos(a)}"/>`; }).join('');
 document.addEventListener('click', event => {
   const button = event.target.closest('button'); if(!button)return;
-  if(button.dataset.meal) { recordMealAndEdit(button.dataset.meal); }
+  if(button.dataset.meal) { openMealForType(button.dataset.meal); }
   else if(button.dataset.goal) { action({type:'settings',patch:{goalHours:Number(button.dataset.goal),goalEnabled:true}},t('toast.goalSet', { h: button.dataset.goal })); }
-  else if(button.hasAttribute('data-offset')) { setMealDateTime(Date.now()-Number(button.dataset.offset)*60000); $('meal-error').textContent=''; }
+  else if(button.hasAttribute('data-offset')) { mealUseSaveTime = false; setMealDateTime(Date.now()-Number(button.dataset.offset)*60000); $('meal-error').textContent=''; }
   else if(button.dataset.page)goPage(button.dataset.page);
   else if(button.dataset.goto)goPage(button.dataset.goto);
   else if(button.dataset.edit)openMeal(button.dataset.edit);
@@ -1231,22 +1238,23 @@ $('energy-view-tabs')?.addEventListener('keydown', event => {
   tabs[next].click();
 });
 document.querySelector('.brand').addEventListener('click', event => {event.preventDefault();goPage('timer');});
-$('past-meal').addEventListener('click',()=>openMeal(null, false, true));
 document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventListener('click', () => {
+  mealUseSaveTime = false;
   $('meal-date').value = mealDayOptions()[button.dataset.mealDay];
   showOtherMealDate(false);
   updateMealDateControls();
   $('meal-error').textContent = ''; clearMealFieldErrors();
 }));
 $('meal-other-toggle').addEventListener('click', () => showOtherMealDate($('meal-other-date').hidden));
-$('meal-date').addEventListener('input', () => { updateMealDateControls(); $('meal-error').textContent = ''; setMealFieldError('date'); });
-$('meal-date').addEventListener('change', updateMealDateControls);
+$('meal-date').addEventListener('input', () => { mealUseSaveTime = false; updateMealDateControls(); $('meal-error').textContent = ''; setMealFieldError('date'); });
+$('meal-date').addEventListener('change', () => { mealUseSaveTime = false; updateMealDateControls(); });
 $('meal-type').addEventListener('change', () => { mealAutoType = false; $('meal-auto-hint').hidden = true; });
-$('meal-clock').addEventListener('input', () => { syncMealTypeFromClock(); clearChangedMealPreset(); $('meal-error').textContent = ''; setMealFieldError('clock'); });
-$('meal-clock').addEventListener('change', syncMealTypeFromClock);
+$('meal-clock').addEventListener('input', () => { mealUseSaveTime = false; syncMealTypeFromClock(); clearChangedMealPreset(); $('meal-error').textContent = ''; setMealFieldError('clock'); });
+$('meal-clock').addEventListener('change', () => { mealUseSaveTime = false; syncMealTypeFromClock(); });
 $('meal-last-time').addEventListener('click', () => {
   const last = state.events[0];
   if (!last || last.at > Date.now()) return;
+  mealUseSaveTime = false;
   setMealDateTime(last.at, last);
   $('meal-error').textContent = ''; clearMealFieldErrors();
 });
@@ -1362,6 +1370,11 @@ $('chart-date-dialog')?.addEventListener('close', () => {
 });
 $('intake-add')?.addEventListener('click', () => openMeal(null, true));
 $('meal-dialog').addEventListener('close', () => {
+  // A native command can reopen the same dialog before its queued close event
+  // arrives. That old event must not reset the new draft's save contract.
+  if ($('meal-dialog').open) return;
+  mealUseSaveTime = false;
+  mealStartsTimer = false;
   returnToMealAfterSettings = false;
   if (!$('intake-dialog')?.open) return;
   const edited = editingId;
@@ -1602,15 +1615,17 @@ $('meal-form').addEventListener('invalid', event => {
 }, true);
 $('meal-form').addEventListener('submit',async event=>{
   event.preventDefault();
+  if (busy || !$('meal-dialog').open) return;
   if (window.MealFoods.prepareSave?.() === false) return;
   const original = editingSnapshot;
   if (!$('meal-date').value) { const message = t('meal.dateMissing'); showOtherMealDate(true); showMealFieldValidation('date', message); return; }
-  const local = mealLocalValue();
+  const saveNow = Date.now();
+  const local = mealUseSaveTime ? localInput(saveNow) : mealLocalValue();
   clearChangedMealPreset();
-  const exact = mealExactPreset ? mealExactPreset.at : null;
+  const exact = !mealUseSaveTime && mealExactPreset ? mealExactPreset.at : null;
   // Leaving the time field alone keeps the stored time (including its seconds) untouched.
   const timeUntouched = !!original && local === localInput(original.at) && (exact === null || exact === original.at);
-  const at = exact === null ? C.parseLocalInput(local, tz()) : exact;
+  const at = mealUseSaveTime ? saveNow : exact === null ? C.parseLocalInput(local, tz()) : exact;
   if(!timeUntouched&&(!Number.isSafeInteger(at)||at>Date.now()||at<C.MIN_DATE)){const message=t('meal.timeRange');showMealFieldValidation('clock', message);return;}
   if(!timeUntouched&&localInput(at)!==local){const message=t('meal.invalidLocal');showMealFieldValidation('clock', message);return;}
   let foods;
@@ -1622,7 +1637,10 @@ $('meal-form').addEventListener('submit',async event=>{
   saveButton.textContent = t('meal.saving');
   try {
     const result=await action(editingId?{type:'update',id:editingId,patch,expectedMeal:original}:{type:'add',patch,startTimer:mealStartsTimer},t('toast.mealSaved'));
-    if(result)$('meal-dialog').close();else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
+    if(result) {
+      if (mealStartsTimer) pulse(document.querySelector('.dial-wrap'), 'just-recorded', 900);
+      $('meal-dialog').close();
+    } else $('meal-error').textContent=lastActionError||t('meal.saveFailed');
   } finally { saveButton.textContent = saveLabel; }
 });
 $('delete-meal').addEventListener('click',()=>{$('delete-error').textContent='';$('delete-dialog').showModal();});
@@ -1702,7 +1720,7 @@ document.addEventListener('keydown',event=>{
   if(!(event.ctrlKey||event.metaKey)||event.altKey||dialogOpen||!ready)return;
   const key=event.key.toLowerCase();
   if(key==='z'){if(!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();action({type:'undo'},t('toast.undone'),false);}return;}
-  if(MEAL_KEYS[key]){event.preventDefault();recordMealAndEdit(MEAL_KEYS[key]);return;}
+  if(MEAL_KEYS[key]){event.preventDefault();openMealForType(MEAL_KEYS[key]);return;}
   if(key==='n'){event.preventDefault();openMeal();}
   else if(key==='m'){event.preventDefault();action({type:'mini'},null,false);}
   else if(key===','){event.preventDefault();openSettings();}
@@ -1714,7 +1732,13 @@ document.querySelectorAll('[data-meal]').forEach(button=>{button.disabled=true;}
 if(window.desktop){
   window.desktop.onState(snapshot=>{if(snapshot.state)applySnapshot(snapshot);if(snapshot.warning)showWarning(snapshot.warning);});
   window.desktop.onMode(mini=>{document.body.classList.toggle('mini',mini);});
-  window.desktop.onCommand(name=>{if(name==='help'||name==='about')openHelp(false);else if(name==='shortcuts')openHelp(true);});
+  window.desktop.onCommand(name=>{
+    if (name?.type === 'meal-entry' && C.TYPES.includes(name.meal)) {
+      pendingMealEntries.push(name.meal);
+      drainPendingMealEntry();
+    } else if(name==='help'||name==='about')openHelp(false);
+    else if(name==='shortcuts')openHelp(true);
+  });
   window.desktop.getState().then(result => {
     if (!result.ok) throw new Error(result.error);
     applySnapshot(result);
@@ -1736,3 +1760,6 @@ $('pwa-update-apply').addEventListener('click', async () => {
   if (!result.ok) toast(result.error);
 });
 showPreparedUpdate();
+document.addEventListener('close', () => {
+  if (pendingMealEntries.length) setTimeout(drainPendingMealEntry, 0);
+}, true);

@@ -228,7 +228,6 @@ body.is-pwa .autophagy-stage { font-size: calc(13.5px + 1pt); }
 .history-date-filter { display: flex; align-items: center; gap: 4px; min-width: 0; padding-left: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--input); }
 .history-date-filter label { flex: none; color: var(--muted); font-size: var(--type-meta); }
 .history-date-filter input { min-width: 0; flex: 1; border: 0; padding-inline: 2px; }
-.meal-recorded-notice { padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-dark); }
 .day-energy-balance small { color: var(--muted); font-size: var(--type-meta); line-height: 1.3; }
 .outline-button, .primary-button { font-size: var(--type-body); padding: 8px 12px; }
 .page-heading > .primary-button { font-size: var(--type-body); padding: 8px 10px; }
@@ -1422,7 +1421,6 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
 
 /* PWA-103: one food description, one result, optional detailed editing. */
 #meal-dialog .meal-form-body { padding-top: 12px; scrollbar-gutter: auto; }
-#meal-dialog .meal-recorded-notice { margin: 0 0 8px; color: var(--accent-dark); }
 #meal-dialog .meal-when { margin-top: 0; }
 #meal-dialog .meal-when > summary { padding-inline: 0; border: 0; border-radius: 0; background: transparent; }
 #meal-dialog #meal-details { margin-top: 12px; padding: 0; border: 0; background: transparent; }
@@ -1524,7 +1522,6 @@ dialog .field-help { margin-block: 6px 10px; }
 /* PWA-108: remove stacked blank space without reducing readable type or touch targets. */
 #meal-form > .dialog-heading { padding-block: 10px 6px; }
 #meal-dialog .meal-form-footer { padding-block: 6px 8px; }
-#meal-dialog .meal-recorded-notice { margin-bottom: 4px; }
 #meal-dialog .meal-type-row { margin-top: 6px; }
 #meal-dialog :is(.meal-date-heading, .meal-time-heading) { margin-top: 6px; }
 #meal-dialog .meal-form-body .field-help { margin-block: 4px 6px; }
@@ -1643,7 +1640,3 @@ body :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select
 #meal-dialog .meal-ai-feedback[data-state='loading'] { color: var(--muted); }
 #meal-dialog .meal-ai-feedback[data-state='ready'] { color: var(--accent-dark); }
 #meal-dialog .meal-ai-feedback[data-state='error'] { color: var(--danger); }
-
-/* The start notice intentionally keeps its existing surface and compact gap,
-   but its two saved-state instructions must remain distinct. */
-#meal-dialog .meal-recorded-notice { white-space: pre-line; line-height: 1.4; }

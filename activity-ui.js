@@ -363,7 +363,7 @@
         </div>
         <footer class="dialog-actions">
           <button type="button" class="outline-button" id="workout-cancel">${text('취소','Cancel')}</button>
-          <button type="submit" class="primary-button" id="workout-save">${text('운동 저장','Save workout')}</button>
+          <button type="submit" class="primary-button" id="workout-save">${text('저장','Save')}</button>
         </footer>
       </form>`;
       const find = selector => content.querySelector(selector);
@@ -454,7 +454,7 @@
         } finally {
           workoutSaving = submit.disabled = false;
           closeButtons.forEach(button => { button.disabled = false; });
-          submit.textContent = text('운동 저장','Save workout');
+          submit.textContent = text('저장','Save');
         }
       });
       finishNow();
