@@ -16,6 +16,8 @@
   const digits = panel.querySelector('.timer-digits');
   const nav = document.querySelector('.sidebar nav');
   const settingsDialog = document.querySelector('#settings-dialog');
+  const mealDialog = document.querySelector('#meal-dialog');
+  const mealBody = mealDialog && mealDialog.querySelector('.meal-form-body');
   const viewport = window.visualViewport;
   const rail = matchMedia('(min-width: 920px) and (min-height: 540px)');
   let pending = 0;
@@ -86,6 +88,28 @@
     settingsDialog.style.setProperty('max-width', width);
     settingsDialog.style.setProperty('max-height', `${Math.max(100, (visibleHeight - safeTop - 24) / cssZoom).toFixed(2)}px`);
   }
+  function revealMealField() {
+    const active = document.activeElement;
+    if (!mealDialog?.open || !mealBody?.contains(active) || !active.matches('input, textarea, select, [contenteditable="true"]')) return;
+    const bounds = mealBody.getBoundingClientRect();
+    // scrollTop uses unzoomed layout units; client rectangles include CSS zoom.
+    const scale = mealBody.offsetHeight ? bounds.height / mealBody.offsetHeight : 1;
+    if (!(scale > 0) || !mealBody.clientHeight) return;
+    const heading = mealDialog.querySelector('.dialog-heading').getBoundingClientRect();
+    const footer = mealDialog.querySelector('.meal-form-footer').getBoundingClientRect();
+    const viewportTop = number(viewport && viewport.offsetTop);
+    const viewportBottom = viewportTop + (viewport && viewport.height > 0 ? viewport.height : innerHeight);
+    const top = Math.max(bounds.top + mealBody.clientTop * scale, heading.bottom, viewportTop);
+    const bottom = Math.min(bounds.top + (mealBody.clientTop + mealBody.clientHeight) * scale, footer.top, viewportBottom);
+    const inset = 8 * scale;
+    if (bottom - top <= inset * 2) return;
+    const field = active.getBoundingClientRect();
+    // Prefer the field's start if an unusually tall editor cannot fit in full.
+    const delta = field.top < top + inset || field.height > bottom - top - inset * 2
+      ? field.top - top - inset
+      : Math.max(0, field.bottom - bottom + inset);
+    if (Math.abs(delta) > 1) mealBody.scrollTop += delta / scale;
+  }
   function fit() {
     if (viewport && !(viewport.scale > 0)) return;
     fitSettingsDialog();
@@ -93,12 +117,6 @@
     // A standalone iPhone can start at a persisted scale such as 1.5. Fit that
     // initial viewport, then preserve additional pinch zoom relative to it.
     if (!baseScale || currentScale < baseScale) baseScale = currentScale;
-    if (viewport && currentScale > baseScale * 1.05) {
-      body.toggleAttribute('data-fit-reading', reading());
-      body.dataset.fitStatus = 'zoom';
-      lastKey = '';
-      return; // Never counteract a user's pinch zoom.
-    }
     const active = document.activeElement;
     if (active && active.matches('input, textarea, select, [contenteditable="true"]') && active.closest('dialog[open]')) {
       const keyboardHeight = viewport && viewport.height > 0 ? viewport.height : innerHeight;
@@ -113,7 +131,16 @@
       variable('--fit-dialog-top', `${top.toFixed(2)}px`);
       body.dataset.fitStatus = 'keyboard';
       lastKey = '';
+      // Wait until the new dialog bounds are laid out. Focus is left untouched;
+      // only the inner body moves, so fixed headings/actions remain reachable.
+      requestAnimationFrame(revealMealField);
       return;
+    }
+    if (viewport && currentScale > baseScale * 1.05) {
+      body.toggleAttribute('data-fit-reading', reading());
+      body.dataset.fitStatus = 'zoom';
+      lastKey = '';
+      return; // Never counteract a user's pinch zoom or refit the home dial.
     }
     if (body.dataset.fitStatus === 'keyboard') { body.dataset.fitStatus = 'fit'; lastKey = ''; }
     const visibleHeight = Math.round(viewport && viewport.height > 0 ? viewport.height : innerHeight);
@@ -199,10 +226,20 @@
   window.addEventListener('focusin', schedule);
   window.addEventListener('focusout', () => { lastKey = ''; schedule(); });
   window.addEventListener('pageshow', () => { lastKey = ''; schedule(); });
-  if (viewport) viewport.addEventListener('resize', schedule);
+  if (viewport) {
+    viewport.addEventListener('resize', schedule);
+    // iOS can finish keyboard resizing before panning the visual viewport.
+    viewport.addEventListener('scroll', schedule);
+  }
   if (window.ResizeObserver) {
     const observer = new ResizeObserver(schedule);
     [main, meal, header, stage, meta, nav].forEach(el => observer.observe(el));
+    if (mealBody) observer.observe(mealBody);
+  }
+  if (mealBody) {
+    new MutationObserver(() => {
+      if (mealBody.contains(document.activeElement)) schedule();
+    }).observe(mealBody, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'hidden'] });
   }
   const changes = new MutationObserver(() => {
     const next = contentKey();
@@ -227,7 +264,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-121';
+  const fitBuild = 'PWA-122';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -283,7 +320,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.121';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.122';
         output.textContent += `\nversions: ${consistent ? 'match' : 'incomplete'}`;
         if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
           stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';

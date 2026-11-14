@@ -43,7 +43,11 @@ body.mini .window-menu { display: none; }
 .brand > span:last-child { display: block; }
 .topbar-actions { display: flex; gap: 4px; align-items: center; }
 .icon-button { min-width: 32px; min-height: 32px; }
-.topbar-actions :is(#theme-button, #settings-button) { padding: 0; }
+.topbar-actions :is(#theme-button, #settings-button) { padding: 0; background: transparent; }
+/* iOS can keep :hover after a tap. Only a real mouse should paint this surface. */
+@media (hover: hover) and (pointer: fine) {
+  body:not(.touch-focus) .topbar-actions :is(#theme-button, #settings-button):hover { background: var(--line); }
+}
 .topbar-actions :is(#theme-button, #settings-button) > [data-icon] { display: flex; align-items: center; justify-content: center; }
 .topbar-actions :is(#theme-button, #settings-button) svg { width: 20.9px; height: 20.9px; }
 .topbar-actions .outline-button { min-height: 30px; padding: 5px 9px; font-size: var(--type-meta); gap: 5px; }
