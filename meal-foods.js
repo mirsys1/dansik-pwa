@@ -793,7 +793,7 @@
     if (photoTransferHelp) setText(photoTransferHelp, providerReady() ? providerTransferHelp() : copy('AI 연결 후 고른 사진을 분석할 수 있어요.', 'Connect AI to analyze selected photos.'));
     const badge = byId('food-ai-state');
     if (badge) badge.dataset.i18n = !endpoint ? 'intake.aiStateManual' : !photoCode ? 'intake.aiStateDisconnected' : aiProvider === 'gemini' ? 'intake.aiStateGemini' : automatic ? 'intake.aiStateAuto' : 'intake.aiStateConnected';
-    setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : aiProvider === 'gemini' ? copy('Gemini 선택됨', 'Gemini selected') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
+    setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : aiProvider === 'gemini' ? copy('Gemini 선택됨 · 3.5 Flash-Lite', 'Gemini selected · 3.5 Flash-Lite') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
   }
 
   function persistPhotoCode(code) {
