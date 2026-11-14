@@ -172,7 +172,11 @@
     setText(node, message, state);
     if (kind === 'text' && state === 'error') {
       const retry = byId('food-text-calculate');
-      if (retry && photoCode) retry.hidden = false;
+      if (retry && photoCode) {
+        retry.hidden = false;
+        const options = byId('food-text-options');
+        if (options) options.hidden = false;
+      }
     }
   }
 
@@ -466,27 +470,19 @@
     }
     if (summaryHelp) setText(summaryHelp, needsCorrection
       ? copy('빠진 정보가 있는 음식은 합계에 포함되지 않아요. 수정에서 음식 이름과 칼로리를 확인해 주세요.', 'Items with missing information are not included. Check the food name and calories in Edit.')
-      : copy('계산 결과를 확인한 뒤 기록 저장을 누르세요.', 'Check the result, then save the meal.'));
+      : '');
     root.dispatchEvent(new CustomEvent('meal:foods-changed', { detail: { count: calculated, total: calculated ? roundKcal(total) : null, incomplete: needsCorrection } }));
   }
 
   function positionFoodSummary() {
     const summary = byId('food-summary');
-    const items = byId('food-items');
     const aiTools = byId('meal-ai-tools');
-    if (!summary) return;
-    if (summary.hasAttribute('data-multi-photo-summary') && items) {
-      // Reuse the one existing summary instead of creating a second total.
-      // This keeps the confirmed total beside the food rows for multi-photo
-      // review while preserving the normal single-photo layout.
-      if (summary.previousElementSibling !== items) items.after(summary);
-      const summaryItems = byId('food-summary-items');
-      if (summaryItems) summaryItems.hidden = true;
-    } else if (aiTools && summary.previousElementSibling !== aiTools) {
-      aiTools.after(summary);
-      const summaryItems = byId('food-summary-items');
-      if (summaryItems) summaryItems.hidden = Boolean(document.querySelector('#food-items [data-food-name-compact]'));
-    }
+    if (!summary || !aiTools) return;
+    // Keep every AI result above manual entry, including multi-photo totals.
+    if (summary.previousElementSibling !== aiTools) aiTools.after(summary);
+    const summaryItems = byId('food-summary-items');
+    if (summaryItems) summaryItems.hidden = summary.hasAttribute('data-multi-photo-summary') ||
+      Boolean(document.querySelector('#food-items [data-food-name-compact]'));
   }
 
   // The calorie path opens below the short meal form. Keep the first row's
@@ -667,12 +663,6 @@
 
   function codeKey() { return `dansik:food-photo-code:v1:${endpoint.origin}`; }
 
-  function providerTransferHelp(provider = aiProvider) {
-    return provider === 'gemini'
-      ? copy('AI 계산 시 음식 글·사진이 Cloudflare 중계 서버를 거쳐 Gemini로 전송돼요.', 'AI calculation sends food descriptions and photos to Gemini through the Cloudflare relay server.')
-      : copy('AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.', 'AI calculation sends food descriptions and photos to Cloudflare AI.');
-  }
-
   function providerDisclosure(provider = aiProvider) {
     return provider === 'gemini'
       ? copy('계산할 음식 글과 고른 사진이 Cloudflare 중계 서버를 거쳐 Gemini로 전송돼요. Gemini 무료 등급에서는 전송한 데이터가 Google 서비스 개선에 사용될 수 있어요. 결과를 확인한 뒤 저장하세요.', 'Food descriptions you calculate and selected photos are sent to Gemini through the Cloudflare relay server. With the Gemini free tier, submitted data may be used to improve Google services. Check the result before saving.')
@@ -770,27 +760,15 @@
 
   function updateTextActions() {
     const calculate = byId('food-text-calculate');
-    const settings = byId('food-ai-settings-open');
     const auto = byId('food-text-auto');
-    // With a working automatic connection the note stays intentionally quiet.
-    // Manual calculation appears after opting out or an analysis error, and
-    // setup remains one clear action away when the device is disconnected.
+    // Connection controls and transfer information live in top-level Settings.
     const ready = providerReady();
     if (calculate) calculate.hidden = !ready || Boolean(auto?.checked);
-    if (settings) settings.hidden = !endpoint;
+    const options = byId('food-text-options');
+    if (options) options.hidden = !calculate || calculate.hidden;
     const automatic = Boolean(ready && auto?.checked);
-    const disclosure = byId('food-text-disclosure');
-    if (disclosure) disclosure.hidden = !automatic;
-    if (disclosure) setText(disclosure, automatic ? providerTransferHelp() : '');
     const note = byId('meal-note');
-    if (note) note.setAttribute('aria-describedby', automatic ? 'food-text-disclosure food-text-status' : 'food-text-status');
-    const transferHelp = byId('food-ai-transfer-help');
-    if (transferHelp) {
-      transferHelp.hidden = !endpoint;
-      setText(transferHelp, providerTransferHelp());
-    }
-    const photoTransferHelp = byId('food-photo-transfer-help');
-    if (photoTransferHelp) setText(photoTransferHelp, providerReady() ? providerTransferHelp() : copy('AI 연결 후 고른 사진을 분석할 수 있어요.', 'Connect AI to analyze selected photos.'));
+    if (note) note.setAttribute('aria-describedby', 'food-text-status');
     const badge = byId('food-ai-state');
     if (badge) badge.dataset.i18n = !endpoint ? 'intake.aiStateManual' : !photoCode ? 'intake.aiStateDisconnected' : aiProvider === 'gemini' ? 'intake.aiStateGemini' : automatic ? 'intake.aiStateAuto' : 'intake.aiStateConnected';
     setText(badge, !endpoint ? copy('직접 입력', 'Manual') : !photoCode ? copy('연결 안 됨', 'Not connected') : aiProvider === 'gemini' ? copy('Gemini 선택됨 · 3.5 Flash-Lite', 'Gemini selected · 3.5 Flash-Lite') : automatic ? copy('자동 계산 켜짐', 'Auto on') : copy('연결됨', 'Connected'));
@@ -1167,10 +1145,6 @@
   }
 
   function analysisError(code, kind, provider = aiProvider) {
-    if (kind === 'text') {
-      const calculate = byId('food-text-calculate');
-      if (calculate) calculate.hidden = false;
-    }
     switch (code) {
       case 'AUTH':
         setPhotoCode('');
@@ -1817,8 +1791,6 @@
       if (settingsOpen) settingsOpen.hidden = false;
       const panel = byId('food-ai-panel');
       if (panel) panel.hidden = false;
-      const manualHelp = byId('food-photo-manual-help');
-      if (manualHelp) manualHelp.hidden = true;
       try { aiProvider = normalizeProvider(root.localStorage.getItem(AI_PROVIDER_KEY)); } catch { aiProvider = 'cloudflare'; }
       savedProvider = aiProvider;
       byId('food-ai-provider')?.addEventListener('change', (event) => {
@@ -1829,7 +1801,6 @@
       setPhotoCode(CODE_PATTERN.test(saved) ? saved : '');
       const textAuto = byId('food-text-auto');
       if (textAuto) {
-        byId('food-text-options').hidden = false;
         byId('food-quota-check')?.addEventListener('click', async event => {
           const output = byId('food-quota-status');
           if (!photoCode) {
@@ -1858,8 +1829,7 @@
           const note = byId('meal-note').value.trim();
           if (!note) { setText(byId('food-text-status'), copy('음식 이름과 양을 입력해 주세요.', 'Enter a food and portion.')); byId('meal-note').focus(); return; }
           if (!photoCode) {
-            root.dispatchEvent(new CustomEvent('meal:ai-settings'));
-            setText(byId('food-text-status'), copy('AI 연결 코드를 등록한 뒤 다시 눌러 주세요. 음식은 직접 기록할 수도 있어요.', 'Connect an AI access code and try again, or record food manually.'));
+            setText(byId('food-text-status'), copy('상단 설정에서 AI를 연결해 주세요.', 'Connect AI in the top Settings menu.'));
             return;
           }
           if (analysisRequest?.kind === 'text') return;
@@ -1974,7 +1944,6 @@
       byId('food-items')?.querySelector('[data-food-name]')?.focus();
     });
     byId('food-photo-pick')?.addEventListener('click', () => byId('food-photo-file')?.click());
-    byId('food-ai-settings-open')?.addEventListener('click', () => root.dispatchEvent(new CustomEvent('meal:ai-settings')));
     ['food-photo-file', 'food-photo-capture'].forEach((id) => {
       const picker = byId(id);
       if (!picker) return;

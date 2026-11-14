@@ -40,7 +40,7 @@
     'intake.addMeal': '새 식사 기록', 'intake.editMeal': '수정하기',
     'intake.noCalories': '칼로리 미기록', 'intake.coverage': '기록한 식사 {total}회 중 칼로리 입력 {logged}회',
     'intake.empty': '오늘 기록한 식사가 없어요.', 'intake.stopAnalysis': '분석 중단',
-    'intake.foods': '섭취한 음식', 'intake.calorieEntry': '섭취 칼로리 입력', 'intake.basicFoodHelp': '칼로리를 모르면 위 칸에 음식만 적고 저장할 수 있어요.', 'intake.quotaCheck': '남은 분석 횟수 확인', 'intake.photoAiTools': '사진·AI 자동 계산과 자세한 입력', 'intake.foodHelp': '먹은 양과 100g당 열량으로 계산하거나 칼로리를 직접 입력할 수 있어요.',
+    'intake.foods': '섭취한 음식', 'intake.calorieEntry': '섭취 칼로리 입력', 'intake.quotaCheck': '남은 분석 횟수 확인', 'intake.photoAiTools': '사진·AI 자동 계산과 자세한 입력', 'intake.foodHelp': '먹은 양과 100g당 열량으로 계산하거나 칼로리를 직접 입력할 수 있어요.',
     'intake.foodAdd': '음식 추가', 'intake.photoPick': '사진 올리기', 'intake.photoPickMultiple': '사진 여러 장 올리기', 'intake.camera': '카메라 촬영',
     'intake.takePhoto': '사진 찍기', 'intake.stopCamera': '카메라 끄기', 'intake.removePhoto': '사진 지우기',
     'intake.aiCode': '사진 분석 연결 코드', 'intake.aiDisclosureTitle': '외부 AI 전송 안내', 'intake.aiDisclosure': '연결하면 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요.', 'intake.textDisclosure': '‘칼로리 계산’을 누르면 음식 글이 Cloudflare AI로 전송돼요.',
@@ -272,7 +272,7 @@
     'intake.addMeal': 'Log a new meal', 'intake.editMeal': 'Edit',
     'intake.noCalories': 'Calories not logged', 'intake.coverage': 'Calories logged for {logged} of {total} meals',
     'intake.empty': 'No meals recorded today.', 'intake.stopAnalysis': 'Stop analysis',
-    'intake.foods': 'Foods eaten', 'intake.calorieEntry': 'Enter calories', 'intake.basicFoodHelp': 'If you do not know the calories, save just the food in the field above.', 'intake.quotaCheck': 'Check remaining analyses', 'intake.photoAiTools': 'Photo, AI, and detailed entry', 'intake.foodHelp': 'Calculate calories from the amount and kcal per 100 g, or enter them directly.',
+    'intake.foods': 'Foods eaten', 'intake.calorieEntry': 'Enter calories', 'intake.quotaCheck': 'Check remaining analyses', 'intake.photoAiTools': 'Photo, AI, and detailed entry', 'intake.foodHelp': 'Calculate calories from the amount and kcal per 100 g, or enter them directly.',
     'intake.foodAdd': 'Add food', 'intake.photoPick': 'Add photo', 'intake.photoPickMultiple': 'Add multiple photos', 'intake.camera': 'Use camera',
     'intake.takePhoto': 'Take photo', 'intake.stopCamera': 'Stop camera', 'intake.removePhoto': 'Remove photo',
     'intake.aiCode': 'Photo analysis access code', 'intake.aiDisclosureTitle': 'External AI transfer notice', 'intake.aiDisclosure': 'Once connected, photos you pick are sent to Cloudflare AI. Check the result before saving.', 'intake.textDisclosure': 'Calculate calories sends your food text to Cloudflare AI.',
@@ -494,7 +494,6 @@
   "intake.editResult": "수정",
   "intake.manualEntry": "칼로리 직접 입력",
   "intake.foodAdd": "메뉴 추가",
-  "intake.basicFoodHelp": "음식은 한 번만 적고, 총 칼로리를 입력하세요.",
   "intake.editNames": "메뉴명 편집",
   "intake.aiCode": "AI 연결 코드",
   "intake.aiDisclosure": "연결하면 계산할 음식 글과 고른 사진이 Cloudflare AI로 전송돼요. 결과를 확인한 뒤 저장하세요."
@@ -520,7 +519,6 @@
   "intake.editResult": "Edit",
   "intake.manualEntry": "Enter calories manually",
   "intake.foodAdd": "Add menu item",
-  "intake.basicFoodHelp": "Describe your food once, then enter the total calories.",
   "intake.editNames": "Edit names",
   "intake.aiCode": "AI access code",
   "intake.aiDisclosure": "Connecting sends food descriptions you calculate and selected photos to Cloudflare AI. Check the result before saving."

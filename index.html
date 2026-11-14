@@ -146,37 +146,25 @@
     </details>
       <section id="meal-details" class="meal-details">
         <label for="meal-note" data-i18n-text="meal.foodPrompt">무엇을 드셨나요? <span class="optional" data-i18n="meal.optional">선택</span></label>
-        <textarea id="meal-note" rows="2" maxlength="200" placeholder="예: 김밥 한 줄, 라떼 한 잔" data-i18n-attr="placeholder=meal.simpleExample" aria-describedby="food-text-disclosure food-text-status"></textarea>
-        <p id="food-text-disclosure" class="field-help" role="note" data-i18n="intake.simpleTextDisclosure" hidden>AI 자동 계산 켜짐 · 음식 설명이 Cloudflare AI로 전송돼요.</p>
+        <textarea id="meal-note" rows="1" maxlength="200" placeholder="예: 김밥 한 줄, 라떼 한 잔" data-i18n-attr="placeholder=meal.simpleExample" aria-describedby="food-text-status"></textarea>
         <div id="food-recent-slot" hidden></div>
-        <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
-          <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
-          <p class="field-help" data-i18n="intake.basicFoodHelp">음식은 한 번만 적고, 총 칼로리를 입력하세요.</p>
-          <div id="food-items"></div>
-          <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
-        </section>
+        <div id="food-text-options" hidden>
+          <div class="food-text-actions"><button type="button" class="text-button" id="food-text-calculate" data-i18n="intake.calculate">칼로리 계산</button></div>
+        </div>
         <section id="meal-ai-tools" class="meal-ai-tools" aria-labelledby="meal-ai-tools-title">
           <div class="meal-ai-heading"><h3 id="meal-ai-tools-title" data-i18n="intake.aiTools">사진·AI로 입력</h3><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected">연결 안 됨</span></div>
           <div class="meal-ai-body">
-          <p id="food-ai-transfer-help" class="field-help" data-i18n="intake.aiTransferHelp">AI 계산 시 음식 글·사진이 Cloudflare AI로 전송돼요.</p>
-        <div id="food-text-options" hidden>
-          <div class="food-text-actions"><button type="button" class="text-button" id="food-text-calculate" data-i18n="intake.calculate">칼로리 계산</button><button type="button" class="text-button" id="food-ai-settings-open" data-i18n="intake.aiSettings">AI 연결 설정</button></div>
-        </div>
         <div id="food-photo-choices" class="food-media-actions">
           <button type="button" class="outline-button" id="food-camera" data-i18n="intake.camera">카메라 촬영</button>
           <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPickMultiple">사진 여러 장 올리기</button>
           <input type="file" id="food-photo-file" accept="image/*" multiple hidden>
           <input type="file" id="food-photo-capture" accept="image/*" capture="environment" hidden>
-          <p class="field-help" id="food-photo-transfer-help" data-i18n="intake.photoTransferShort">AI 연결 후 고른 사진은 Cloudflare AI로 전송돼요.</p>
         </div>
-        <p id="food-photo-multiple-note" class="field-help" data-i18n="intake.photoMultipleNote">사진마다 분석 횟수를 사용해요. Gemini 혼잡 시 재시도 1회가 추가될 수 있어요. 같은 접시는 한 장만 선택하세요.</p>
         <div id="food-photo-progress" class="food-photo-progress" role="status" aria-live="polite" aria-atomic="true" hidden>
           <span class="food-photo-progress-spinner" aria-hidden="true"></span>
           <span id="food-photo-progress-text" data-i18n="intake.photoProgress">사진 분석 중</span>
           <button type="button" class="text-button food-photo-analysis-cancel" id="food-photo-analysis-cancel" hidden data-i18n="intake.stopAnalysis">분석 중단</button>
         </div>
-        <p id="food-photo-save-help" class="field-help" data-i18n="intake.photoSaveConfirm">분석 결과와 총 칼로리를 확인한 뒤 기록 저장을 누르세요.</p>
-        <p class="field-help" id="food-photo-manual-help" data-i18n="intake.photoHelp" hidden>사진을 보며 음식과 양을 적을 수 있어요.</p>
         <video id="food-camera-video" class="food-media" autoplay playsinline muted hidden></video>
         <div id="food-camera-actions" class="food-media-actions" hidden>
           <button type="button" class="primary-button" id="food-camera-snap" data-i18n="intake.takePhoto">사진 찍기</button>
@@ -195,6 +183,11 @@
           <div class="food-summary-head"><div><h3 id="food-summary-label" data-i18n="intake.aiResult">AI 계산 결과</h3><output id="food-summary-total"></output></div></div>
           <ul id="food-summary-items"></ul>
           <p id="food-summary-help" class="field-help"></p>
+        </section>
+        <section id="meal-foods" class="meal-foods" aria-labelledby="meal-foods-title">
+          <h3 id="meal-foods-title" data-i18n="intake.manualEntry">칼로리 직접 입력</h3>
+          <div id="food-items"></div>
+          <div class="food-total-row"><div class="food-entry-actions"><button type="button" class="outline-button" id="food-add" data-i18n="intake.foodAdd">메뉴 추가</button><button type="button" class="text-button" id="food-name-edit" aria-controls="food-items" data-i18n="intake.editNames">메뉴명 편집</button></div><output id="food-total"></output></div>
         </section>
       </section>
     </div>
@@ -357,7 +350,7 @@
           <p id="food-ai-connection-status" class="field-help" role="status"></p>
           <button type="button" class="text-button" id="food-ai-disconnect" data-i18n="intake.aiDisconnect" hidden>사진 분석 끄기</button>
           <details class="food-auto-settings"><summary data-i18n="intake.autoSettings">자동 계산 설정</summary>
-            <label class="check-label"><input id="food-text-auto" type="checkbox" aria-describedby="food-text-help food-text-disclosure"><span data-i18n="intake.textAuto">음식 자동 계산</span></label>
+            <label class="check-label"><input id="food-text-auto" type="checkbox" aria-describedby="food-text-help"><span data-i18n="intake.textAuto">음식 자동 계산</span></label>
             <p id="food-text-help" class="field-help" data-i18n="intake.textHelp">예: 두부 150g. 자동 계산을 켜면 음식 칸에서 나올 때 글이 Cloudflare AI로 전송돼요.</p>
           </details>
           <button type="button" class="text-button" id="food-quota-check" data-i18n="intake.quotaCheck">남은 분석 횟수 확인</button>
