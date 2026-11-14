@@ -184,7 +184,7 @@
     'timerGradient.p03': '03 · 초록 → 골드 → 앰버', 'timerGradient.p04': '04 · 세이지 → 피치 → 테라코타',
     'timerGradient.p05': '05 · 포레스트 → 청록 → 네이비 (기본)', 'timerGradient.p06': '06 · 청록 → 블루 → 바이올렛',
     'timerGradient.p07': '07 · 세이지 → 로즈 → 퍼플', 'timerGradient.p08': '08 · 포레스트 → 에메랄드 → 골드',
-    'settings.bodyTitle': '신체 및 활동 정보 (칼로리 계산)', 'settings.bodyHelp': '성별·나이·키·몸무게와 활동 수준에 맞춰 단식 단계별 소비 칼로리를 자동 계산해요.',
+    'settings.bodyTitle': '신체 및 활동 정보 (칼로리 계산)', 'settings.bodyHelp': '신체 정보에 따른 기초대사량과 기록한 활동으로 소비 칼로리를 계산해요.',
     'settings.sex': '성별', 'settings.sexMale': '남성', 'settings.sexFemale': '여성',
     'settings.age': '나이 (세)', 'settings.height': '키 (cm)', 'settings.weight': '몸무게 (kg)',
     'settings.activity': '평소 활동 수준', 'activity.sedentary': '안정 · 주로 앉아서 생활', 'activity.light': '가벼운 활동 · 일상 이동',
@@ -201,6 +201,7 @@
     'import.merge': '합치기', 'import.mergeHelp': '지금 기록은 그대로 두고 새 기록만 더해요.', 'import.replace': '바꾸기', 'import.replaceHelp': '지금 기록을 모두 가져온 기록으로 바꿔요.',
     'import.undoNote': '바꾼 직후에는 되돌리기로 이전 기록을 복구할 수 있어요.', 'import.confirm': '가져오기',
     'import.summary': '{name} ({kind}) · 기록 {count}건 · {range}', 'import.kindCsv': 'CSV 식사 기록', 'import.kindJson': 'JSON 식사 기록 백업', 'import.noRecords': '기록 없음',
+    'import.csvMergeOnly': 'CSV에는 음식·칼로리와 설정이 없어 합치기만 가능해요. 전체 복원은 JSON 백업을 선택해 주세요.',
     'import.mergeAdd': '합치기 · 새 기록 {added}건 추가', 'import.mergeSkip': '지금 기록 {current}건은 그대로 두고, 이미 있는 {skipped}건은 건너뛰어요.',
     'import.mergeKeep': '지금 기록 {current}건은 그대로 두고 새 기록만 더해요.', 'import.replaceCount': '바꾸기 · 지금 기록 {current}건을 {count}건으로 교체',
     'import.weightKeep': '체중 기록 {current}건은 유지돼요.',
@@ -416,7 +417,7 @@
     'timerGradient.p03': '03 · Green → gold → amber', 'timerGradient.p04': '04 · Sage → peach → terracotta',
     'timerGradient.p05': '05 · Forest → teal → navy (Default)', 'timerGradient.p06': '06 · Teal → blue → violet',
     'timerGradient.p07': '07 · Sage → rose → purple', 'timerGradient.p08': '08 · Forest → emerald → gold',
-    'settings.bodyTitle': 'Body & activity profile (calorie calculation)', 'settings.bodyHelp': 'Automatically calculates fasting calorie expenditure by stage from your profile.',
+    'settings.bodyTitle': 'Body & activity profile (calorie calculation)', 'settings.bodyHelp': 'Calculates basal energy from your body profile and adds recorded activity.',
     'settings.sex': 'Sex', 'settings.sexMale': 'Male', 'settings.sexFemale': 'Female',
     'settings.age': 'Age (years)', 'settings.height': 'Height (cm)', 'settings.weight': 'Weight (kg)',
     'settings.activity': 'Activity level', 'activity.sedentary': 'Sedentary · mostly sitting', 'activity.light': 'Light · daily movement',
@@ -433,6 +434,7 @@
     'import.merge': 'Merge', 'import.mergeHelp': 'Keep your current records and add only the new ones.', 'import.replace': 'Replace', 'import.replaceHelp': 'Replace all current records with the imported ones.',
     'import.undoNote': 'Right after replacing, you can use Undo to restore your previous records.', 'import.confirm': 'Import',
     'import.summary': '{name} ({kind}) · {count} records · {range}', 'import.kindCsv': 'CSV meal records', 'import.kindJson': 'JSON meal backup', 'import.noRecords': 'No records',
+    'import.csvMergeOnly': 'CSV contains no food calories or settings, so it can only be merged. Choose a JSON backup for a full restore.',
     'import.mergeAdd': 'Merge · add {added} new records', 'import.mergeSkip': 'Keeps your {current} current records and skips {skipped} that already exist.',
     'import.mergeKeep': 'Keeps your {current} current records and adds only the new ones.', 'import.replaceCount': 'Replace · swap your {current} current records for {count}',
     'import.weightKeep': 'Keeps your {current} weight records.',
@@ -532,6 +534,7 @@
   });
 
   const errEn = {
+    'CSV는 합치기만 할 수 있어요. 전체 복원은 JSON 백업을 선택해 주세요.': 'CSV can only be merged. Choose a JSON backup for a full restore.',
     '저장 파일의 절대 경로가 필요합니다.': 'An absolute path is required for the storage file.',
     '기록 파일을 열 수 없어요. 다른 프로그램이 사용 중인지 확인한 뒤 다시 실행해 주세요. 기록은 그대로 보존되어 있어요.': "Couldn't open the records file. Check whether another program is using it, then restart. Your records are untouched.",
     '손상된 저장 파일의 보관 이름을 만들 수 없습니다.': 'Could not create a name to keep the damaged storage file.',

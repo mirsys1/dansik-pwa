@@ -533,6 +533,9 @@
     const row = document.createElement('section');
     row.className = 'food-row';
     row.dataset.foodRow = 'true';
+    // Draft-only provenance: removing every result from this photo allows a
+    // fresh analysis; editing a result keeps the duplicate guard in place.
+    if (data.photoFingerprint) row.dataset.foodPhotoFingerprint = data.photoFingerprint;
     if (!food) row.dataset.foodNoteDefault = 'true';
 
     const header = document.createElement('div');
@@ -1002,6 +1005,8 @@
 
   function updateAnalysisActions() {
     const pending = analysisPending();
+    const calculate = byId('food-text-calculate');
+    if (calculate) calculate.disabled = pending;
     const stop = byId('meal-analysis-stop');
     if (stop) stop.hidden = !pending;
     refreshAnalysisFeedback();
@@ -1112,7 +1117,10 @@
     }
     const room = MAX_FOODS - rowCount();
     const inserted = items.slice(0, room);
-    if (options.photoSource && !fromText) inserted.forEach((item) => { item.photoSource = options.photoSource; });
+    if (!fromText) inserted.forEach((item) => {
+      if (options.photoSource) item.photoSource = options.photoSource;
+      if (options.photoFingerprint) item.photoFingerprint = options.photoFingerprint;
+    });
     inserted.forEach((item) => addRow(item));
     if (!items.length || !room) {
       revealFoodEntry();
@@ -1185,11 +1193,11 @@
     }
   }
 
-  async function analyze(kind, input) {
+  async function analyze(kind, input, options = {}) {
     const provider = aiProvider;
     const fromText = kind === 'text';
     const status = (message, state = 'ready') => analysisStatus(kind, message, state);
-    if (fromText && (photoBatch || photoSelectionPending)) {
+    if (fromText && (analysisRequest?.kind === 'photo' || photoReadGeneration !== null || photoBatch || photoSelectionPending)) {
       status(copy('사진 분석이 끝난 뒤 음식 메모 분석을 실행할 수 있어요. 직접 입력한 내용은 그대로 남아 있어요.', 'Text analysis can run after photo analysis finishes. Your manual entries are kept.'));
       return;
     }
@@ -1230,7 +1238,7 @@
       const result = await response.json();
       if (!isActive()) return;
       if (response.ok) {
-        insertAnalyzedFoods(result, kind, status, fromText ? { replaceTextDrafts: true } : { preserveDrafts: true });
+        insertAnalyzedFoods(result, kind, status, fromText ? { replaceTextDrafts: true } : { preserveDrafts: true, photoFingerprint: options.photoFingerprint });
         if (document.querySelector('#food-items [data-food-photo-draft], #food-items [data-food-text-draft]')) updateTextActions();
       }
       else status(analysisError(result?.code, kind, provider), 'error');
@@ -1248,7 +1256,10 @@
   function analyzePhoto() {
     if (providerDraftActive) return;
     const photo = currentPhoto;
-    if (photo && isCurrentGeneration(photo.generation)) return analyze('photo', photo.preview);
+    if (photo && isCurrentGeneration(photo.generation)) {
+      if (photoAlreadyIncluded(photo.fingerprint)) { showPhotoAlreadyIncluded(); return; }
+      return analyze('photo', photo.preview, { photoFingerprint: photo.fingerprint });
+    }
   }
 
   function analyzeNote() {
@@ -1304,7 +1315,7 @@
     }
   }
 
-  function showPhoto(file, generation) {
+  async function showPhoto(file, generation) {
     if (!isCurrentGeneration(generation)) return;
     if (!file) return;
     if (!String(file.type || '').startsWith('image/')) {
@@ -1324,6 +1335,14 @@
       photoReadGeneration = null;
       updateAnalysisActions();
     };
+    let fingerprint = null;
+    try { fingerprint = await photoByteFingerprint(file); } catch { /* Still allow a photo when local hashing is unavailable. */ }
+    if (!isCurrentGeneration(generation)) return;
+    if (photoAlreadyIncluded(fingerprint)) {
+      finishReading();
+      showPhotoAlreadyIncluded();
+      return;
+    }
     const reader = new FileReader();
     reader.onerror = reader.onabort = () => {
       finishReading();
@@ -1342,7 +1361,7 @@
         finishReading();
         preview.hidden = false;
         if (remove) remove.hidden = false;
-        currentPhoto = { preview, generation };
+        currentPhoto = { preview, generation, fingerprint };
         if (!providerDraftActive && providerReady()) analyzePhoto();
         else setStatus(endpoint
           ? copy('연결하면 선택한 사진에서 음식을 자동으로 채워요.', 'Connect to fill in food from the selected photo.')
@@ -1374,17 +1393,29 @@
     return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
   }
 
+  function photoAlreadyIncluded(fingerprint) {
+    return Boolean(fingerprint && [...document.querySelectorAll('#food-items [data-food-photo-fingerprint]')]
+      .some(row => row.dataset.foodPhotoFingerprint === fingerprint));
+  }
+
+  function showPhotoAlreadyIncluded() {
+    setStatus(copy('이미 반영한 사진은 제외했어요. 다시 분석하려면 해당 사진의 음식 항목을 먼저 삭제해 주세요.',
+      'Photos already included were skipped. Remove their food items first to analyze them again.'));
+  }
+
   async function uniquePhotoFiles(files, selectionGeneration) {
     const hashes = new Set();
     const unique = [];
+    const fingerprints = [];
     let duplicates = 0;
     let hashUnavailable = 0;
     for (const file of files) {
       if (selectionGeneration !== photoSelectionGeneration) return null;
+      let hash = null;
       try {
-        const hash = await photoByteFingerprint(file);
+        hash = await photoByteFingerprint(file);
         if (selectionGeneration !== photoSelectionGeneration) return null;
-        if (hash && hashes.has(hash)) { duplicates += 1; continue; }
+        if (hash && (hashes.has(hash) || photoAlreadyIncluded(hash))) { duplicates += 1; continue; }
         if (hash) hashes.add(hash);
         else hashUnavailable += 1;
       } catch {
@@ -1392,8 +1423,9 @@
         hashUnavailable += 1;
       }
       unique.push(file);
+      fingerprints.push(hash);
     }
-    return { unique, duplicates, hashUnavailable };
+    return { unique, fingerprints, duplicates, hashUnavailable };
   }
 
   function readBatchPhoto(file, batch, index) {
@@ -1527,13 +1559,14 @@
             batch.blockedMessage = analysisError(code, 'photo', batch.provider);
             break;
           }
-          const outcome = insertAnalyzedFoods(result, 'photo', () => {}, { preserveDrafts: true, photoSource: index + 1 });
+          const photoFingerprint = batch.fingerprints[index];
+          const outcome = insertAnalyzedFoods(result, 'photo', () => {}, { preserveDrafts: true, photoSource: index + 1, photoFingerprint });
           // Keep names that the model saw but could not price. They are
           // deliberately incomplete AI drafts, so the user can fill a total
           // calorie value instead of losing the recognition result.
           outcome.unmatchedNames.forEach((name) => {
             if (rowCount() >= MAX_FOODS) return;
-            addRow({ name, photoDraft: true, photoSource: index + 1 });
+            addRow({ name, photoDraft: true, photoSource: index + 1, photoFingerprint });
           });
           if (outcome.unmatchedNames.length) updateTotal();
           outcome.unmatchedNames.forEach((name) => {
@@ -1582,7 +1615,9 @@
       setStatus(copy(`${selectedFiles.length}장 사진은 아직 분석하지 않았어요. AI 연결을 확인한 뒤 다시 선택해 주세요.`, `${selectedFiles.length} photos were not analyzed. Check the AI connection, then select them again.`), 'error');
       return;
     }
-    cancelAnalysis();
+    // A new batch also supersedes a single photo whose local hash/decode is
+    // still pending; its late callback must not cancel this preparation.
+    nextTransientGeneration();
     const selectionGeneration = ++photoSelectionGeneration;
     const preparation = { selectionGeneration, provider: aiProvider, cancelled: false,
       message: copy('사진 중복을 확인하고 있어요…', 'Checking selected photos for duplicates…') };
@@ -1603,13 +1638,13 @@
     setPhotoBatchProgress(null, '');
     updateAnalysisActions();
     const files = selection.unique;
-    if (!files.length) return;
+    if (!files.length) { showPhotoAlreadyIncluded(); return; }
     const generation = nextTransientGeneration();
     stopCamera(false);
     clearPhoto(false, false, false);
     const batch = {
       id: `photo-batch-${Date.now()}-${generation}`,
-      generation, files, selected: selectedFiles.length,
+      generation, files, fingerprints: selection.fingerprints, selected: selectedFiles.length,
       duplicates: selection.duplicates,
       hashUnavailable: selection.hashUnavailable,
       limited: 0,
@@ -1828,6 +1863,7 @@
           } finally { root.clearTimeout(timeout); button.disabled = false; }
         });
         byId('food-text-calculate')?.addEventListener('click', () => {
+          if (analysisPending()) return;
           const note = byId('meal-note').value.trim();
           if (!note) { setText(byId('food-text-status'), copy('음식 이름과 양을 입력해 주세요.', 'Enter a food and portion.')); byId('meal-note').focus(); return; }
           if (!photoCode) {

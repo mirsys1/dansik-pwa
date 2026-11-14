@@ -776,8 +776,7 @@ function openFastingDetail(selection = {}, opener = null) {
   } else {
     const trend = fatTrendKey(interval.durationMs);
     const rising = trend === 'effects.trendFat';
-    const modelPrefs = selection.live ? { ...prefs, energyMode: 'activity' } : prefs;
-    const kcal = window.FastingEnergy.estimate(interval, modelPrefs, !selection.live || !(prefs.timerPausedMs > 0));
+    const kcal = window.FastingEnergy.estimate(interval, prefs, !selection.live || !(prefs.timerPausedMs > 0));
     const history = records.length > 1 ? `<section class="effect-records">
       <h3>${t('effects.otherRecords', { n: records.length })}</h3>
       <div class="effect-record-list">${records.map(x => `<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from === interval.from && x.to === interval.to}">
@@ -792,10 +791,10 @@ function openFastingDetail(selection = {}, opener = null) {
         <p>${t(rising ? 'effects.fatDescription' : 'effects.mixedDescription')}</p>
       </section>
       <div class="effect-energy"><span>${t(selection.live ? 'energy.fasting' : 'effects.energyTitle')}</span><strong>${kcalText(kcal.totalKcal)}</strong></div>${prefs.profileConfirmed === true ? '' : `<p class="effect-note">${t('energy.profileDefault')}</p>`}${history}`;
-    if (modelPrefs.energyMode === 'activity') {
+    {
       const note = document.createElement('p');
       note.className = 'effect-note';
-      note.textContent = window.FastingEnergy.describe(kcal, modelPrefs);
+      note.textContent = window.FastingEnergy.describe(kcal, prefs);
       $('fasting-detail').append(note);
     }
   }
@@ -1245,7 +1244,14 @@ document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventLi
   updateMealDateControls();
   $('meal-error').textContent = ''; clearMealFieldErrors();
 }));
-$('meal-other-toggle').addEventListener('click', () => showOtherMealDate($('meal-other-date').hidden));
+$('meal-other-toggle').addEventListener('click', () => {
+  if ($('meal-other-date').hidden) mealUseSaveTime = false;
+  showOtherMealDate($('meal-other-date').hidden);
+});
+// Freeze only when editing begins; merely expanding the summary retains Save time.
+for (const id of ['meal-date', 'meal-clock']) {
+  $(id).addEventListener('focus', () => { mealUseSaveTime = false; });
+}
 $('meal-date').addEventListener('input', () => { mealUseSaveTime = false; updateMealDateControls(); $('meal-error').textContent = ''; setMealFieldError('date'); });
 $('meal-date').addEventListener('change', () => { mealUseSaveTime = false; updateMealDateControls(); });
 $('meal-type').addEventListener('change', () => { mealAutoType = false; $('meal-auto-hint').hidden = true; });
@@ -1599,6 +1605,11 @@ async function importData() {
     if (p.activityFuture) $('import-summary').textContent += ' ' + t('import.futureActivity', { n: p.activityFuture });
   }
   $('import-mode-merge').checked = true;
+  $('import-mode-replace').disabled = p.kind === 'csv';
+  if (p.kind === 'csv') {
+    $('import-summary').textContent += ' ' + t('import.csvMergeOnly');
+    $('import-replace-text').querySelector('small').textContent = t('import.csvMergeOnly');
+  }
   $('import-error').textContent = '';
   $('import-dialog').showModal();
 }

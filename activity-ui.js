@@ -5,7 +5,7 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let snapshot, opener, syncing = false, healthSteps = null, activityScrollObserver = null;
   function estimate(interval, prefs, allowActivity = true) {
-    if (!interval || prefs.energyMode !== 'activity') return C.calculateCalories(interval?.durationMs ?? null, prefs);
+    if (!interval) return C.calculateCalories(null, prefs);
     return withActivity(interval, prefs, allowActivity);
   }
   function withActivity(interval, prefs, allowActivity = true) {
@@ -33,7 +33,6 @@
     return `${basis}${warning}${excluded ? text(` · 시간 경계에 걸친 ${excluded}개 기록 제외`, ` · ${excluded} boundary-crossing record(s) excluded`) : ''} · ${sourceName(prefs.activitySource) || text('출처 미선택','No source selected')}`;
   }
   function describe(value, prefs) {
-    if (prefs.energyMode !== 'activity') return '';
     return `${text('기초','Basal')} ${Math.round(value.basalKcal || 0)} + ${text('활동','Activity')} ${value.activeKcal == null ? '—' : Math.round(value.activeKcal)} kcal · ${activityNote(value, prefs)}`;
   }
   window.FastingEnergy = { estimate, describe, today, forDay, activityNote };
@@ -123,16 +122,12 @@
           </div>
         </details>
         <details id="activity-calculation" class="activity-group" ${wasOpen('activity-calculation')}>
-          <summary><span><strong>${text('칼로리 계산 기준','Calorie calculation')}</strong><small>${text('기록 출처와 단식 구간 계산 방식','Activity source and fasting interval calculation')}</small></span></summary>
+          <summary><span><strong>${text('칼로리 계산 기준','Calorie calculation')}</strong><small>${text('기초대사량과 기록된 활동','Basal energy and recorded activity')}</small></span></summary>
           <div class="activity-group-body">
-            <label for="activity-source">${text('하루 합산에 쓸 출처','Source for daily totals')}</label>
+            <label for="activity-source">${text('합산할 활동 출처','Activity source to include')}</label>
             <select id="activity-source">${chooseSource}</select>
             <p class="field-help">${text('활동은 선택한 출처 하나만 합산해요. 걸음 수는 참고용으로 표시해요.','Only the selected source is counted. Step totals are for reference.')}</p>
-            <label for="activity-mode">${text('단식 구간 계산 방식','Fasting interval calculation')}</label>
-            <select id="activity-mode">
-              <option value="estimate">${text('신체 정보와 평소 활동 수준','Body profile and usual activity')}</option>
-              <option value="activity">${text('기초대사량과 기록된 활동','Basal energy and recorded activity')}</option>
-            </select>
+            <p id="activity-basis" class="field-help">${text('하루 소비와 단식 구간 모두 기초대사량에 선택한 활동 기록을 더해 계산해요.','Daily and fasting totals both use basal energy plus records from the selected activity source.')}</p>
             <button type="button" class="outline-button" id="activity-apply">${text('계산 기준 저장','Save calculation settings')}</button>
             ${healthSteps?.date === C.localDay(now) ? `<p class="field-help">${text('아이폰 건강 앱의 오늘 걸음','Today’s Apple Health steps')} · ${number.format(healthSteps.steps)}</p>` : ''}
           </div>
@@ -180,11 +175,10 @@
     } else if (previousFocus === 'activity-confirm-transfer') {
       content.querySelector('#activity-transfer > summary')?.focus({ preventScroll: true });
     }
-    document.getElementById('activity-mode').value = p.energyMode || 'estimate';
     document.getElementById('activity-source').value = p.activitySource || '';
     document.getElementById('activity-close').onclick = ()=>dialog.close();
     document.getElementById('activity-done').onclick = () => dialog.close();
-    document.getElementById('activity-apply').onclick = async()=>{try{await save({energyMode:document.getElementById('activity-mode').value,activitySource:document.getElementById('activity-source').value});await render();status(text('적용했어요.','Applied.'));}catch(e){status(e.message);}};
+    document.getElementById('activity-apply').onclick = async()=>{try{const activitySource=document.getElementById('activity-source').value;await save({activitySource,...(!activitySource&&p.energyMode==='activity'?{energyMode:'estimate'}:{})});await render();status(text('적용했어요.','Applied.'));}catch(e){status(e.message);}};
     document.getElementById('activity-native').onclick = ()=>syncHealth();
     document.getElementById('activity-choose-file').onclick = () => document.getElementById('activity-file').click();
     let transfer = null;
@@ -503,5 +497,5 @@
     target?.focus({ preventScroll: true });
     workoutOpener = null;
   });
-  window.addEventListener('focus',async()=>{const s=await window.desktop.getState();if(s.prefs.energyMode==='activity'&&s.prefs.activitySource?.startsWith('apple-health:'))syncHealth();});
+  window.addEventListener('focus',async()=>{const s=await window.desktop.getState();if(s.prefs.activitySource?.startsWith('apple-health:'))syncHealth();});
 })();

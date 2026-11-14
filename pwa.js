@@ -222,7 +222,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.37 (PWA-119)', build: 'PWA-119' },
+      app: { version: '1.0.38 (PWA-120)', build: 'PWA-120' },
       lastBackupAt: lastBackupAt(),
       activityRecoveryNeeded: activityUnreadable,
       settingsRecoveryNeeded: prefsUnreadable,
@@ -488,9 +488,11 @@
               throw new Error('다른 창에서 이 식사 기록을 변경했어요. 기록을 다시 열어 주세요.');
             }
           }
-          return persist(payload.type === 'update'
+          const next = payload.type === 'update'
             ? Core.updateMeal(state, payload.id, checkPatch(payload.patch, ['type', 'at', 'note', 'foods']), now)
-            : Core.deleteMeal(state, payload.id, now));
+            : Core.deleteMeal(state, payload.id, now);
+          const nextTimer = payload.type === 'update' ? Core.reconcileTimerAfterMealUpdate(state, next, prefs, now) : null;
+          return persist(next, true, nextTimer);
         }
         case 'settings': {
           const patch = checkPatch(payload.patch, SETTINGS_KEYS);
@@ -656,6 +658,7 @@
           if (!pendingImport) throw new TypeError('가져올 파일을 먼저 선택해 주세요.');
           if (!['merge', 'replace'].includes(payload.mode)) throw new TypeError('가져오기 방식이 올바르지 않습니다.');
           const { next, kind, base, basePrefs, portable } = pendingImport;
+          if (kind === 'csv' && payload.mode === 'replace') throw new TypeError('CSV는 합치기만 할 수 있어요. 전체 복원은 JSON 백업을 선택해 주세요.');
           if (payload.mode === 'replace' && (base !== storedState || (portable && basePrefs !== storedPrefs))) {
             throw new Error('다른 창에서 식사 기록이 바뀌었어요. 가져오기 미리보기를 다시 열어 주세요.');
           }

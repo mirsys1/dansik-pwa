@@ -329,30 +329,16 @@
     const norm = normalizeProfile(profile);
     // Mifflin-St Jeor BMR equation (kcal/day)
     const bmr = Math.max(800, 10 * norm.weightKg + 6.25 * norm.heightCm - 5 * norm.age + (norm.sex === 'female' ? -161 : 5));
-    const tdee = bmr * ACTIVITY_MULTIPLIERS[norm.activityLevel];
-    const baseKcalPerHour = tdee / 24;
-    if (elapsedMs === null || elapsedMs === undefined || !Number.isFinite(elapsedMs) || elapsedMs <= 0) {
-      return { totalKcal: 0, fatGrams: 0, kcalPerHour: Math.round(baseKcalPerHour), bmr: Math.round(bmr), tdee: Math.round(tdee) };
-    }
-    const totalHours = elapsedMs / HOUR;
-    let totalKcal = 0;
-    let fatKcal = 0;
-    let currentFactor = AUTOPHAGY_STAGES[0].rateFactor;
-    for (const s of AUTOPHAGY_STAGES) {
-      if (totalHours <= s.startHours) break;
-      const endHours = s.nextHours === null ? totalHours : Math.min(totalHours, s.nextHours);
-      const spanHours = Math.max(0, endHours - s.startHours);
-      const stageKcal = spanHours * baseKcalPerHour * s.rateFactor;
-      totalKcal += stageKcal;
-      fatKcal += stageKcal * s.fatShare;
-      currentFactor = s.rateFactor;
-    }
+    // Basal-only fallback. Recorded activity is added by FastingActivity;
+    // elapsed time alone does not establish an activity or fasting-stage bonus.
+    const duration = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+    const totalKcal = bmr * duration / (24 * HOUR);
     return {
-      totalKcal: totalKcal < 100 ? Math.round(totalKcal * 10) / 10 : Math.round(totalKcal),
-      fatGrams: Math.round((fatKcal / 7.7) * 10) / 10,
-      kcalPerHour: Math.round(baseKcalPerHour * currentFactor),
+      totalKcal: Math.round(totalKcal * 10) / 10,
+      fatGrams: null,
+      kcalPerHour: Math.round(bmr / 24),
       bmr: Math.round(bmr),
-      tdee: Math.round(tdee)
+      tdee: null
     };
   }
   function getAutophagyStage(elapsedMs) {
@@ -377,6 +363,21 @@
     return (control && control.timerAnchorId && state.events.find(event => event.id === control.timerAnchorId)) || state.events[0] || null;
   }
   function timerMeal(state, now, control) { return selectedTimerMeal(readOnlyState(state, now), control); }
+  function reconcileTimerAfterMealUpdate(before, next, control, now) {
+    const previousMeal = selectedTimerMeal(before, control);
+    if (!previousMeal || !control || control.timerMealId !== previousMeal.id) return null;
+    const updatedMeal = next.events.find(event => event.id === previousMeal.id);
+    if (!updatedMeal || updatedMeal.at === previousMeal.at) return null;
+    // A corrected start invalidates offsets tied to the old timestamp. Keep the
+    // selected meal and whether the user paused/reset; only rebase its controls.
+    return {
+      timerAnchorId: control.timerAnchorId || null,
+      timerMealId: previousMeal.id,
+      timerPausedAt: Number.isSafeInteger(control.timerPausedAt) ? now : null,
+      timerPausedMs: 0,
+      timerReset: Boolean(control.timerReset)
+    };
+  }
   function getTimer(state, now, control) {
     const checkedNow = Number.isSafeInteger(now) ? now : Date.now();
     // A system clock can move backward after a saved meal. Validate persisted records
@@ -510,5 +511,5 @@
     let raw; try { raw = JSON.parse(text.replace(/^﻿/, '')); } catch { throw new TypeError('JSON 형식의 단식 기록 백업 파일이 아니에요.'); }
     return normalizedPersisted(raw, Date.now());
   }
-  return { FAST_PLANS, DEFAULT_WINDOW_START, validWindowStart, eatingWindow, dailyLongest, goalStreak, TYPES, COLOR_THEMES, TIMER_GRADIENTS, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, foodCalorieSummary, validateEvent, validateState, validColorTheme, validTimerGradient, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, dayRange, parseBackup, mergeBackup, replaceBackup, recordMeal, updateMeal, deleteMeal, recordWeight, deleteWeight, updateSettings, latestMeal, timerMeal, getTimer, getAutophagyStage, formatDuration, mealTypeForTime, weeklyStats, periodFastingStats, clone };
+  return { FAST_PLANS, DEFAULT_WINDOW_START, validWindowStart, eatingWindow, dailyLongest, goalStreak, TYPES, COLOR_THEMES, TIMER_GRADIENTS, TIMEZONES, AUTOPHAGY_STAGES, ACTIVITY_MULTIPLIERS, DEFAULT_PROFILE, MIN_DATE, MAX_DATE, MAX_EVENTS, MAX_FOODS_PER_MEAL, defaultState, normalizeFoods, foodKcalTotal, foodCalorieSummary, validateEvent, validateState, validColorTheme, validTimerGradient, validTimeZone, normalizeProfile, calculateCalories, tzParts, formatLocalInput, parseLocalInput, localDay, dayRange, parseBackup, mergeBackup, replaceBackup, recordMeal, updateMeal, deleteMeal, recordWeight, deleteWeight, updateSettings, latestMeal, timerMeal, reconcileTimerAfterMealUpdate, getTimer, getAutophagyStage, formatDuration, mealTypeForTime, weeklyStats, periodFastingStats, clone };
 });
