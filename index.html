@@ -145,18 +145,18 @@
     <div class="quick-times" aria-label="식사 시각 빠른 보정" data-i18n-attr="aria-label=meal.quickAria"><button type="button" data-offset="0" data-i18n="meal.now">방금</button><button type="button" data-offset="15" data-i18n="meal.min15">15분 전</button><button type="button" data-offset="30" data-i18n="meal.min30">30분 전</button><button type="button" data-offset="120" data-i18n="meal.hour2">2시간 전</button></div>
     </details>
       <section id="meal-details" class="meal-details">
-        <label for="meal-note" data-i18n-text="meal.foodPrompt">무엇을 드셨나요? <span class="optional" data-i18n="meal.optional">선택</span></label>
+        <label for="meal-note" data-i18n-text="meal.foodPrompt">무엇을 드셨나요? <span class="optional">(AI)</span></label>
         <textarea id="meal-note" rows="1" maxlength="200" placeholder="예: 김밥 한 줄, 라떼 한 잔" data-i18n-attr="placeholder=meal.simpleExample" aria-describedby="food-text-status"></textarea>
         <div id="food-recent-slot" hidden></div>
         <div id="food-text-options" hidden>
           <div class="food-text-actions"><button type="button" class="text-button" id="food-text-calculate" data-i18n="intake.calculate">칼로리 계산</button></div>
         </div>
         <section id="meal-ai-tools" class="meal-ai-tools" aria-labelledby="meal-ai-tools-title">
-          <div class="meal-ai-heading"><h3 id="meal-ai-tools-title" data-i18n="intake.aiTools">사진·AI로 입력</h3><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected">연결 안 됨</span></div>
+          <div class="meal-ai-heading"><h3 id="meal-ai-tools-title" data-i18n="intake.aiTools">사진 올리기</h3><span id="food-ai-state" class="food-ai-state" data-i18n="intake.aiStateDisconnected" hidden>연결 안 됨</span></div>
           <div class="meal-ai-body">
         <div id="food-photo-choices" class="food-media-actions">
+          <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPickMultiple">사진</button>
           <button type="button" class="outline-button" id="food-camera" data-i18n="intake.camera">카메라 촬영</button>
-          <button type="button" class="outline-button" id="food-photo-pick" data-i18n="intake.photoPickMultiple">사진 여러 장 올리기</button>
           <input type="file" id="food-photo-file" accept="image/*" multiple hidden>
           <input type="file" id="food-photo-capture" accept="image/*" capture="environment" hidden>
         </div>

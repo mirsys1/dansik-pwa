@@ -1433,7 +1433,8 @@ html[lang="ko"] #activity-dialog :is(.dialog-heading h2, .activity-day, .activit
 #food-text-status:empty, #food-photo-status:empty, #food-summary-help:empty { display: none; }
 #meal-dialog .food-text-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 #meal-dialog .food-text-actions button { padding-inline: 0; min-height: 44px; text-align: left; }
-#meal-dialog #food-photo-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+#meal-dialog #food-photo-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+#meal-dialog #food-photo-choices > button { min-width: 0; width: 100%; padding-inline: 8px; white-space: nowrap; }
 #meal-dialog .food-photo-progress { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface)); color: var(--accent-dark); font-size: var(--type-meta); font-weight: 650; line-height: 1.4; }
 #meal-dialog .food-photo-progress[hidden] { display: none; }
 #meal-dialog #food-photo-progress-text { min-width: 0; flex: 1 1 120px; overflow-wrap: anywhere; }
