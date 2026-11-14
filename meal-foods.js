@@ -1094,7 +1094,11 @@
   function insertAnalyzedFoods(result, kind, status, options = {}) {
     if (!Array.isArray(result?.foods) || !Array.isArray(result.unmatched)) throw new Error('Invalid analysis result');
     const fromText = kind === 'text';
-    const allowedSource = (food) => food?.source === 'mfds' || (fromText && food?.source === 'ai');
+    // Both providers may return a safe AI estimate for an otherwise unknown
+    // food.  The Worker has already schema-validated it; still validate every
+    // numeric field below before it reaches an editable row.  MFDS remains the
+    // preferred source because its matched results retain source: "mfds".
+    const allowedSource = (food) => food?.source === 'mfds' || food?.source === 'ai';
     const needsAmount = (food) => food?.grams === null && allowedSource(food) && Number.isFinite(food.kcalPer100g);
     const matches = [...result.foods, ...result.unmatched.filter(needsAmount)];
     const items = matches.slice(0, MAX_FOODS).flatMap((food) => {
@@ -1145,7 +1149,9 @@
       ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
       : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
-      ? copy(' 칼로리가 비어 있는 메뉴는 총 칼로리를 직접 입력해 주세요.', 'Enter total calories for any item without a calorie value.') : '';
+      ? (fromText
+        ? copy(' 칼로리가 비어 있는 메뉴는 총 칼로리를 직접 입력해 주세요.', 'Enter total calories for any item without a calorie value.')
+        : copy(' 음식은 찾았지만 사진만으로 양을 확인할 수 없어 총 칼로리를 입력해 주세요.', 'Food was found, but the portion cannot be confirmed from the photo. Enter the total calories.')) : '';
     const review = needsReview.length ? copy(' 국·찌개는 실제로 먹은 종류를 골라 주세요.', ' Select the soup or stew you ate.') : '';
     const manual = unmatched ? copy(` 직접 입력: ${unmatched}`, ` Enter manually: ${unmatched}`) : '';
     const limited = items.length > room ? copy(' 입력 칸이 부족해 일부만 추가했어요.', ' Only some items fit in the form.') : '';
@@ -1154,6 +1160,7 @@
       inserted: inserted.length,
       unresolved: result.unmatched.length,
       needsManual: inserted.filter((item) => item.grams === null || Array.isArray(item.choices)).length,
+      needsAmount: inserted.filter((item) => item.grams === null && Number.isFinite(item.kcalPer100g)).length,
       overflow: items.length > room,
       unmatchedNames
     };
@@ -1182,6 +1189,16 @@
       case 'GEMINI_NOT_CONFIGURED':
       case 'NOT_CONFIGURED':
         return copy('Gemini는 서버에 안전하게 등록한 뒤 사용할 수 있어요. 설정에서 AI 분석 모델을 확인하거나 직접 입력해 주세요.', 'Gemini needs secure server registration before it can be used. Check the AI model in Settings or enter food manually.');
+      case 'GEMINI_BUSY':
+        return copy('Gemini 요청이 많아 지금 계산할 수 없어요. 잠시 후 Gemini로 다시 시도하거나 Cloudflare AI를 직접 선택해 주세요. 다른 모델로 자동 전환하지 않아요.', 'Gemini is busy right now. Try Gemini again shortly or select Cloudflare AI yourself. We will not switch models automatically.');
+      case 'GEMINI_AUTH':
+        return copy('Gemini 서버 설정을 확인해 주세요. API 키는 앱에 입력하지 마세요.', 'Check the Gemini server setup. Do not enter an API key in the app.');
+      case 'GEMINI_MODEL':
+        return copy('현재 Gemini 모델을 사용할 수 없어요. 설정을 확인하거나 Cloudflare AI를 직접 선택해 주세요. 다른 모델로 자동 전환하지 않아요.', 'The selected Gemini model is unavailable. Check Settings or select Cloudflare AI yourself. We will not switch models automatically.');
+      case 'GEMINI_TIMEOUT':
+        return copy('Gemini 응답이 늦어 계산을 중단했어요. 잠시 후 다시 시도해 주세요.', 'Gemini took too long, so the calculation stopped. Try again shortly.');
+      case 'GEMINI_RESPONSE':
+        return copy('Gemini 결과를 읽지 못했어요. 입력한 내용은 그대로 남아 있어요. 다시 시도하거나 직접 입력해 주세요.', 'Gemini returned an unreadable result. Your entries were kept. Try again or enter calories manually.');
       case 'TEXT':
         return copy('음식 이름과 양을 200자 이내로 적어 주세요.', 'Enter food names and amounts in up to 200 characters.');
       case 'IMAGE':
@@ -1469,14 +1486,16 @@
       ? copy(' 일부 사진은 중복 확인을 할 수 없었어요. 같은 사진이 있다면 결과를 확인해 주세요.', ' Some photos could not be checked for duplicates. Review the result if the same photo was selected.') : '';
     const unmatchedNotice = summary.unmatchedNames.length
       ? copy(` 직접 칼로리를 입력할 음식: ${summary.unmatchedNames.slice(0, 3).join(', ')}.`, ` Enter calories manually for: ${summary.unmatchedNames.slice(0, 3).join(', ')}.`) : '';
+    const amountNotice = batch.needsAmount
+      ? copy(' 음식은 찾았지만 사진만으로 양을 확인할 수 없어 총 칼로리를 입력해 주세요.', ' Food was found, but the portion cannot be confirmed from the photo. Enter the total calories.') : '';
     const dishNotice = copy(' 같은 접시를 여러 장 찍었다면 중복 음식은 삭제해 주세요.', ' If the same plate appears in multiple photos, remove duplicate foods.');
     if (summary.cancelled) {
-      setStatus(copy(`사진 분석을 중단했어요. ${summary.succeeded}장 완료, ${unprocessed}장은 분석하지 않았고 완료된 결과와 합계는 남아 있어요.`, `Photo analysis stopped. ${summary.succeeded} completed and ${unprocessed} were not analyzed; completed results and totals are kept.`) + duplicateNotice + hashNotice + unmatchedNotice + dishNotice, 'error');
+      setStatus(copy(`사진 분석을 중단했어요. ${summary.succeeded}장 완료, ${unprocessed}장은 분석하지 않았고 완료된 결과와 합계는 남아 있어요.`, `Photo analysis stopped. ${summary.succeeded} completed and ${unprocessed} were not analyzed; completed results and totals are kept.`) + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
     } else if (partial) {
       const reason = batch.blockedMessage ? ` ${batch.blockedMessage}` : '';
-      setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 기록 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + dishNotice, 'error');
+      setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 기록 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
     } else {
-      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + dishNotice);
+      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 기록 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + amountNotice + dishNotice);
     }
     // Completion permits UI feedback only. A meal is never saved without the
     // user's explicit Record save action.
@@ -1548,6 +1567,7 @@
           });
           batch.inserted += outcome.inserted;
           batch.unresolved += outcome.unresolved + outcome.needsManual + (outcome.overflow ? 1 : 0);
+          batch.needsAmount += outcome.needsAmount || 0;
           if (outcome.inserted > 0) batch.succeeded += 1;
           else batch.failed += 1;
           const review = outcome.unresolved || outcome.needsManual || outcome.overflow;
@@ -1619,7 +1639,7 @@
       duplicates: selection.duplicates,
       hashUnavailable: selection.hashUnavailable,
       limited: 0,
-      analyzed: 0, succeeded: 0, failed: 0, unresolved: 0, inserted: 0,
+      analyzed: 0, succeeded: 0, failed: 0, unresolved: 0, inserted: 0, needsAmount: 0,
       cancelled: false, blocked: false, blockedMessage: '', controller: null, provider: aiProvider,
       unmatchedNames: []
     };

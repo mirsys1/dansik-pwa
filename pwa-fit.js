@@ -227,7 +227,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-114';
+  const fitBuild = 'PWA-115';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -283,7 +283,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.114';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.115';
         output.textContent += `\nversions: ${consistent ? 'match' : 'incomplete'}`;
         if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
           stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';
