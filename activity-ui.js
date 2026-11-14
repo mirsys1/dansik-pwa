@@ -2,8 +2,9 @@
   'use strict';
   const A = window.FastingActivity, C = window.FastingCore;
   const text = (ko, en) => document.documentElement.lang === 'en' ? en : ko;
+  const errorText = error => window.FastingI18n?.create(document.documentElement.lang).err(error) || error?.message || String(error);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let snapshot, opener, syncing = false, healthSteps = null, activityScrollObserver = null;
+  let snapshot, opener, syncing = false, healthSteps = null, activityScrollObserver = null, activitySaving = false;
   function estimate(interval, prefs, allowActivity = true) {
     if (!interval) return C.calculateCalories(null, prefs);
     return withActivity(interval, prefs, allowActivity);
@@ -51,6 +52,7 @@
     return result;
   }
   async function render() {
+    const sourceDraft = dialog.open ? document.getElementById('activity-source')?.value : undefined;
     snapshot = await window.desktop.getState();
     const p = snapshot.prefs, samples = p.activitySamples || [], sources = [...new Set(samples.map(x=>x.source))];
     const now = Date.now(), daily = today(p, now);
@@ -128,8 +130,7 @@
             <select id="activity-source">${chooseSource}</select>
             <p class="field-help">${text('활동은 선택한 출처 하나만 합산해요. 걸음 수는 참고용으로 표시해요.','Only the selected source is counted. Step totals are for reference.')}</p>
             <p id="activity-basis" class="field-help">${text('하루 소비와 단식 구간 모두 기초대사량에 선택한 활동 기록을 더해 계산해요.','Daily and fasting totals both use basal energy plus records from the selected activity source.')}</p>
-            <button type="button" class="outline-button" id="activity-apply">${text('계산 기준 저장','Save calculation settings')}</button>
-            ${healthSteps?.date === C.localDay(now) ? `<p class="field-help">${text('아이폰 건강 앱의 오늘 걸음','Today’s Apple Health steps')} · ${number.format(healthSteps.steps)}</p>` : ''}
+            ${healthSteps?.date === C.localDay(now, p.timeZone) ? `<p class="field-help">${text('아이폰 건강 앱의 오늘 걸음','Today’s Apple Health steps')} · ${number.format(healthSteps.steps)}</p>` : ''}
           </div>
         </details>
         <details id="activity-management" class="activity-group" ${wasOpen('activity-management')}>
@@ -175,10 +176,27 @@
     } else if (previousFocus === 'activity-confirm-transfer') {
       content.querySelector('#activity-transfer > summary')?.focus({ preventScroll: true });
     }
-    document.getElementById('activity-source').value = p.activitySource || '';
-    document.getElementById('activity-close').onclick = ()=>dialog.close();
-    document.getElementById('activity-done').onclick = () => dialog.close();
-    document.getElementById('activity-apply').onclick = async()=>{try{const activitySource=document.getElementById('activity-source').value;await save({activitySource,...(!activitySource&&p.energyMode==='activity'?{energyMode:'estimate'}:{})});await render();status(text('적용했어요.','Applied.'));}catch(e){status(e.message);}};
+    const sourceSelect = document.getElementById('activity-source');
+    sourceSelect.value = sourceDraft !== undefined && (!sourceDraft || sources.includes(sourceDraft)) ? sourceDraft : p.activitySource || '';
+    const close = document.getElementById('activity-close'), done = document.getElementById('activity-done');
+    close.onclick = () => { if (!activitySaving) dialog.close(); };
+    done.onclick = async () => {
+      if (activitySaving) return;
+      const activitySource = sourceSelect.value;
+      if (activitySource === (snapshot.prefs.activitySource || '')) { dialog.close(); return; }
+      activitySaving = done.disabled = close.disabled = sourceSelect.disabled = true;
+      done.textContent = text('저장 중…','Saving…');
+      status('');
+      try {
+        await save({ activitySource, ...(!activitySource && snapshot.prefs.energyMode === 'activity' ? { energyMode: 'estimate' } : {}) });
+        dialog.close();
+      } catch (error) {
+        status(errorText(error));
+      } finally {
+        activitySaving = done.disabled = close.disabled = sourceSelect.disabled = false;
+        done.textContent = text('완료','Done');
+      }
+    };
     document.getElementById('activity-native').onclick = ()=>syncHealth();
     document.getElementById('activity-choose-file').onclick = () => document.getElementById('activity-file').click();
     let transfer = null;
@@ -208,13 +226,13 @@
         const sourceSummary=sources.slice(0,3).join(', ')+(sources.length>3?` (+${sources.length-3})`:'');
         preview.textContent=`${parsed.length} ${text('개 기록','records')} · ${local(range.start)} → ${local(range.end)} · ${sourceSummary} · ${text('기존 기록과 중복은 병합하며 출처 하나만 계산해요.','Duplicates merge with existing records; only one source is used for energy.')}`;
         confirmTransfer.hidden=false;
-      }catch(error){preview.textContent=error.message;}
+      }catch(error){preview.textContent=errorText(error);}
     };
     confirmTransfer.onclick=async()=>{
       if(!transfer)return;
       const parsed=transfer;
       transfer=null;confirmTransfer.hidden=true;
-      try{await importSamples(parsed);}catch(error){preview.textContent=error.message;}
+      try{await importSamples(parsed);}catch(error){preview.textContent=errorText(error);}
     };
     document.getElementById('activity-file').onchange = async e=>{
       try {const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024)throw Error(text('파일은 20MB 이하여야 해요.','File must be 20 MB or smaller.'));
@@ -223,13 +241,13 @@
           const xml=new DOMParser().parseFromString(body,'application/xml');if(xml.querySelector('parsererror'))throw Error(text('XML 형식을 확인해 주세요.','Invalid XML.'));
           incoming=[...xml.querySelectorAll('Record')].filter(r=>r.getAttribute('type')==='HKQuantityTypeIdentifierActiveEnergyBurned').map(r=>{
             const g=n=>r.getAttribute(n)||'',start=Date.parse(g('startDate')),end=Date.parse(g('endDate')),unit=g('unit');
-            if(!['kcal','kJ','J','cal'].includes(unit))throw Error('Unsupported energy unit');
+            if(!['kcal','kJ','J','cal'].includes(unit))throw Error(text('지원하지 않는 활동 에너지 단위입니다.', 'This activity energy unit is not supported.'));
             let hash=2166136261;for(const c of g('device'))hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0;
             return {id:[g('startDate'),g('endDate'),g('creationDate')].join('|'),source:'apple-export:'+g('sourceName').slice(0,100)+':'+hash,start,end,kcal:Number(g('value'))*({kcal:1,kJ:1/4.184,J:1/4184,cal:1/1000}[unit])};
           });
         } else incoming=A.parseTransfer(body);
         await importSamples(incoming);
-      }catch(error){status(error.message);}
+      }catch(error){status(errorText(error));}
     };
     document.getElementById('activity-export').onclick = ()=>{const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({version:1,samples:p.activitySamples||[]},null,2)],{type:'application/json'}));a.href=url;a.download='dansik-activity.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
     const deleteSource = document.getElementById('activity-delete-source');
@@ -265,7 +283,7 @@
       } catch (error) {
         cancelClear.disabled = deleteSource.disabled = false;
         resetDeletion();
-        status(error.message);
+        status(errorText(error));
       }
     };
   }
@@ -273,7 +291,7 @@
     if (!incoming.length) throw Error(text('활동 에너지 기록이 없거나 읽기 권한이 없어요.','No active-energy records, or no read access.'));
     await saveActivity({ type: 'activity-add', samples: incoming });
     await render();
-    status(text('가져왔어요. 출처를 선택한 뒤 계산 방식을 적용하세요.','Imported. Select a source and apply the calculation mode.'));
+    status(text('가져왔어요. 합산할 출처를 선택한 뒤 완료를 누르세요.','Imported. Select the source to include, then tap Done.'));
   }
 
   function showWorkoutResult(title, message) {
@@ -444,7 +462,7 @@
             } catch (_) { /* The save already succeeded. */ }
           }
         } catch (cause) {
-          setError(cause.message);
+          setError(errorText(cause));
         } finally {
           workoutSaving = submit.disabled = false;
           closeButtons.forEach(button => { button.disabled = false; });
@@ -457,7 +475,7 @@
       workoutDialog.scrollTop = 0;
       find('h2').focus({ preventScroll: true });
     } catch (error) {
-      showWorkoutResult(text('운동 입력을 열지 못했어요','Could not open workout entry'), error.message);
+      showWorkoutResult(text('운동 입력을 열지 못했어요','Could not open workout entry'), errorText(error));
     } finally { workoutOpening = false; }
   }
   async function syncHealth() {
@@ -474,7 +492,7 @@
       });
       if (!samples.length) { await render(); status(text('활동 에너지 자료가 없어요. 걸음 수는 별도로 표시하며 칼로리로 중복 환산하지 않아요.','No active-energy data. Steps are shown separately without converting them to calories.')); }
       else await importSamples(samples);
-    }catch(error){if(dialog.open)status(error.message);}finally{syncing=false;}
+    }catch(error){if(dialog.open)status(errorText(error));}finally{syncing=false;}
   }
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-open-activity], [data-activity-manual]');
@@ -491,6 +509,7 @@
     }
   });
   dialog.addEventListener('close',()=>{activityScrollObserver?.disconnect();if(opener?.isConnected)opener.focus({preventScroll:true});});
+  dialog.addEventListener('cancel',event=>{if(activitySaving)event.preventDefault();});
   workoutDialog?.addEventListener('cancel', event => { if (workoutSaving) event.preventDefault(); });
   workoutDialog?.addEventListener('close', () => {
     const target = workoutOpener?.isConnected ? workoutOpener : dialog.querySelector('[data-activity-manual]');

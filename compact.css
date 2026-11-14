@@ -484,6 +484,21 @@ body.mini .toast { top: auto; bottom: 13px; font-size: var(--type-meta); }
 .icon-button{position:relative}
 .icon-button::after{content:"";position:absolute;inset:-4px}
 .data-actions{display:flex;flex-wrap:wrap;gap:4px 16px}
+/* Backup links keep their quiet text style, with a full finger-sized target. */
+#settings-backup .data-actions > .text-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding-block: 8px;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+  border-radius: 8px;
+}
+body:not(.touch-focus) #settings-backup .data-actions > .text-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
 .settings-group, .settings-link {
   margin-bottom: 6px;
   border: 1px solid var(--line);
@@ -908,6 +923,33 @@ body.is-pwa[data-page="insights"]:not(.mini) #page-insights > .toast {
   transform: none;
 }
 body:not(.mini) #toast-close { min-width: 36px; min-height: 36px; }
+/* Feedback owns a row, so a longer translation cannot cover a control. */
+body:not(.mini) :is(.page, .meal-panel) > #toast,
+body.mini .mini-content > #toast {
+  position: static;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  margin: 8px 0;
+  padding: 8px 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+  pointer-events: auto;
+}
+body :is(.page, .meal-panel, .mini-content) > #toast > #toast-message {
+  flex: 1 1 120px;
+  min-width: 0;
+  line-height: 1.4;
+}
+body.mini .mini-content > #toast { margin-bottom: 0; text-align: left; }
+body.mini.has-toast .mini-content > small { display: none; }
+body :is(#discard-meal-dialog, #reset-dialog) .dialog-actions { flex-wrap: wrap; gap: 8px; }
+body :is(#discard-meal-dialog, #reset-dialog) .dialog-actions > button {
+  flex: 1 1 110px;
+  min-width: 0;
+  white-space: normal;
+}
 
 /* Long Korean titles need room to stay readable beside the fixed 44px close
    target on narrow PWA dialogs. Keep ordinary dialog headers compact; forms

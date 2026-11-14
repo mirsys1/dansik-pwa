@@ -573,12 +573,14 @@
     const originalName = canonicalFoodName(data.name);
 
     kcal.addEventListener('input', () => {
+      clearFoodValidation(kcal);
       applyNoteDefaultName(row);
       kcal.removeAttribute('data-calculated');
       reviseFoods();
       updateTotal();
     });
     name.addEventListener('input', () => {
+      clearFoodValidation(name);
       // Any user name edit takes ownership away from the note.  Later note
       // changes must not overwrite an explicitly named second menu.
       delete row.dataset.foodNoteDefault;
@@ -1162,9 +1164,13 @@
           ? copy('Gemini 분석 한도에 도달했거나 요청이 많아요. 잠시 후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'Gemini is rate-limited or its analysis limit is reached. Try again shortly or enter food manually. We will not switch models automatically.')
           : copy('Cloudflare AI 분석 한도에 도달했거나 요청이 많아요. 잠시 후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'Cloudflare AI is rate-limited or its analysis limit is reached. Try again shortly or enter food manually. We will not switch models automatically.');
       case 'BUSY':
-        return copy('분석 요청이 많아 잠시 처리할 수 없어요. 남은 사진은 보내지 않았어요.', 'The analysis service is busy. Remaining photos were not sent.');
+        return kind === 'text'
+          ? copy('분석 요청이 많아 지금 계산할 수 없어요. 입력한 내용은 남아 있어요. 잠시 후 다시 시도해 주세요.', 'The analysis service is busy. Your text was kept. Try again shortly.')
+          : copy('분석 요청이 많아 잠시 처리할 수 없어요. 남은 사진은 보내지 않았어요.', 'The analysis service is busy. Remaining photos were not sent.');
       case 'UNAVAILABLE':
-        return copy('분석 연결이 끊겨 남은 사진은 보내지 않았어요. 완료된 결과는 남아 있어요.', 'The analysis connection stopped. Remaining photos were not sent; completed results are kept.');
+        return kind === 'text'
+          ? copy('분석 연결이 끊겨 계산하지 못했어요. 입력한 내용은 남아 있어요. 다시 시도하거나 총 칼로리를 직접 입력해 주세요.', 'The analysis connection stopped. Your text was kept. Retry or enter total calories manually.')
+          : copy('분석 연결이 끊겨 남은 사진은 보내지 않았어요. 완료된 결과는 남아 있어요.', 'The analysis connection stopped. Remaining photos were not sent; completed results are kept.');
       case 'SHARED_QUOTA':
         sharedQuotaDay = new Date().toISOString().slice(0, 10);
         return copy('Cloudflare 중계 서버의 앱 공통 무료 분석 한도에 도달했어요. UTC 자정 이후 다시 시도하거나 직접 입력해 주세요. 다른 모델로 자동 전환하지 않아요.', 'The app-wide free analysis limit on the Cloudflare relay server is reached. Retry after midnight UTC or enter food manually. We will not switch models automatically.');
@@ -1755,26 +1761,68 @@
     }, 'image/jpeg', 0.9);
   }
 
+  function clearFoodValidation(control) {
+    if (!control.hasAttribute('data-food-invalid')) return;
+    control.removeAttribute('data-food-invalid');
+    control.removeAttribute('aria-invalid');
+    const described = (control.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && id !== 'meal-error');
+    if (described.length) control.setAttribute('aria-describedby', described.join(' '));
+    else control.removeAttribute('aria-describedby');
+    const error = byId('meal-error');
+    if (error?.hasAttribute('data-food-validation')) {
+      error.removeAttribute('data-food-validation');
+      error.textContent = '';
+    }
+  }
+
+  function invalidFood(control, message) {
+    control.setAttribute('data-food-invalid', '');
+    control.setAttribute('aria-invalid', 'true');
+    const described = new Set((control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+    described.add('meal-error');
+    control.setAttribute('aria-describedby', [...described].join(' '));
+    const error = byId('meal-error');
+    if (error) { error.setAttribute('data-food-validation', ''); error.textContent = message; }
+    control.focus();
+    throw new Error(message);
+  }
+
+  function draftSignature() {
+    const rows = [...document.querySelectorAll('#food-items [data-food-row]')].map(row => ({
+      values: ['name', 'kcal', 'grams', 'density'].map(key => row.querySelector(`[data-food-${key}]`)?.value || ''),
+      photoDraft: row.hasAttribute('data-food-photo-draft'), textDraft: row.hasAttribute('data-food-text-draft'),
+      review: row.hasAttribute('data-food-review'), photo: row.dataset.foodPhotoFingerprint || ''
+    }));
+    const preview = byId('food-photo-preview');
+    const photos = [...document.querySelectorAll('#food-photo-preview-list [data-photo-index]')].map(item => ({
+      state: item.dataset.photoState || '', image: item.querySelector('img')?.getAttribute('src') || ''
+    }));
+    return JSON.stringify({ rows, photo: preview && !preview.hidden ? currentPhoto?.fingerprint || preview.getAttribute('src') || '' : '', photos });
+  }
+
   function read(options = {}) {
     const foods = [];
     const rows = document.querySelectorAll('#food-items [data-food-row]');
+    document.querySelectorAll('#food-items [data-food-invalid]').forEach(clearFoodValidation);
     for (const row of rows) {
-      const name = row.querySelector('[data-food-name]').value.trim();
+      const nameControl = row.querySelector('[data-food-name]');
+      const kcalControl = row.querySelector('[data-food-kcal]');
+      const name = nameControl.value.trim();
       const gramsRaw = row.querySelector('[data-food-grams]').value.trim();
-      const kcalRaw = row.querySelector('[data-food-kcal]').value.trim();
+      const kcalRaw = kcalControl.value.trim();
       const densityRaw = row.querySelector('[data-food-density]').value.trim();
-      if (row.hasAttribute('data-food-note-default') && !name && kcalRaw !== '') {
-        row.querySelector('[data-food-name]')?.focus();
-        throw new Error(copy('메뉴를 입력해 주세요.', 'Enter a menu name.'));
-      }
-      if (row.hasAttribute('data-food-review') && !name) throw new Error(copy('국·찌개 종류를 고르거나 해당 음식 칸을 삭제해 주세요.', 'Choose the soup or stew, or remove that row.'));
-      if (name && densityRaw && !gramsRaw && !kcalRaw) throw new Error(copy(`${name}의 총 칼로리를 입력해 주세요.`, `Enter the total calories for ${name}.`));
+      if (kcalControl.validity.badInput) invalidFood(kcalControl, copy('총 칼로리는 0~20,000 kcal 사이의 숫자로 입력해 주세요.', 'Enter total calories as a number from 0 to 20,000 kcal.'));
+      if (row.hasAttribute('data-food-review') && !name) invalidFood(nameControl, copy('메뉴에 국·찌개 이름을 입력하거나 해당 음식 칸을 삭제해 주세요.', 'Enter the soup or stew name in Menu, or remove that row.'));
       if (!name && !gramsRaw && !kcalRaw && !densityRaw) continue;
+      if (!name) invalidFood(nameControl, copy('메뉴를 입력해 주세요.', 'Enter a menu name.'));
+      if (name.length > 100) invalidFood(nameControl, copy('메뉴 이름은 100자 이내로 입력해 주세요.', 'Enter a menu name of 100 characters or fewer.'));
       const grams = finiteNumber(gramsRaw);
       const kcal = finiteNumber(kcalRaw);
       const density = finiteNumber(densityRaw);
-      if (!name || name.length > 100 || kcalRaw === '' || !Number.isFinite(kcal) || kcal < 0 || kcal > MAX_KCAL || (gramsRaw !== '' && (!Number.isFinite(grams) || grams <= 0 || grams > MAX_GRAMS)) || (densityRaw !== '' && (!Number.isFinite(density) || density < 0 || density > MAX_DENSITY))) {
-        throw new Error(copy('메뉴 이름과 0 이상 총 칼로리를 확인해 주세요.', 'Check each menu name and enter non-negative total calories.'));
+      if (kcalRaw === '') invalidFood(kcalControl, copy('총 칼로리를 입력해 주세요. 0~20,000 kcal까지 입력할 수 있어요.', 'Enter total calories, from 0 to 20,000 kcal.'));
+      if (!Number.isFinite(kcal) || kcal < 0 || kcal > MAX_KCAL) invalidFood(kcalControl, copy('총 칼로리는 0~20,000 kcal 사이의 숫자로 입력해 주세요.', 'Enter total calories as a number from 0 to 20,000 kcal.'));
+      if ((gramsRaw !== '' && (!Number.isFinite(grams) || grams <= 0 || grams > MAX_GRAMS)) || (densityRaw !== '' && (!Number.isFinite(density) || density < 0 || density > MAX_DENSITY))) {
+        invalidFood(nameControl, copy('음식의 양 정보가 올바르지 않아요. 메뉴를 다시 입력해 주세요.', 'The saved portion data is invalid. Re-enter the menu name.'));
       }
       const item = { name, kcal };
       if (gramsRaw !== '') item.grams = grams;
@@ -2035,7 +2083,7 @@
     root.addEventListener('pagehide', stopQrScan);
   }
 
-  root.MealFoods = { open, read, prepareSave, recentFoods, beginProviderDraft, commitProviderDraft, revertProviderDraft };
+  root.MealFoods = { open, read, prepareSave, draftSignature, hasPendingAnalysis: analysisPending, recentFoods, beginProviderDraft, commitProviderDraft, revertProviderDraft };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
   else initialize();
 }(window));

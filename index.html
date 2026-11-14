@@ -131,6 +131,17 @@
     <button type="button" class="primary-button" id="intake-add"><span data-icon="plus"></span><span data-i18n="intake.addMeal">새 식사 기록</span></button>
     <ul id="intake-day-meals" class="intake-day-meals" data-i18n-attr="aria-label=intake.todayMeals" aria-label="오늘 식사 목록"></ul>
   </dialog>
+  <dialog id="discard-meal-dialog" aria-labelledby="discard-meal-title">
+    <div class="dialog-heading"><h2 id="discard-meal-title" data-i18n="meal.discardTitle">입력한 내용을 닫을까요?</h2></div>
+    <p class="dialog-description" data-i18n="meal.discardText">아직 저장하지 않은 음식과 칼로리는 사라져요.</p>
+    <div class="dialog-actions"><button type="button" class="primary-button" data-close="discard-meal-dialog" data-i18n="meal.keepEditing" autofocus>계속 입력</button><button type="button" class="outline-button" id="discard-meal" data-i18n="meal.discard">저장하지 않고 닫기</button></div>
+  </dialog>
+  <dialog id="reset-dialog" aria-labelledby="reset-title">
+    <div class="dialog-heading"><h2 id="reset-title" data-i18n="timer.resetTitle">타이머를 리셋할까요?</h2></div>
+    <p class="dialog-description" data-i18n="timer.resetText">현재 타이머가 0으로 바뀌어요. 식사 기록과 통계는 유지돼요.</p>
+    <p id="reset-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="outline-button" data-close="reset-dialog" data-i18n="dialog.cancel" autofocus>취소</button><button type="button" class="primary-button" id="confirm-reset" data-i18n="timer.reset">리셋</button></div>
+  </dialog>
   <dialog id="meal-dialog" aria-labelledby="meal-dialog-title"><form id="meal-form" novalidate>
     <div class="dialog-heading"><h2 id="meal-dialog-title" data-i18n="meal.dialogNew">식사 기록하기</h2><button type="button" class="icon-button" data-close="meal-dialog" aria-label="닫기" data-i18n-attr="aria-label=dialog.close">✕</button></div>
     <div class="meal-form-body">
@@ -317,6 +328,12 @@
           <button type="button" class="settings-link" data-open-activity>
             <span class="settings-row-copy"><strong data-i18n="activity.open">활동·건강 데이터</strong><small data-i18n="settings.group.healthHint">운동 기록, 건강 데이터 가져오기, 칼로리 계산 기준</small></span>
           </button>
+
+        </div>
+      </details>
+      <button type="button" class="settings-link" id="settings-food-ai-open" aria-controls="settings-food-ai" aria-expanded="false" hidden>
+        <span class="settings-row-copy"><strong data-i18n="settings.aiFood">AI 음식 분석</strong><small data-i18n="settings.aiFoodHint">분석 모델, 연결 코드와 자동 계산</small></span>
+      </button>
           <section id="settings-food-ai" class="settings-subsection" aria-labelledby="settings-food-ai-title" hidden>
             <h3 id="settings-food-ai-title" class="settings-subheading" tabindex="-1" data-i18n="intake.aiSettings">AI 연결 설정</h3>
             <p class="field-help" data-i18n="intake.aiSettingsHelp">음식 글과 사진의 칼로리를 자동으로 계산해요. 결과를 확인한 뒤 기록하세요.</p>
@@ -356,11 +373,6 @@
         </div>
             </div>
           </section>
-        </div>
-      </details>
-      <button type="button" class="settings-link" id="settings-food-ai-open" aria-controls="settings-food-ai" aria-expanded="false" hidden>
-        <span class="settings-row-copy"><strong data-i18n="settings.aiFood">AI 음식 분석</strong><small data-i18n="settings.aiFoodHint">분석 모델, 연결 코드와 자동 계산</small></span>
-      </button>
       <details class="settings-group" id="settings-display">
         <summary>
           <span class="settings-row-copy"><strong data-i18n="settings.group.look">화면·언어</strong><small data-i18n="settings.group.lookHint">밝기·색상·언어·시간대</small></span>

@@ -46,6 +46,56 @@
     });
   }
 
+  const RECOVERY_LIMIT = 3;
+  function recoverySnapshots(base) {
+    const prefix = base + ':recovery:', entries = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (typeof key !== 'string' || !key.startsWith(prefix)) continue;
+      const match = /^(\d{13,16}):/.exec(key.slice(prefix.length));
+      const stamp = match ? Number(match[1]) : 0;
+      entries.push({ key, stamp: Number.isSafeInteger(stamp) ? stamp : 0 });
+    }
+    return entries.sort((a, b) => b.stamp - a.stamp || b.key.localeCompare(a.key));
+  }
+
+  function archiveRecovery(base, raw) {
+    const entries = recoverySnapshots(base);
+    // A failed restore may already have preserved these exact bytes. Reuse
+    // that copy so retries neither consume quota nor displace distinct data.
+    for (const entry of entries) {
+      if (localStorage.getItem(entry.key) === raw) return entry.key;
+    }
+    // Persist ordering in the key: localStorage enumeration order is not a
+    // chronology, and a restarted app/device clock can move backwards.
+    const latest = entries[0];
+    const stamp = Math.max(Date.now(), latest ? latest.stamp + 1 : 0);
+    const key = base + ':recovery:' + stamp + ':' + newId();
+    // If quota is exhausted, throw before changing the original or deleting
+    // any earlier recovery copy. Raw bytes remain available for export.
+    localStorage.setItem(key, raw);
+    return key;
+  }
+
+  function pruneRecovery(base, savedKey) {
+    // Call only after the new snapshot AND the replacement/removal succeeded.
+    // Legacy UUID-only copies predate these dated copies; their relative age
+    // is unknown, so only the new timestamped copies have chronological order.
+    try {
+      const savedRaw = localStorage.getItem(savedKey);
+      if (savedRaw === null) return;
+      const entries = recoverySnapshots(base), keep = new Set([savedKey]), distinct = new Set([savedRaw]);
+      for (const entry of entries) {
+        if (keep.has(entry.key)) continue;
+        const raw = localStorage.getItem(entry.key);
+        if (raw !== null && !distinct.has(raw) && keep.size < RECOVERY_LIMIT) {
+          keep.add(entry.key); distinct.add(raw);
+        }
+      }
+      for (const entry of entries) if (!keep.has(entry.key)) localStorage.removeItem(entry.key);
+    } catch (_) { /* failed cleanup must not invalidate a completed recovery */ }
+  }
+
   function loadPrefs(raw) {
     const prefs = { tray: false, autoStart: false, firstRunDone: false, backupReminder: false, profileConfirmed: false, backupReminderStartedAt: null, language: 'auto', timeZone: 'auto', colorTheme: 'sage', timerGradient: 'p05', ...Core.DEFAULT_PROFILE, activitySamples: [], activitySource: '', energyMode: 'estimate', timerAnchorId: null, timerMealId: null, timerPausedAt: null, timerPausedMs: 0, timerReset: false };
     if (raw) {
@@ -222,7 +272,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.38 (PWA-120)', build: 'PWA-120' },
+      app: { version: '1.0.39 (PWA-121)', build: 'PWA-121' },
       lastBackupAt: lastBackupAt(),
       activityRecoveryNeeded: activityUnreadable,
       settingsRecoveryNeeded: prefsUnreadable,
@@ -291,8 +341,8 @@
     const validated = Core.parseBackup(JSON.stringify(next));
     const prefsBytes = JSON.stringify(nextPrefs);
     const stateBytes = serializeStoredState(validated);
-    if (recover && prefsUnreadable) localStorage.setItem(PREFS_KEY + ':recovery:' + newId(), oldPrefs);
-    if (recover && stateUnreadable) localStorage.setItem(STATE_KEY + ':recovery:' + newId(), oldState);
+    const prefsRecovery = recover && prefsUnreadable ? archiveRecovery(PREFS_KEY, oldPrefs) : null;
+    const stateRecovery = recover && stateUnreadable ? archiveRecovery(STATE_KEY, oldState) : null;
     const journal = { version: 2, phase: 'prepared', prefs: oldPrefs, state: oldState, nextPrefs: prefsBytes, nextState: stateBytes };
     // If there is not enough space for the journal, fail before changing data.
     localStorage.setItem(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
@@ -307,6 +357,8 @@
       throw error;
     }
     try { localStorage.removeItem(RESTORE_JOURNAL_KEY); } catch (_) { /* committed journal is safe to clean later */ }
+    if (prefsRecovery) pruneRecovery(PREFS_KEY, prefsRecovery);
+    if (stateRecovery) pruneRecovery(STATE_KEY, stateRecovery);
     storedPrefs = prefsBytes; storedState = stateBytes;
     Object.assign(prefs, nextPrefs); state = validated;
     prefsUnreadable = false; activityUnreadable = false; stateUnreadable = false;
@@ -683,8 +735,9 @@
             pendingImport = null;
             return result;
           }
-          if (recovery) localStorage.setItem(STATE_KEY + ':recovery:' + newId(), storedState);
+          const recoveryKey = recovery ? archiveRecovery(STATE_KEY, storedState) : null;
           const result = persist(merged, !recovery, recovery ? resetTimerControl() : null, recovery);
+          if (recoveryKey) pruneRecovery(STATE_KEY, recoveryKey);
           pendingImport = null;
           return result;
         }
@@ -900,8 +953,9 @@
           if (journalRaw === null) throw new Error(STORAGE_UNAVAILABLE);
           // The explicit choice keeps both current data entries unchanged and
           // archives the original journal before removing the write barrier.
-          localStorage.setItem(RESTORE_JOURNAL_KEY + ':recovery:' + newId(), journalRaw);
+          const recoveryKey = archiveRecovery(RESTORE_JOURNAL_KEY, journalRaw);
           localStorage.removeItem(RESTORE_JOURNAL_KEY);
+          pruneRecovery(RESTORE_JOURNAL_KEY, recoveryKey);
           restoreRecoveryNeeded = false;
           storedPrefs = undefined; storedState = undefined;
           refreshStorage(); broadcast();

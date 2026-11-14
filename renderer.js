@@ -89,6 +89,10 @@ let mealAutoType = false;
 let mealDateDay = '';
 let mealLastKey = '';
 let mealExactPreset = null;
+let mealBaseline = null;
+let mealOpener = null;
+let mealReturnIndex = 0;
+let helpOpener = null;
 let toastTimeout;
 let historyLimit = 60;
 let ready = false;
@@ -134,21 +138,34 @@ function translateDom() {
 }
 function placeToast(page = document.body.dataset.page || 'timer') {
   const element = $('toast');
-  if (page === 'insights') {
-    const insights = $('page-insights');
-    const heading = insights.querySelector('.page-heading');
-    if (heading && element.parentElement !== insights) heading.after(element);
-  } else if (element.parentElement !== document.body) {
-    document.body.append(element);
+  const mini = document.body.classList.contains('mini');
+  const parent = mini ? document.querySelector('.mini-content') : page === 'timer' ? document.querySelector('#page-timer .meal-panel') : $(`page-${page}`);
+  if (parent && element.parentElement !== parent) {
+    if (mini) parent.querySelector(':scope > small').before(element);
+    else parent.querySelector('.page-heading, .panel-header').after(element);
   }
+  document.body.classList.toggle('has-toast', !element.hidden);
+  fitMiniToast();
 }
-function toast(message, undo = false) { placeToast(); $('toast-message').textContent = message; $('undo-button').hidden = !undo; $('toast').hidden = false; clearTimeout(toastTimeout); toastTimeout = setTimeout(() => { $('toast').hidden = true; }, undo ? 15000 : 5000); }
+let miniToastFrame = 0;
+function fitMiniToast() {
+  cancelAnimationFrame(miniToastFrame);
+  if (!document.body.classList.contains('mini') || document.body.classList.contains('is-pwa')) return;
+  miniToastFrame = requestAnimationFrame(() => {
+    const panel = document.querySelector('.mini-content');
+    const height = $('toast').hidden ? 0 : Math.ceil(panel.getBoundingClientRect().bottom + parseFloat(getComputedStyle(document.body).paddingBottom || 0));
+    window.desktop.action({ type: 'mini-content-height', height }).catch(() => {});
+  });
+}
+function hideToast() { $('toast').hidden = true; document.body.classList.remove('has-toast'); fitMiniToast(); }
+function toast(message, undo = false) { $('toast-message').textContent = message; $('undo-button').hidden = !undo; $('toast').hidden = false; placeToast(); clearTimeout(toastTimeout); toastTimeout = setTimeout(hideToast, undo ? 15000 : 5000); }
 function showWarning(message) { $('warning').textContent = message || ''; $('warning').hidden = !message; }
 function applyWindowInfo(info) {
   if(!info)return;
   windowInfo=info;
   document.body.classList.toggle('has-window-chrome',!!info.overlay);
   document.body.classList.toggle('mini',!!info.mini);
+  placeToast();
   const button=$('pin-window');
   button.disabled=!ready||pinBusy||info.mini;
   button.setAttribute('aria-pressed',String(!!info.alwaysOnTop));
@@ -238,9 +255,9 @@ async function action(payload, message, undo = true) {
     if (message) toast(message, undo && result.canUndo);
     return result;
   } catch (error) {
-    lastActionError = error.message;
+    lastActionError = L.err(error);
     $('save-status').textContent = t('footer.notSaved');
-    toast(error.message, false);
+    toast(lastActionError, false);
     return null;
   } finally {
     busy = false;
@@ -264,6 +281,7 @@ async function openMealForType(meal) {
   $('meal-auto-hint').hidden = true;
   $('meal-when').open = false;
   updateMealWhenSummary();
+  mealBaseline = mealDraftSignature();
   return true;
 }
 async function drainPendingMealEntry() {
@@ -1010,6 +1028,8 @@ function updateMealWhenSummary() {
   $(id).addEventListener('change', updateMealWhenSummary);
 });
 function openMeal(id = null, showFoods = false, startTimer = false) {
+  mealOpener = document.activeElement;
+  mealReturnIndex = Math.max(0, [...document.querySelectorAll('#history-list [data-edit]')].indexOf(mealOpener));
   editingId = id;
   mealStartsTimer = !id && startTimer;
   mealUseSaveTime = false;
@@ -1031,17 +1051,28 @@ function openMeal(id = null, showFoods = false, startTimer = false) {
   // Existing meal foods are presented through the compact summary first.
   // The detailed manual editor opens only from its explicit edit control.
   window.MealFoods.open(event?.foods, false, state.events);
+  mealBaseline = mealDraftSignature();
   $('meal-dialog').showModal();
   const scroller = $('meal-dialog').querySelector('.meal-form-body');
   if (scroller) scroller.scrollTop = 0;
 }
-function showFoodAiSettings() {
-  $('settings-profile').open = true;
+function mealDraftSignature() {
+  return JSON.stringify({ type: $('meal-type').value, when: mealUseSaveTime ? 'save-time' : mealLocalValue(),
+    note: $('meal-note').value, foods: window.MealFoods.draftSignature?.() || '' });
+}
+function requestMealClose() {
+  if (busy) return;
+  if (mealBaseline !== mealDraftSignature() || window.MealFoods.hasPendingAnalysis?.()) {
+    if (!$('discard-meal-dialog').open) $('discard-meal-dialog').showModal();
+  } else $('meal-dialog').close();
+}
+function showFoodAiSettings(expanded = true) {
   const trigger = $('settings-food-ai-open');
-  if (trigger) trigger.setAttribute('aria-expanded', 'true');
   const section = $('settings-food-ai');
+  if (trigger) trigger.setAttribute('aria-expanded', String(expanded));
   if (section) {
-    section.hidden = false;
+    section.hidden = !expanded;
+    if (!expanded) return;
     section.scrollIntoView({ block: 'nearest' });
     requestAnimationFrame(() => $('settings-food-ai-title')?.focus({ preventScroll: true }));
   }
@@ -1127,6 +1158,7 @@ function openSettings(profileOnly = false) {
   title.textContent = t(title.dataset.i18n);
   dialog.classList.toggle('settings-profile-only', profileOnly);
   $('settings-food-ai-open')?.setAttribute('aria-expanded', 'false');
+  $('settings-food-ai').hidden = true;
   dialog.querySelectorAll('.settings-group').forEach(group => {
     group.open = profileOnly && group.id === 'settings-profile';
   });
@@ -1221,6 +1253,7 @@ document.addEventListener('click', event => {
   }
   else if(button.hasAttribute('data-add'))openMeal();
   else if(button.dataset.close) {
+    if (button.dataset.close === 'meal-dialog') { requestMealClose(); return; }
     if (button.dataset.close === 'goal-dialog' && goalSaving) return;
     if (button.dataset.close === 'settings-dialog') discardTimerGradientPreview();
     $(button.dataset.close).close();
@@ -1265,7 +1298,23 @@ $('meal-last-time').addEventListener('click', () => {
   $('meal-error').textContent = ''; clearMealFieldErrors();
 });
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
-$('timer-reset').addEventListener('click',()=>action({type:'timer-reset'},t('toast.reset')));
+$('timer-reset').addEventListener('click', () => { if (!busy && !$('timer-reset').disabled) $('reset-dialog').showModal(); });
+$('confirm-reset').addEventListener('click', async () => {
+  const button = $('confirm-reset');
+  if (button.disabled) return;
+  button.disabled = true;
+  $('reset-error').textContent = '';
+  try {
+    if (await action({ type: 'timer-reset' }, t('toast.reset'))) $('reset-dialog').close();
+    else $('reset-error').textContent = lastActionError;
+  } finally { button.disabled = false; }
+});
+$('reset-dialog').addEventListener('close', () => $('timer-goal').focus({ preventScroll: true }));
+$('meal-dialog').addEventListener('cancel', event => { event.preventDefault(); requestMealClose(); });
+$('discard-meal').addEventListener('click', () => {
+  $('discard-meal-dialog').close();
+  $('meal-dialog').close();
+});
 $('goal-enabled').addEventListener('change', () => {
   goalDirty.enabled = true;
   if ($('goal-enabled').checked) goalDirty.hours = true;
@@ -1382,16 +1431,23 @@ $('meal-dialog').addEventListener('close', () => {
   mealUseSaveTime = false;
   mealStartsTimer = false;
   returnToMealAfterSettings = false;
-  if (!$('intake-dialog')?.open) return;
   const edited = editingId;
-  renderIntake();
-  const item = [...$('intake-day-meals').querySelectorAll('[data-intake-edit]')].find(button => button.dataset.intakeEdit === edited);
-  (item || $('intake-add')).focus({ preventScroll: true });
+  if ($('intake-dialog')?.open) {
+    renderIntake();
+    const item = [...$('intake-day-meals').querySelectorAll('[data-intake-edit]')].find(button => button.dataset.intakeEdit === edited);
+    (item || $('intake-add')).focus({ preventScroll: true });
+  } else if (document.body.dataset.page === 'history') {
+    const items = [...document.querySelectorAll('#history-list [data-edit]')];
+    const item = items.find(button => button.dataset.edit === edited);
+    (item || (edited && items[Math.min(mealReturnIndex, items.length - 1)]) || $('add-history')).focus({ preventScroll: true });
+  } else if (mealOpener?.isConnected && mealOpener !== document.body) mealOpener.focus({ preventScroll: true });
+  mealOpener = null;
+  mealBaseline = null;
 });
 
 
 $('settings-button').addEventListener('click', () => openSettings());
-$('settings-food-ai-open').addEventListener('click', showFoodAiSettings);
+$('settings-food-ai-open').addEventListener('click', () => showFoodAiSettings($('settings-food-ai-open').getAttribute('aria-expanded') !== 'true'));
 $('restore-recovery-shortcut').addEventListener('click', () => { openSettings(); $('settings-backup').open = true; $('restore-recovery').scrollIntoView({ block: 'nearest' }); });
 $('energy-profile').addEventListener('click', () => openSettings(true));
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
@@ -1439,7 +1495,8 @@ $('pin-window').addEventListener('click',async()=>{
 });
 document.querySelectorAll('[data-window-menu]').forEach(button=>button.addEventListener('click',()=>{const r=button.getBoundingClientRect();action({type:'window-menu',name:button.dataset.windowMenu,x:r.left,y:r.bottom},null,false);}));
 $('undo-button').addEventListener('click',()=>action({type:'undo'},t('toast.undone'),false));
-$('toast-close').addEventListener('click',()=>{$('toast').hidden=true;});
+$('toast-close').addEventListener('click', hideToast);
+window.addEventListener('resize', fitMiniToast);
 $('load-more').addEventListener('click',()=>{historyLimit+=60;renderHistory();});
 ['history-search', 'history-type-filter', 'history-date-filter'].forEach(id => ['input','change'].forEach(name => $(id).addEventListener(name, () => { historyLimit = 60; renderHistory(); })));
 $('export-history').addEventListener('click', () => exportData());
@@ -1712,16 +1769,24 @@ $('settings-form').addEventListener('submit', async event => {
     dialog.close();
     toast(t('toast.settingsSaved'), canUndo);
   } catch (cause) {
-    error.textContent = cause.message || t('settings.saveFailed');
+    error.textContent = L.err(cause) || t('settings.saveFailed');
   } finally {
     submit.disabled = false;
   }
 });
 function openHelp(scrollToShortcuts) {
   $('about-version').textContent = appInfo.version ? t('help.version', { version: appInfo.version }) : '';
-  if (!$('help-dialog').open) $('help-dialog').showModal();
+  if (!$('help-dialog').open) { helpOpener = document.activeElement; $('help-dialog').showModal(); }
   if (scrollToShortcuts) $('shortcuts-title').scrollIntoView({block:'start'});
 }
+$('help-dialog').addEventListener('close', () => {
+  if ($('help-dialog').open) return;
+  const usable = helpOpener?.isConnected && ![document.body, document.documentElement].includes(helpOpener) && !helpOpener.disabled && helpOpener.getClientRects().length &&
+    !helpOpener.closest('[hidden], [inert]') && (!helpOpener.closest('dialog') || helpOpener.closest('dialog').open);
+  const target = usable ? helpOpener : document.querySelector('dialog[open] .icon-button') || document.querySelector('.nav-item.active');
+  target?.focus({ preventScroll: true });
+  helpOpener = null;
+});
 $('settings-help')?.addEventListener('click', () => openHelp(false));
 const MEAL_KEYS = { '1': 'breakfast', '2': 'lunch', '3': 'dinner', '4': 'snack' };
 document.querySelectorAll('[data-meal]').forEach(button => { const key = Object.keys(MEAL_KEYS).find(k => MEAL_KEYS[k] === button.dataset.meal); button.setAttribute('aria-keyshortcuts', `Control+${key}`); button.title = t('meal.hint', { meal: mealName(button.dataset.meal), key }); });
@@ -1742,7 +1807,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){tick();re
 document.querySelectorAll('[data-meal]').forEach(button=>{button.disabled=true;});
 if(window.desktop){
   window.desktop.onState(snapshot=>{if(snapshot.state)applySnapshot(snapshot);if(snapshot.warning)showWarning(snapshot.warning);});
-  window.desktop.onMode(mini=>{document.body.classList.toggle('mini',mini);});
+  window.desktop.onMode(mini=>{document.body.classList.toggle('mini',mini);placeToast();});
   window.desktop.onCommand(name=>{
     if (name?.type === 'meal-entry' && C.TYPES.includes(name.meal)) {
       pendingMealEntries.push(name.meal);

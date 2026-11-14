@@ -240,6 +240,13 @@
     'csv.header': ['식사 ID', '식사 종류', '시각 (ISO 8601)', '메모']
   };
 
+  Object.assign(ko, {
+    'meal.discardTitle': '입력한 내용을 닫을까요?', 'meal.discardText': '아직 저장하지 않은 음식과 칼로리는 사라져요.',
+    'meal.keepEditing': '계속 입력', 'meal.discard': '저장하지 않고 닫기',
+    'timer.resetTitle': '타이머를 리셋할까요?', 'timer.resetText': '현재 타이머가 0으로 바뀌어요. 식사 기록과 통계는 유지돼요.',
+    'error.storageFull': '저장 공간이 부족해 저장하지 못했어요. 입력 내용은 그대로예요. 기록을 백업한 뒤 기기 공간을 확보해 주세요.',
+    'error.storageAccess': '저장 공간에 접근하지 못했어요. 입력 내용은 그대로예요. 저장 권한과 기기의 여유 공간을 확인해 주세요.'
+  });
   const en = {
     'app.title': 'Fasting Timer', 'app.name': 'Fasting',
     'chrome.aria': 'Window and app menu', 'menu.aria': 'App menu',
@@ -473,6 +480,13 @@
     'csv.header': ['Meal ID', 'Meal type', 'Time (ISO 8601)', 'Note']
   };
 
+  Object.assign(en, {
+    'meal.discardTitle': 'Close without saving?', 'meal.discardText': 'Your unsaved food and calorie entries will be lost.',
+    'meal.keepEditing': 'Keep editing', 'meal.discard': 'Discard and close',
+    'timer.resetTitle': 'Reset the timer?', 'timer.resetText': 'The timer will return to zero. Meal records and statistics will stay unchanged.',
+    'error.storageFull': 'Not enough space to save. Your entries are still here. Back up your records, then free up device storage.',
+    'error.storageAccess': 'Storage is unavailable. Your entries are still here. Check storage permissions and free space on your device.'
+  });
   // Errors are thrown with Korean source text (core/csv/store/main); the UI shows them through err().
   // Simple meal entry shares the same Korean and English interaction states.
   Object.assign(ko, {
@@ -534,6 +548,32 @@
   });
 
   const errEn = {
+    '활동 기록 형식이 올바르지 않습니다.': 'The activity record format is invalid.',
+    '활동 기록 ID가 올바르지 않습니다.': 'The activity record ID is invalid.',
+    '활동 기록 시간 범위가 올바르지 않습니다.': 'The activity time range is invalid.',
+    '활동 칼로리는 0~100000 사이여야 합니다.': 'Activity calories must be between 0 and 100,000.',
+    '걸음 수가 올바르지 않습니다.': 'The step count is invalid.',
+    '활동 기록 개수는 50000개 이하여야 합니다.': 'Use no more than 50,000 activity records.',
+    '같은 출처의 활동 기록 ID가 중복되었습니다.': 'This source contains duplicate activity record IDs.',
+    '기존 활동 기록 개수는 50000개 이하여야 합니다.': 'Existing activity records cannot exceed 50,000.',
+    '새 활동 기록 개수는 50000개 이하여야 합니다.': 'New activity records cannot exceed 50,000.',
+    '병합 후 활동 기록 개수는 50000개 이하여야 합니다.': 'Combined activity records cannot exceed 50,000.',
+    '단축어 활동 시각은 시간대가 있는 ISO 8601 문자열이어야 합니다.': 'Shortcut activity times must include a time zone in ISO 8601 format.',
+    '단축어 활동 시각이 올바르지 않습니다.': 'The shortcut activity time is invalid.',
+    '단축어 활동 시각의 시간대가 올바르지 않습니다.': 'The shortcut activity time zone is invalid.',
+    '단축어 활동 에너지 값이 올바르지 않습니다.': 'The shortcut active-energy value is invalid.',
+    '지원하지 않는 활동 에너지 단위입니다.': 'This activity energy unit is not supported.',
+    '미래 시각의 활동 기록은 가져올 수 없습니다.': 'Activity records from a future time cannot be imported.',
+    '활동 가져오기 텍스트는 20MB 이하여야 합니다.': 'Activity import text must be 20 MB or smaller.',
+    '활동 가져오기 JSON 형식이 올바르지 않습니다.': 'Activity import JSON is invalid.',
+    '지원하지 않는 활동 가져오기 형식입니다.': 'This activity import format is not supported.',
+    '단축어 활동 기록 형식이 올바르지 않습니다.': 'The shortcut activity record format is invalid.',
+    '단축어에서는 활성 에너지 기록만 가져올 수 있습니다.': 'Only active-energy records can be imported from Shortcuts.',
+    '단축어 활동 기록 출처가 올바르지 않습니다.': 'The shortcut activity source is invalid.',
+    '단축어 활동 기록 ID가 올바르지 않습니다.': 'The shortcut activity record ID is invalid.',
+    '계산 시간 범위가 올바르지 않습니다.': 'The calculation time range is invalid.',
+    '계산할 활동 기록 출처를 하나 선택해야 합니다.': 'Select one activity source for the calculation.',
+    '경과 시간은 0 이상의 유한한 값이어야 합니다.': 'Elapsed time must be a finite number of zero or greater.',
     'CSV는 합치기만 할 수 있어요. 전체 복원은 JSON 백업을 선택해 주세요.': 'CSV can only be merged. Choose a JSON backup for a full restore.',
     '저장 파일의 절대 경로가 필요합니다.': 'An absolute path is required for the storage file.',
     '기록 파일을 열 수 없어요. 다른 프로그램이 사용 중인지 확인한 뒤 다시 실행해 주세요. 기록은 그대로 보존되어 있어요.': "Couldn't open the records file. Check whether another program is using it, then restart. Your records are untouched.",
@@ -675,6 +715,8 @@
     // Translates the Korean source text of a thrown error or warning; unknown text passes through.
     function err(error) {
       const message = typeof error === 'string' ? error : (error && error.message) || String(error);
+      if (error?.name === 'QuotaExceededError' || error?.code === 'ENOSPC' || /QuotaExceeded|exceeded.*quota|quota.*exceeded|ENOSPC|disk.*full/i.test(message)) return t('error.storageFull');
+      if (['EACCES', 'EPERM'].includes(error?.code) || /(?:EACCES|EPERM):/.test(message)) return t('error.storageAccess');
       if (lang !== 'en') return message;
       if (error && typeof error === 'object' && error.row) return `Row ${error.row}: ${errEn[error.detail] || error.detail}`;
       if (errEn[message]) return errEn[message];
