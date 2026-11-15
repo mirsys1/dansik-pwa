@@ -40,6 +40,8 @@
   let foodRevision = 0;
   let noteRevision = 0;
   let skipNextNoteAnalysisRevision = null;
+  let mealCloseRevision = 0;
+  let mealClosing = false;
   let manualNamesVisible = true;
 
   const byId = (id) => document.getElementById(id);
@@ -63,6 +65,15 @@
 
   function canonicalFoodName(value) {
     return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function textAnalysisBlocked() {
+    return mealClosing || !byId('meal-dialog')?.open || Boolean(byId('discard-meal-dialog')?.open);
+  }
+
+  function markMealClosing() {
+    mealCloseRevision += 1;
+    mealClosing = true;
   }
 
   function sameVisibleFood(row, food) {
@@ -570,7 +581,7 @@
     const density = input('hidden', '', data.kcalPer100g, '');
     density.dataset.foodDensity = 'true';
 
-    const originalName = canonicalFoodName(data.name);
+    let originalName = canonicalFoodName(data.name);
 
     kcal.addEventListener('input', () => {
       clearFoodValidation(kcal);
@@ -644,10 +655,13 @@
         const chosen = data.choices.find((item) => item.name === select.value);
         if (!chosen) return;
         delete row.dataset.foodPhotoDraft;
+        delete row.dataset.foodTextDraft;
         name.value = chosen.name;
+        originalName = canonicalFoodName(chosen.name);
         density.value = String(chosen.kcalPer100g);
         kcal.value = '';
         computeKcal(row);
+        reviseFoods();
       });
       row.insertBefore(field(copy('국·찌개 종류 확인', 'Confirm soup or stew'), select), fields);
     }
@@ -764,6 +778,12 @@
   }
 
   function updateTextActions() {
+    // A desktop file: window has no supported analysis transport. Keep its
+    // note and manual fields usable without advertising unavailable AI tools.
+    const tools = byId('meal-ai-tools');
+    if (tools) tools.hidden = !endpoint;
+    const marker = byId('meal-ai-marker');
+    if (marker) marker.hidden = !endpoint;
     const calculate = byId('food-text-calculate');
     const auto = byId('food-text-auto');
     // Connection controls and transfer information live in top-level Settings.
@@ -1101,12 +1121,14 @@
       const choices = item.choices.slice(0, 60).filter((choice) => typeof choice?.name === 'string' && choice.name.length <= 100 &&
         Number.isFinite(choice.kcalPer100g) && choice.kcalPer100g > 0 && choice.kcalPer100g <= MAX_DENSITY);
       const grams = Number.isFinite(item.grams) && item.grams > 0 && item.grams <= MAX_GRAMS ? item.grams : null;
-      return choices.length ? [{ grams, choices, photoDraft: true }] : [];
+      return choices.length ? [{ grams, choices, photoDraft: !fromText, textDraft: fromText }] : [];
     });
-    const unmatchedNames = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, 3)
-      .map((item) => typeof item?.name === 'string' ? item.name.trim().slice(0, 60) : '').filter(Boolean);
-    const unmatched = unmatchedNames.join(', ');
-    items.push(...needsReview);
+    const unmatchedNames = result.unmatched.filter((item) => !item?.choices?.length && !needsAmount(item)).slice(0, MAX_FOODS)
+      .map((item) => typeof item?.name === 'string' ? item.name.trim().slice(0, 100) : '').filter(Boolean);
+    const unmatched = unmatchedNames.slice(0, 3).join(', ');
+    // Keep recognized names even when AI cannot safely price them. All entry
+    // paths create the same editable, unpriced drafts exactly once.
+    items.push(...needsReview, ...unmatchedNames.map(name => ({ name, kcal: null, photoDraft: !fromText, textDraft: fromText })));
     if (items.length) {
       // AI sources must never erase each other. Text refreshes only replace
       // an earlier text suggestion; photos always append so prior photos and
@@ -1129,11 +1151,12 @@
       status(unmatched
         ? copy(`칼로리를 계산하지 못했어요. 직접 입력: ${unmatched}`, `No calorie match. Enter manually: ${unmatched}`)
         : copy('자동으로 채울 음식이 없어요. 음식과 칼로리를 직접 입력해 주세요.', 'No food was filled. You can enter food and calories manually.'), 'error');
-      return { inserted: 0, unresolved: result.unmatched.length, needsManual: 0, overflow: false, unmatchedNames };
+      return { inserted: 0, unresolved: result.unmatched.length, needsManual: 0, overflow: items.length > room, unmatchedNames };
     }
     updateTotal();
     revealFoodEntry();
-    const message = fromText
+    const message = inserted.every(item => item.kcal === null || item.kcal === undefined)
+      ? copy('음식 이름을 찾았어요. 총 칼로리를 직접 입력한 뒤 저장해 주세요.', 'Food names are ready. Enter total calories, then save the meal.') : fromText
       ? copy('음식과 칼로리를 찾았어요. 결과를 확인한 뒤 저장을 눌러 주세요.', 'Food and calories are ready. Review the result, then save the meal.')
       : copy('사진에서 음식을 찾았어요. 결과를 확인한 뒤 저장을 눌러 주세요.', 'Food was found in the photo. Review the result, then save the meal.');
     const amount = inserted.some((item) => item.grams === null && Number.isFinite(item.kcalPer100g))
@@ -1202,6 +1225,7 @@
   async function analyze(kind, input, options = {}) {
     const provider = aiProvider;
     const fromText = kind === 'text';
+    if (fromText && textAnalysisBlocked()) return;
     const status = (message, state = 'ready') => analysisStatus(kind, message, state);
     if (fromText && (analysisRequest?.kind === 'photo' || photoReadGeneration !== null || photoBatch || photoSelectionPending)) {
       status(copy('사진 분석이 끝난 뒤 음식 메모 분석을 실행할 수 있어요. 직접 입력한 내용은 그대로 남아 있어요.', 'Text analysis can run after photo analysis finishes. Your manual entries are kept.'));
@@ -1269,6 +1293,7 @@
   }
 
   function analyzeNote() {
+    if (textAnalysisBlocked()) return;
     if (analysisRequest?.kind === 'photo' || photoReadGeneration !== null || photoBatch || photoSelectionPending) return;
     if (providerDraftActive || !noteEdited || !providerReady() || !byId('food-text-auto')?.checked) return;
     const note = byId('meal-note').value.trim();
@@ -1478,8 +1503,8 @@
       hashUnavailable: batch.hashUnavailable,
       unmatchedNames: batch.unmatchedNames.slice(),
       cancelled: batch.cancelled, blocked: batch.blocked,
-      complete: !batch.cancelled && !batch.blocked && !batch.duplicates && !batch.hashUnavailable && !batch.limited &&
-        batch.files.length >= 2 && batch.analyzed === batch.files.length && batch.succeeded === batch.files.length &&
+      complete: !batch.cancelled && !batch.blocked && !batch.hashUnavailable && !batch.limited &&
+        batch.files.length > 0 && batch.analyzed === batch.files.length && batch.succeeded === batch.files.length &&
         batch.failed === 0 && batch.unresolved === 0 && batch.inserted > 0
     };
   }
@@ -1490,7 +1515,7 @@
     setPhotoBatchProgress(photoSelectionPending, photoSelectionPending?.message || '');
     updateAnalysisActions();
     const summary = photoBatchSummary(batch);
-    const partial = summary.failed || summary.unresolved || summary.duplicates || summary.hashUnavailable || summary.limited || summary.blocked;
+    const partial = summary.failed || summary.unresolved || summary.hashUnavailable || summary.limited || summary.blocked;
     const unprocessed = Math.max(0, summary.total - summary.analyzed);
     const duplicateNotice = summary.duplicates
       ? copy(` 같은 사진 ${summary.duplicates}장은 제외했어요.`, ` ${summary.duplicates} identical photo(s) were excluded.`) : '';
@@ -1507,7 +1532,7 @@
       const reason = batch.blockedMessage ? ` ${batch.blockedMessage}` : '';
       setStatus(copy(`사진 ${summary.analyzed}/${summary.total}장을 분석해 ${summary.succeeded}장을 반영했어요. 실패·미분석·확인 필요 사진을 확인한 뒤 저장을 눌러 주세요.`, `Analyzed ${summary.analyzed}/${summary.total} photos and added ${summary.succeeded}. Review failed, unprocessed, or incomplete photos, then save the meal.`) + reason + duplicateNotice + hashNotice + unmatchedNotice + amountNotice + dishNotice, 'error');
     } else {
-      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + amountNotice + dishNotice);
+      setStatus(copy(`${summary.succeeded}장 사진의 음식과 총 칼로리를 반영했어요. 결과를 확인한 뒤 저장을 눌러 주세요.`, `Food and total calories from ${summary.succeeded} photos are ready. Review the result, then save the meal.`) + duplicateNotice + amountNotice + dishNotice);
     }
     // Completion permits UI feedback only. A meal is never saved without the
     // user's explicit Record save action.
@@ -1567,14 +1592,6 @@
           }
           const photoFingerprint = batch.fingerprints[index];
           const outcome = insertAnalyzedFoods(result, 'photo', () => {}, { preserveDrafts: true, photoSource: index + 1, photoFingerprint });
-          // Keep names that the model saw but could not price. They are
-          // deliberately incomplete AI drafts, so the user can fill a total
-          // calorie value instead of losing the recognition result.
-          outcome.unmatchedNames.forEach((name) => {
-            if (rowCount() >= MAX_FOODS) return;
-            addRow({ name, photoDraft: true, photoSource: index + 1, photoFingerprint });
-          });
-          if (outcome.unmatchedNames.length) updateTotal();
           outcome.unmatchedNames.forEach((name) => {
             if (!batch.unmatchedNames.includes(name)) batch.unmatchedNames.push(name);
           });
@@ -1847,6 +1864,8 @@
     foodRevision += 1;
     noteRevision += 1;
     skipNextNoteAnalysisRevision = null;
+    mealCloseRevision += 1;
+    mealClosing = false;
     // Both manual fields are immediately editable, even for one menu whose
     // name matches the optional AI description above.
     manualNamesVisible = true;
@@ -2017,9 +2036,13 @@
         if (photoCode) setText(byId('food-text-status'), '');
       });
       note.addEventListener('focus', () => { const slot = byId('food-recent-slot'); if (slot?.children.length) slot.hidden = false; });
-      note.addEventListener('blur', () => {
+      note.addEventListener('blur', (event) => {
+        if (textAnalysisBlocked()) return;
         const blurRevision = noteRevision;
+        const closeRevision = mealCloseRevision;
+        if (event.relatedTarget?.closest?.('[data-close="meal-dialog"]')) return;
         root.setTimeout(() => {
+          if (closeRevision !== mealCloseRevision || textAnalysisBlocked()) return;
           const slot = byId('food-recent-slot');
           if (slot?.contains(document.activeElement)) return;
           if (recentPointerId === null) hideRecentAfterBlur();
@@ -2052,8 +2075,12 @@
       if (!picker) return;
       if (id === 'food-photo-file') picker.multiple = true;
       picker.addEventListener('change', () => {
-        if (id === 'food-photo-file') selectPhotos(picker.files);
-        else selectPhoto(picker.files && picker.files[0]);
+        // FileList is live: retain File objects before clearing the native
+        // picker, including early-return and asynchronous error paths.
+        const files = Array.from(picker.files || []);
+        picker.value = '';
+        if (id === 'food-photo-file') selectPhotos(files);
+        else selectPhoto(files[0]);
       });
     });
     const camera = byId('food-camera');
@@ -2074,6 +2101,21 @@
       byId('save-meal').focus({ preventScroll: true });
     });
     const dialog = byId('meal-dialog');
+    // pointerdown precedes the note's blur callback; waiting for click is too
+    // late on touch devices. The revision also invalidates a queued callback
+    // if the user immediately chooses to keep editing.
+    const closeIntent = event => {
+      if (dialog?.open && event.target?.closest?.('[data-close="meal-dialog"]')) markMealClosing();
+    };
+    document.addEventListener('pointerdown', closeIntent, true);
+    document.addEventListener('click', closeIntent, true);
+    dialog?.addEventListener('cancel', markMealClosing, true);
+    dialog?.addEventListener('focusin', event => {
+      if (!byId('discard-meal-dialog')?.open && !event.target?.closest?.('[data-close="meal-dialog"]')) mealClosing = false;
+    });
+    byId('discard-meal-dialog')?.addEventListener('close', () => {
+      if (!byId('discard-meal-dialog').open && dialog?.open) mealClosing = false;
+    });
     if (dialog) dialog.addEventListener('close', () => {
       if (dialog.open) return; // Ignore a queued close from the previous draft.
       cancelAnalysis(); nextTransientGeneration(); stopCamera(false); clearPhoto(false, false);

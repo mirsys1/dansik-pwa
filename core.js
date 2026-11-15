@@ -368,13 +368,21 @@
     if (!previousMeal || !control || control.timerMealId !== previousMeal.id) return null;
     const updatedMeal = next.events.find(event => event.id === previousMeal.id);
     if (!updatedMeal || updatedMeal.at === previousMeal.at) return null;
-    // A corrected start invalidates offsets tied to the old timestamp. Keep the
-    // selected meal and whether the user paused/reset; only rebase its controls.
+    const paused = Number.isSafeInteger(control.timerPausedAt);
+    // Moving the start within the same timing period must not count time spent
+    // paused. Only a start after the pause instant begins a new paused period.
+    const rebasePause = paused && updatedMeal.at > control.timerPausedAt;
+    const pausedAt = paused ? (rebasePause ? now : control.timerPausedAt) : null;
+    const effectiveEnd = paused ? pausedAt : now;
+    const previousPausedMs = Number.isFinite(control.timerPausedMs) && control.timerPausedMs > 0 ? Math.floor(control.timerPausedMs) : 0;
+    // Individual pause windows are not stored. Retain the known excluded time,
+    // bounded by the corrected period so a later edit cannot imply clock skew.
+    const pausedMs = rebasePause ? 0 : Math.min(previousPausedMs, Math.max(0, effectiveEnd - updatedMeal.at));
     return {
       timerAnchorId: control.timerAnchorId || null,
       timerMealId: previousMeal.id,
-      timerPausedAt: Number.isSafeInteger(control.timerPausedAt) ? now : null,
-      timerPausedMs: 0,
+      timerPausedAt: pausedAt,
+      timerPausedMs: pausedMs,
       timerReset: Boolean(control.timerReset)
     };
   }

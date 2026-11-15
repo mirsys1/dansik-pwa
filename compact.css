@@ -532,6 +532,8 @@ body:not(.touch-focus) #settings-backup .data-actions > .text-button:focus-visib
   margin-right: 3px;
 }
 .settings-link::after { transform: rotate(-45deg); }
+#settings-food-ai-open[aria-expanded="false"]::after { transform: rotate(45deg); }
+#settings-food-ai-open[aria-expanded="true"]::after { transform: rotate(225deg); }
 .settings-group[open] > summary::after { transform: rotate(225deg); }
 .settings-group > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; border-radius: 10px; }
 .settings-row-copy strong, .settings-row-copy small { display: block; line-height: 1.35; }
@@ -896,39 +898,71 @@ dialog input:is([type=date], [type=time], [type=datetime-local])::-webkit-dateti
   dialog input:not([type=checkbox]):not([type=radio]), dialog select, dialog textarea { border-color: ButtonText; }
 }
 
-body:not(.mini) .toast {
-  top: auto;
-  bottom: 66px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: min(380px, calc(100% - 24px));
+/* Feedback temporarily uses the existing title row. A stable 44px row leaves
+   meal buttons, the dial and calories in place when feedback appears/disappears. */
+body:not(.mini) .feedback-heading { position: relative; min-height: 44px; }
+body:not(.mini) .feedback-heading.has-feedback > :not(#toast):not(.header-action) { visibility: hidden; }
+body:not(.mini) .feedback-heading.has-feedback h1 {
+  visibility: visible;
+  opacity: 0;
+  pointer-events: none;
 }
-/* A feedback toast must not hide the timer's calorie summary or the tab rail.
-   On phone-sized PWAs it uses the transient title band below the app header;
-   the meal buttons and timer controls stay fully visible. */
-body.is-pwa:not(.mini) .toast {
-  top: calc(var(--pwa-safe-top) + 48px);
-  right: 12px;
-  bottom: auto;
-  left: 12px;
-  width: auto;
-  max-width: none;
+body:not(.mini) .feedback-heading > #toast {
+  position: absolute;
+  inset: 0;
   transform: none;
-  justify-content: space-between;
-}
-/* Stats can scroll through several cards. Place feedback in its own flow row
-   below the title instead of as a fixed overlay, preserving every card and
-   the undo target at every scroll position. */
-body.is-pwa[data-page="insights"]:not(.mini) #page-insights > .toast {
-  position: static;
-  width: auto;
+  width: 100%;
   max-width: none;
-  margin: 0 0 8px;
-  transform: none;
+  height: 44px;
+  margin: 0;
+  padding: 0 4px 0 8px;
+  gap: 4px;
+  flex-wrap: nowrap;
+  align-items: center;
+  pointer-events: auto;
 }
-body:not(.mini) #toast-close { min-width: 36px; min-height: 36px; }
-/* Feedback owns a row, so a longer translation cannot cover a control. */
-body:not(.mini) :is(.page, .meal-panel) > #toast,
+body:not(.mini) .feedback-heading > #toast > #toast-message {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 44px;
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 18px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  touch-action: pan-y pinch-zoom;
+}
+#toast-message:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px currentColor; border-radius: 4px; }
+body:not(.mini) .feedback-heading > #toast > button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+/* Keep the meal-add action available (and focusable) while feedback uses the
+   title. Its label stays accessible; the compact plus target is still 44px. */
+body:not(.mini) .feedback-heading.has-feedback-action > #toast { width: calc(100% - 52px); right: 52px; }
+body:not(.mini) .feedback-heading.has-feedback > .header-action {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  justify-content: center;
+}
+body:not(.mini) .feedback-heading.has-feedback > .header-action > :not([data-icon]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Mini keeps its existing native height expansion and replaces the footer. */
 body.mini .mini-content > #toast {
   position: static;
   inset: auto;
@@ -941,7 +975,7 @@ body.mini .mini-content > #toast {
   flex-wrap: wrap;
   pointer-events: auto;
 }
-body :is(.page, .meal-panel, .mini-content) > #toast > #toast-message {
+body.mini .mini-content > #toast > #toast-message {
   flex: 1 1 120px;
   min-width: 0;
   line-height: 1.4;

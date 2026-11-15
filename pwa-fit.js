@@ -21,6 +21,7 @@
   const viewport = window.visualViewport;
   const rail = matchMedia('(min-width: 920px) and (min-height: 540px)');
   let pending = 0;
+  let mealPointerDown = false;
   let lastKey = '';
   let previousHeight = 0;
   let previousWidth = 0;
@@ -112,6 +113,10 @@
   }
   function fit() {
     if (viewport && !(viewport.scale > 0)) return;
+    // A focused field can blur at pointerdown, before the button receives its
+    // click. Recentring then would move the close/save button out from under
+    // the user's finger. Resume fitting after the gesture has completed.
+    if (mealPointerDown && mealDialog?.open) return;
     fitSettingsDialog();
     const currentScale = viewport && viewport.scale > 0 ? viewport.scale : 1;
     // A standalone iPhone can start at a persisted scale such as 1.5. Fit that
@@ -222,6 +227,12 @@
     lastKey = key;
   }
   window.addEventListener('resize', schedule);
+  window.addEventListener('pointerdown', event => {
+    mealPointerDown = Boolean(mealDialog?.open && mealDialog.contains(event.target));
+  }, true);
+  for (const name of ['pointerup', 'pointercancel']) window.addEventListener(name, () => {
+    if (mealPointerDown) { mealPointerDown = false; schedule(); }
+  }, true);
   window.addEventListener('orientationchange', schedule);
   window.addEventListener('focusin', schedule);
   window.addEventListener('focusout', () => { lastKey = ''; schedule(); });
@@ -264,7 +275,7 @@
 
   // Version and layout diagnostics are local, read-only, and contain no meals
   // or profile fields. Capture the home geometry before the modal opens.
-  const fitBuild = 'PWA-122';
+  const fitBuild = 'PWA-123';
   body.dataset.pwaBuild = fitBuild;
   const settingsHeading = document.querySelector('#settings-form .dialog-heading');
   if (settingsHeading) {
@@ -320,7 +331,7 @@
       Promise.all([window.desktop.getState(), workerVersion()]).then(([snapshot, cache]) => {
         const appBuild = snapshot.app && (snapshot.app.build || snapshot.app.version) || 'unavailable';
         output.textContent = [`app: ${appBuild}`, ...lines, `worker: ${cache}`].join('\n');
-        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.122';
+        const consistent = appBuild === fitBuild && cache === 'dansik-pwa-v1.0.123';
         output.textContent += `\nversions: ${consistent ? 'match' : 'incomplete'}`;
         if (body.dataset.pwaUpdateReady === 'true' && !consistent) {
           stateLine.textContent = english ? 'Update ready. Save any changes, then close and reopen the app.' : '업데이트가 준비됐어요. 입력을 저장한 뒤 앱을 닫았다 다시 열어주세요.';

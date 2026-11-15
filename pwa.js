@@ -272,7 +272,7 @@
       state: Core.clone(state),
       theme: themeOf(),
       prefs: { ...prefs, canAutoStart: false, autoStartActive: false },
-      app: { version: '1.0.40 (PWA-122)', build: 'PWA-122' },
+      app: { version: '1.0.41 (PWA-123)', build: 'PWA-123' },
       lastBackupAt: lastBackupAt(),
       activityRecoveryNeeded: activityUnreadable,
       settingsRecoveryNeeded: prefsUnreadable,
@@ -304,7 +304,10 @@
   function persist(next, remember = true, nextTimer = null, recovery = false) {
     if (stateUnreadable && !recovery) throw new Error(RECORDS_UNREADABLE);
     const previous = { state, timer: timerSnap() };
-    if (!nextTimer && prefs.timerAnchorId && !next.events.some(event => event.id === prefs.timerAnchorId)) nextTimer = resetTimerControl();
+    const timerControl = nextTimer ? { ...prefs, ...nextTimer } : prefs;
+    const selectedId = (timerControl.timerAnchorId && next.events.find(event => event.id === timerControl.timerAnchorId)?.id) || next.events[0]?.id;
+    if ((timerControl.timerAnchorId && !next.events.some(event => event.id === timerControl.timerAnchorId)) ||
+        (timerControl.timerMealId && timerControl.timerMealId !== selectedId)) nextTimer = resetTimerControl();
     let saved;
     if (nextTimer) {
       const previousPrefs = storedPrefs;
@@ -353,7 +356,11 @@
     }
     catch (error) {
       try { recoverRestoreJournal(); }
-      catch (_) { storedPrefs = undefined; storedState = undefined; }
+      catch (_) {
+        restoreRecoveryNeeded = true;
+        storedPrefs = undefined; storedState = undefined;
+        broadcast();
+      }
       throw error;
     }
     try { localStorage.removeItem(RESTORE_JOURNAL_KEY); } catch (_) { /* committed journal is safe to clean later */ }
@@ -795,16 +802,28 @@
   function readSyncBase() { try { return JSON.parse(localStorage.getItem(SYNC_BASE_KEY)); } catch (_) { return null; } }
   const syncBlocked = () => storageUnavailable || stateUnreadable || prefsUnreadable || restoreRecoveryNeeded;
   const syncToken = () => String(storedState) + '|' + String(storedPrefs);
-  function syncIo(keys, endpoint) {
+  // Only called under the storage lock. A sync operation must not implicitly
+  // recover an interrupted restore or consume its half-written record pair.
+  function assertSyncReady(expectedCode) {
+    try {
+      if (localStorage.getItem(RESTORE_JOURNAL_KEY) !== null) restoreRecoveryNeeded = true;
+    } catch (_) {
+      storageUnavailable = true;
+      throw syncError('SYNC_BLOCKED');
+    }
+    if (restoreRecoveryNeeded) throw syncError('SYNC_BLOCKED');
+    refreshStorage();
+    if (syncBlocked()) throw syncError('SYNC_BLOCKED');
+    if (typeof expectedCode === 'string' && Sync.normalizeCode(readSyncCode()) !== Sync.normalizeCode(expectedCode)) throw syncError('SYNC_OFF');
+  }
+  function syncIo(keys, endpoint, code, options = {}) {
     return {
       readLocal: () => runExclusive(() => {
-        refreshStorage();
-        if (syncBlocked()) throw syncError('SYNC_BLOCKED');
+        assertSyncReady(code);
         return { doc: Sync.snapshot(state, prefs), token: syncToken() };
       }),
       applyLocal: (doc, token) => runExclusive(() => {
-        refreshStorage();
-        if (syncBlocked()) throw syncError('SYNC_BLOCKED');
+        assertSyncReady(code);
         if (syncToken() !== token) return false; // something was edited while the network call ran
         const next = Sync.apply(state, prefs, doc, { Core, Activity });
         persistWithPrefs(next.state, next.prefs, false);
@@ -812,14 +831,24 @@
         broadcast();
         return true;
       }),
-      loadBase: async () => readSyncBase(),
-      saveBase: async value => { try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(value)); } catch (_) { throw new Error('SYNC_STORAGE'); } },
+      loadBase: () => runExclusive(() => { assertSyncReady(code); return readSyncBase(); }),
+      saveBase: value => runExclusive(() => {
+        assertSyncReady(code);
+        try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(value)); } catch (_) { throw new Error('SYNC_STORAGE'); }
+      }),
       fetch: async (method, body) => {
         const headers = { Authorization: 'Bearer ' + keys.token };
         const init = { method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error' };
         if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) init.signal = AbortSignal.timeout(20000);
         if (method === 'PUT') { headers['If-Match'] = String(body.rev); headers['Content-Type'] = 'application/json'; init.body = JSON.stringify({ blob: body.blob }); }
-        try { return await fetch(endpoint + keys.id, init); } catch (_) { throw new Error('SYNC_NETWORK'); }
+        // Start the request while locked, then release before waiting for I/O.
+        // A restore can run during GET; apply/PUT/save must check again.
+        const request = await runExclusive(() => {
+          assertSyncReady(code);
+          if (method === 'PUT') options.onRemoteWriteAttempt?.();
+          return { response: fetch(endpoint + keys.id, init) };
+        });
+        try { return await request.response; } catch (_) { throw new Error('SYNC_NETWORK'); }
       }
     };
   }
@@ -828,10 +857,9 @@
     syncState.busy = true;
     syncState.lastAttemptAt = Date.now();
     try {
+      await runExclusive(() => assertSyncReady(code));
       const keys = await Sync.deriveKeys(code);
-      const io = syncIo(keys, endpoint);
-      const fetchRemote = io.fetch;
-      io.fetch = (method, body) => { if (method === 'PUT') options.onRemoteWriteAttempt?.(); return fetchRemote(method, body); };
+      const io = syncIo(keys, endpoint, code, options);
       const result = await Sync.syncOnce(keys, io, options);
       syncState.error = null; syncState.failedAt = 0;
       syncState.syncedToken = syncToken();
@@ -848,15 +876,23 @@
   let syncHealth = { at: 0, ready: false };
   async function checkSyncHealth(endpoint, force = false) {
     if (!endpoint) return false;
+    await runExclusive(assertSyncReady);
     if (!force && syncHealth.at && Date.now() - syncHealth.at < 30000) return syncHealth.ready;
     let ready = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch(new URL('/health', endpoint).href, { credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal });
+      const request = await runExclusive(() => {
+        assertSyncReady();
+        return { response: fetch(new URL('/health', endpoint).href, { credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal }) };
+      });
+      const response = await request.response;
       const health = response.ok ? await response.json() : null;
       ready = health?.service === 'dansik-sync' && health.status === 'ok';
-    } catch (_) { /* Settings explicitly reports unavailable and offers a fresh check. */ }
+    } catch (_) {
+      if (syncBlocked()) throw syncError('SYNC_BLOCKED');
+      /* Settings explicitly reports unavailable and offers a fresh check. */
+    }
     finally { clearTimeout(timeout); }
     syncHealth = { at: Date.now(), ready };
     return ready;
@@ -868,6 +904,7 @@
       case 'sync-status': return { ok: true, sync: syncSummary(endpoint) };
       case 'sync-check-service': await checkSyncHealth(endpoint, true); return { ok: true, sync: syncSummary(endpoint) };
       case 'sync-enable': {
+        await runExclusive(assertSyncReady);
         if (!endpoint) throw syncError('SYNC_UNAVAILABLE');
         if (code) throw syncError('SYNC_ON');
         if (!await checkSyncHealth(endpoint)) throw syncError('SYNC_UNAVAILABLE');
@@ -878,12 +915,34 @@
         const fresh = join ? Sync.formatCode(entered) : Sync.generateCode();
         // Persist the recoverable key before any remote write. If the network fails,
         // retain it so retry/delete can still authenticate to a possibly-created copy.
-        try { localStorage.setItem(SYNC_CODE_KEY, fresh); localStorage.removeItem(SYNC_BASE_KEY); }
-        catch (_) { throw syncError('SYNC_STORAGE'); }
+        let previousBase;
+        await runExclusive(() => {
+          assertSyncReady();
+          if (readSyncCode()) throw syncError('SYNC_ON');
+          previousBase = localStorage.getItem(SYNC_BASE_KEY);
+          try { localStorage.setItem(SYNC_CODE_KEY, fresh); localStorage.removeItem(SYNC_BASE_KEY); }
+          catch (_) {
+            try {
+              if (previousBase === null) localStorage.removeItem(SYNC_BASE_KEY);
+              else localStorage.setItem(SYNC_BASE_KEY, previousBase);
+              localStorage.removeItem(SYNC_CODE_KEY);
+            } catch (_) { /* Keep the recoverable code if metadata rollback also fails. */ }
+            throw syncError('SYNC_STORAGE');
+          }
+        });
         let remoteWriteAttempted = false;
         try { await runSync(fresh, endpoint, { requireRemote: join, onRemoteWriteAttempt: () => { remoteWriteAttempted = true; } }); }
         catch (error) {
-          if (!remoteWriteAttempted) { try { localStorage.removeItem(SYNC_CODE_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { /* stored key remains recoverable */ } }
+          if (!remoteWriteAttempted) {
+            try {
+              await runExclusive(() => {
+                if (readSyncCode() !== fresh) return;
+                if (previousBase === null) localStorage.removeItem(SYNC_BASE_KEY);
+                else localStorage.setItem(SYNC_BASE_KEY, previousBase);
+                localStorage.removeItem(SYNC_CODE_KEY);
+              });
+            } catch (_) { /* stored key remains recoverable */ }
+          }
           throw error;
         }
         return { ok: true, code: fresh, sync: syncSummary(endpoint) };
@@ -898,17 +957,29 @@
         if (!code) throw syncError('SYNC_OFF');
         return { ok: true, code };
       case 'sync-disable': {
+        if (syncState.busy) throw syncError('SYNC_BUSY');
+        syncState.busy = true;
+        try {
+        await runExclusive(() => assertSyncReady(code));
         if (!code) return { ok: true, sync: syncSummary(endpoint) };
         if (payload.deleteServer === true && endpoint) {
           const keys = await Sync.deriveKeys(code);
           let response;
-          try { response = await fetch(endpoint + keys.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + keys.token }, credentials: 'omit', cache: 'no-store', redirect: 'error' }); }
+          const request = await runExclusive(() => {
+            assertSyncReady(code);
+            return { response: fetch(endpoint + keys.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + keys.token }, credentials: 'omit', cache: 'no-store', redirect: 'error' }) };
+          });
+          try { response = await request.response; }
           catch (_) { throw syncError('SYNC_NETWORK'); }
           if (response.status !== 204 && response.status !== 404) throw syncError(response.status === 401 ? 'SYNC_AUTH' : 'SYNC_NETWORK');
         }
-        try { localStorage.removeItem(SYNC_CODE_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { throw syncError('SYNC_STORAGE'); }
+        await runExclusive(() => {
+          assertSyncReady(code);
+          try { localStorage.removeItem(SYNC_CODE_KEY); localStorage.removeItem(SYNC_BASE_KEY); } catch (_) { throw syncError('SYNC_STORAGE'); }
+        });
         syncState.syncedToken = null; syncState.error = null; syncState.failedAt = 0;
         return { ok: true, sync: syncSummary(endpoint) };
+        } finally { syncState.busy = false; }
       }
       default: throw new TypeError('지원하지 않는 요청입니다.');
     }

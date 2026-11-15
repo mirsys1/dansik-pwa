@@ -4,7 +4,7 @@
   const text = (ko, en) => document.documentElement.lang === 'en' ? en : ko;
   const errorText = error => window.FastingI18n?.create(document.documentElement.lang).err(error) || error?.message || String(error);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let snapshot, opener, syncing = false, healthSteps = null, activityScrollObserver = null, activitySaving = false;
+  let snapshot, opener, syncing = false, healthSteps = null, activityScrollObserver = null, activityScrollFrame = 0, activitySaving = false;
   function estimate(interval, prefs, allowActivity = true) {
     if (!interval) return C.calculateCalories(null, prefs);
     return withActivity(interval, prefs, allowActivity);
@@ -155,22 +155,27 @@
     const body = content.querySelector('.activity-body');
     const scrollCue = content.querySelector('#activity-scroll-cue');
     const updateScrollCue = () => {
+      if (!dialog.open || !body.isConnected) return;
       const maxScroll = Math.max(0, body.scrollHeight - body.clientHeight);
       const canScroll = maxScroll > 2;
       const atEnd = body.scrollTop >= maxScroll - 2;
       const showCue = canScroll && !atEnd;
-      scrollCue.hidden = !showCue;
+      if (scrollCue.hidden === showCue) scrollCue.hidden = !showCue;
       dialog.toggleAttribute('data-activity-scrollable', showCue);
     };
+    const scheduleScrollCue = () => {
+      cancelAnimationFrame(activityScrollFrame);
+      activityScrollFrame = requestAnimationFrame(() => { activityScrollFrame = 0; updateScrollCue(); });
+    };
     body.scrollTop = previousScroll;
-    body.addEventListener('scroll', updateScrollCue, { passive: true });
-    content.querySelectorAll('details').forEach(details => details.addEventListener('toggle', () => requestAnimationFrame(updateScrollCue)));
+    body.addEventListener('scroll', scheduleScrollCue, { passive: true });
+    content.querySelectorAll('details').forEach(details => details.addEventListener('toggle', scheduleScrollCue));
     activityScrollObserver?.disconnect();
     if (window.ResizeObserver) {
-      activityScrollObserver = new ResizeObserver(updateScrollCue);
+      activityScrollObserver = new ResizeObserver(scheduleScrollCue);
       activityScrollObserver.observe(body);
     }
-    requestAnimationFrame(updateScrollCue);
+    scheduleScrollCue();
     if (previousFocus && previousFocus !== 'activity-confirm-transfer') {
       document.getElementById(previousFocus)?.focus({ preventScroll: true });
     } else if (previousFocus === 'activity-confirm-transfer') {
@@ -292,6 +297,18 @@
     await saveActivity({ type: 'activity-add', samples: incoming });
     await render();
     status(text('가져왔어요. 합산할 출처를 선택한 뒤 완료를 누르세요.','Imported. Select the source to include, then tap Done.'));
+    const group = document.getElementById('activity-calculation');
+    const source = document.getElementById('activity-source');
+    group.open = true;
+    // Details and the scroll cue can change the body's available height. Reveal
+    // the source inside that body after layout settles, without moving the page.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (!dialog.open || !source.isConnected) return;
+    const body = source.closest('.activity-body');
+    const bounds = body.getBoundingClientRect(), field = source.getBoundingClientRect();
+    const scale = bounds.height / body.clientHeight || 1;
+    body.scrollTop += (field.top + field.height / 2 - bounds.top - bounds.height / 2) / scale;
+    source.focus({ preventScroll: true });
   }
 
   function showWorkoutResult(title, message) {
@@ -508,7 +525,7 @@
       document.getElementById('activity-title')?.focus({ preventScroll: true });
     }
   });
-  dialog.addEventListener('close',()=>{activityScrollObserver?.disconnect();if(opener?.isConnected)opener.focus({preventScroll:true});});
+  dialog.addEventListener('close',()=>{activityScrollObserver?.disconnect();cancelAnimationFrame(activityScrollFrame);activityScrollFrame=0;if(opener?.isConnected)opener.focus({preventScroll:true});});
   dialog.addEventListener('cancel',event=>{if(activitySaving)event.preventDefault();});
   workoutDialog?.addEventListener('cancel', event => { if (workoutSaving) event.preventDefault(); });
   workoutDialog?.addEventListener('close', () => {

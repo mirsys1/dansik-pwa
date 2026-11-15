@@ -91,6 +91,9 @@ let mealLastKey = '';
 let mealExactPreset = null;
 let mealBaseline = null;
 let mealOpener = null;
+let mealLastEditor = null;
+let settingsOpener = null;
+let resetOpener = null;
 let mealReturnIndex = 0;
 let helpOpener = null;
 let toastTimeout;
@@ -139,11 +142,18 @@ function translateDom() {
 function placeToast(page = document.body.dataset.page || 'timer') {
   const element = $('toast');
   const mini = document.body.classList.contains('mini');
-  const parent = mini ? document.querySelector('.mini-content') : page === 'timer' ? document.querySelector('#page-timer .meal-panel') : $(`page-${page}`);
+  const headings = document.querySelectorAll('#page-timer .meal-panel > .panel-header, .page > .page-heading');
+  headings.forEach(heading => {
+    heading.classList.add('feedback-heading');
+    heading.classList.toggle('has-feedback-action', !!heading.querySelector(':scope > .header-action'));
+    heading.classList.remove('has-feedback');
+  });
+  const parent = mini ? document.querySelector('.mini-content') : page === 'timer' ? document.querySelector('#page-timer .meal-panel > .panel-header') : $(`page-${page}`)?.querySelector(':scope > .page-heading');
   if (parent && element.parentElement !== parent) {
     if (mini) parent.querySelector(':scope > small').before(element);
-    else parent.querySelector('.page-heading, .panel-header').after(element);
+    else parent.append(element);
   }
+  if (!mini && parent) parent.classList.toggle('has-feedback', !element.hidden);
   document.body.classList.toggle('has-toast', !element.hidden);
   fitMiniToast();
 }
@@ -157,8 +167,51 @@ function fitMiniToast() {
     window.desktop.action({ type: 'mini-content-height', height }).catch(() => {});
   });
 }
-function hideToast() { $('toast').hidden = true; document.body.classList.remove('has-toast'); fitMiniToast(); }
-function toast(message, undo = false) { $('toast-message').textContent = message; $('undo-button').hidden = !undo; $('toast').hidden = false; placeToast(); clearTimeout(toastTimeout); toastTimeout = setTimeout(hideToast, undo ? 15000 : 5000); }
+let toastRemaining = 0, toastDeadline = 0;
+const toastPauses = new Set();
+function resumeToast(reason) {
+  toastPauses.delete(reason);
+  clearTimeout(toastTimeout);
+  if ($('toast').hidden || toastPauses.size) return;
+  toastDeadline = Date.now() + toastRemaining;
+  toastTimeout = setTimeout(hideToast, toastRemaining);
+}
+function pauseToast(reason) {
+  if (!toastPauses.size) toastRemaining = Math.max(0, toastDeadline - Date.now());
+  toastPauses.add(reason);
+  clearTimeout(toastTimeout);
+}
+function hideToast() {
+  const element = $('toast'), focused = element.contains(document.activeElement);
+  clearTimeout(toastTimeout);
+  toastPauses.clear();
+  element.hidden = true;
+  document.querySelectorAll('.feedback-heading.has-feedback').forEach(heading => heading.classList.remove('has-feedback'));
+  document.body.classList.remove('has-toast');
+  if (focused) (document.body.classList.contains('mini') ? $('expand-button') : $('main-content')).focus({ preventScroll: true });
+  fitMiniToast();
+}
+function toast(message, undo = false) {
+  const element = $('toast'), text = $('toast-message');
+  text.textContent = message;
+  text.scrollTop = 0;
+  text.tabIndex = 0; // Long feedback remains readable with touch, wheel or arrow keys.
+  $('undo-button').hidden = !undo;
+  element.hidden = false;
+  placeToast();
+  toastPauses.clear();
+  toastRemaining = undo ? 15000 : 5000;
+  if (element.contains(document.activeElement)) toastPauses.add('focus');
+  if (matchMedia('(hover: hover)').matches && element.matches(':hover')) toastPauses.add('hover');
+  resumeToast('new');
+}
+$('toast').addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') pauseToast('hover'); });
+$('toast').addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') resumeToast('hover'); });
+$('toast').addEventListener('focusin', () => pauseToast('focus'));
+$('toast').addEventListener('focusout', () => { queueMicrotask(() => { if (!$('toast').contains(document.activeElement)) resumeToast('focus'); }); });
+$('toast-message').addEventListener('pointerdown', () => pauseToast('read'));
+window.addEventListener('pointerup', () => { if (toastPauses.has('read')) resumeToast('read'); });
+window.addEventListener('pointercancel', () => { if (toastPauses.has('read')) resumeToast('read'); });
 function showWarning(message) { $('warning').textContent = message || ''; $('warning').hidden = !message; }
 function applyWindowInfo(info) {
   if(!info)return;
@@ -206,7 +259,7 @@ function maybeWelcome() {
   if (welcomeShown || !ready || prefs.firstRunDone !== false || state.events.length || !document.body.classList.contains('is-pwa') || document.querySelector('dialog[open]')) return;
   welcomeShown = true;
   const profile = C.normalizeProfile(prefs);
-  $('welcome-sex').value = profile.sex; $('welcome-activity').value = profile.activityLevel;
+  $('welcome-sex').value = profile.sex;
   ['age', 'height', 'weight'].forEach(id => { $(`welcome-${id}`).value = ''; });
   $('welcome-age').placeholder = profile.age; $('welcome-height').placeholder = profile.heightCm; $('welcome-weight').placeholder = profile.weightKg;
   showWelcomeStep(1);
@@ -222,18 +275,17 @@ function showWelcomeStep(step) {
   $('welcome-next').textContent = step === 3 ? t('welcome.done') : step === 2 && !welcomeBodyEntered() ? t('welcome.skipBody') : t('welcome.next');
   $('welcome-error').textContent = '';
 }
-function welcomeBodyEntered() { return ['age', 'height', 'weight'].some(id => $(`welcome-${id}`).value !== ''); }
+function welcomeBodyEntered() { return $('welcome-sex').value !== C.normalizeProfile(prefs).sex || ['age', 'height', 'weight'].some(id => $(`welcome-${id}`).value !== ''); }
 async function finishWelcome(save) {
   $('welcome-dialog').close();
   const prefsPatch = { firstRunDone: true };
   if (save) {
+    prefsPatch.sex = $('welcome-sex').value;
     if (welcomeBodyEntered()) {
-      const profile = C.normalizeProfile(prefs);
-      Object.assign(prefsPatch, { sex: $('welcome-sex').value, activityLevel: $('welcome-activity').value,
-        age: $('welcome-age').value ? $('welcome-age').valueAsNumber : profile.age,
-        heightCm: $('welcome-height').value ? $('welcome-height').valueAsNumber : profile.heightCm,
-        weightKg: $('welcome-weight').value ? $('welcome-weight').valueAsNumber : profile.weightKg,
-        profileConfirmed: ['age', 'height', 'weight'].every(id => $(`welcome-${id}`).value !== '') });
+      for (const [id, key] of [['age', 'age'], ['height', 'heightCm'], ['weight', 'weightKg']]) {
+        if ($(`welcome-${id}`).value !== '') prefsPatch[key] = $(`welcome-${id}`).valueAsNumber;
+      }
+      prefsPatch.profileConfirmed = prefs.profileConfirmed === true || ['age', 'height', 'weight'].every(id => $(`welcome-${id}`).value !== '');
     }
     prefsPatch.backupReminder = $('welcome-backup').checked;
     if (welcomePlan) await action({ type: 'settings', patch: { plan: welcomePlan, windowStart: C.validWindowStart($('welcome-start').value) ? $('welcome-start').value : C.DEFAULT_WINDOW_START } }, null, false);
@@ -420,7 +472,8 @@ function pulse(element, className, ms) {
 function tick() {
   if (!ready) return;
   const now = Date.now();
-  if (mealUseSaveTime && $('meal-dialog').open && mealLocalValue() !== localInput(now)) setMealDateTime(now);
+  const choosingMealTime = ['meal-date', 'meal-clock'].includes(document.activeElement?.id) || !$('meal-other-date').hidden;
+  if (mealUseSaveTime && $('meal-dialog').open && !choosingMealTime && mealLocalValue() !== localInput(now)) setMealDateTime(now);
   if ($('meal-dialog').open && (mealDateDay !== C.localDay(now, tz()) || mealLastKey !== mealLastStateKey(now))) updateMealDateControls();
   const meal = C.timerMeal(state, now, prefs);
   const timer = C.getTimer(state, now, prefs);
@@ -782,8 +835,10 @@ function openFastingDetail(selection = {}, opener = null) {
   } else {
     interval = stats.mealIntervals.find(x => x.from === selection.from && x.to === selection.to);
     date = interval ? C.localDay(interval.to, tz()) : '';
-    records = stats.daily.find(d => d.date === date)?.intervals || [];
+    selectedDay = stats.daily.find(d => d.date === date);
+    records = selectedDay?.intervals || [];
   }
+  if (!selection.live && date) fastingSelection = { ...selection, date };
   const detailView = selection.live && selection.view === 'fast' ? 'fast' : 'today';
   $('fasting-title').textContent = selection.live ? t('timer.goalArrival') : t('effects.dayTitle', { date: date ? new Date(date+'T12:00:00Z').toLocaleDateString(L.locale, { month: 'long', day: 'numeric', timeZone: 'UTC' }) : '' });
   renderDayCalories(selectedDay?.date, now);
@@ -794,7 +849,7 @@ function openFastingDetail(selection = {}, opener = null) {
   } else {
     const trend = fatTrendKey(interval.durationMs);
     const rising = trend === 'effects.trendFat';
-    const kcal = window.FastingEnergy.estimate(interval, prefs, !selection.live || !(prefs.timerPausedMs > 0));
+    const kcal = window.FastingEnergy.estimate(interval, prefs, !selection.live || C.timerMeal(state, now, prefs)?.id !== prefs.timerMealId || !(prefs.timerPausedMs > 0));
     const history = records.length > 1 ? `<section class="effect-records">
       <h3>${t('effects.otherRecords', { n: records.length })}</h3>
       <div class="effect-record-list">${records.map(x => `<button type="button" data-effect-from="${x.from}" data-effect-to="${x.to}" aria-pressed="${x.from === interval.from && x.to === interval.to}">
@@ -1029,6 +1084,7 @@ function updateMealWhenSummary() {
 });
 function openMeal(id = null, showFoods = false, startTimer = false) {
   mealOpener = document.activeElement;
+  mealLastEditor = null;
   mealReturnIndex = Math.max(0, [...document.querySelectorAll('#history-list [data-edit]')].indexOf(mealOpener));
   editingId = id;
   mealStartsTimer = !id && startTimer;
@@ -1066,6 +1122,21 @@ function requestMealClose() {
     if (!$('discard-meal-dialog').open) $('discard-meal-dialog').showModal();
   } else $('meal-dialog').close();
 }
+function rememberMealEditor(element) {
+  if (!element?.matches('input:not([type="hidden"]), textarea, select') || !$('meal-form').contains(element)) return;
+  mealLastEditor = { element, start: element.selectionStart, end: element.selectionEnd, direction: element.selectionDirection };
+}
+function restoreMealEditor() {
+  if (!$('meal-dialog').open) return;
+  const saved = mealLastEditor;
+  const field = saved?.element?.isConnected && saved.element.getClientRects().length && !saved.element.disabled ? saved.element : $('meal-note');
+  field.focus({ preventScroll: true });
+  if (field === saved?.element && Number.isInteger(saved.start) && typeof field.setSelectionRange === 'function') {
+    field.setSelectionRange(saved.start, saved.end, saved.direction || 'none');
+  }
+}
+$('meal-form').addEventListener('focusin', event => rememberMealEditor(event.target));
+$('meal-form').addEventListener('focusout', event => rememberMealEditor(event.target));
 function showFoodAiSettings(expanded = true) {
   const trigger = $('settings-food-ai-open');
   const section = $('settings-food-ai');
@@ -1149,8 +1220,9 @@ function openGoal() {
   $('goal-dialog').showModal();
   $('goal-dialog').querySelector('.goal-dialog-body').scrollTop = 0;
 }
-function openSettings(profileOnly = false) {
+function openSettings(profileOnly = false, opener = document.activeElement) {
   const dialog = $('settings-dialog');
+  if (!dialog.open) settingsOpener = opener;
   window.MealFoods?.beginProviderDraft?.();
   providerDraftCommitted = false;
   const title = $('settings-title');
@@ -1167,7 +1239,6 @@ function openSettings(profileOnly = false) {
   $('age-input').value = profile.age;
   $('height-input').value = profile.heightCm;
   $('weight-input').value = profile.weightKg;
-  $('activity-input').value = profile.activityLevel;
   $('profile-confirmed-input').checked = prefs.profileConfirmed === true;
   $('profile-basis-note').hidden = prefs.profileConfirmed === true;
   $('tray-input').checked = prefs.tray;
@@ -1278,13 +1349,10 @@ document.querySelectorAll('[data-meal-day]').forEach(button => button.addEventLi
   $('meal-error').textContent = ''; clearMealFieldErrors();
 }));
 $('meal-other-toggle').addEventListener('click', () => {
-  if ($('meal-other-date').hidden) mealUseSaveTime = false;
   showOtherMealDate($('meal-other-date').hidden);
 });
-// Freeze only when editing begins; merely expanding the summary retains Save time.
-for (const id of ['meal-date', 'meal-clock']) {
-  $(id).addEventListener('focus', () => { mealUseSaveTime = false; });
-}
+// Browsing the time/date editor does not change a draft. Actual value edits
+// switch from Save time; tick() leaves an active native picker untouched.
 $('meal-date').addEventListener('input', () => { mealUseSaveTime = false; updateMealDateControls(); $('meal-error').textContent = ''; setMealFieldError('date'); });
 $('meal-date').addEventListener('change', () => { mealUseSaveTime = false; updateMealDateControls(); });
 $('meal-type').addEventListener('change', () => { mealAutoType = false; $('meal-auto-hint').hidden = true; });
@@ -1298,7 +1366,9 @@ $('meal-last-time').addEventListener('click', () => {
   $('meal-error').textContent = ''; clearMealFieldErrors();
 });
 $('timer-pause').addEventListener('click',async()=>{const res=await action({type:'timer-pause'},null);if(res)toast(res.paused?t('toast.paused'):t('toast.resumed'),res.canUndo);});
-$('timer-reset').addEventListener('click', () => { if (!busy && !$('timer-reset').disabled) $('reset-dialog').showModal(); });
+$('timer-reset').addEventListener('click', event => {
+  if (!busy && !$('timer-reset').disabled) { resetOpener = event.currentTarget; $('reset-dialog').showModal(); }
+});
 $('confirm-reset').addEventListener('click', async () => {
   const button = $('confirm-reset');
   if (button.disabled) return;
@@ -1309,8 +1379,16 @@ $('confirm-reset').addEventListener('click', async () => {
     else $('reset-error').textContent = lastActionError;
   } finally { button.disabled = false; }
 });
-$('reset-dialog').addEventListener('close', () => $('timer-goal').focus({ preventScroll: true }));
+$('reset-dialog').addEventListener('close', () => {
+  if ($('reset-dialog').open) return;
+  const target = resetOpener?.isConnected && !resetOpener.disabled ? resetOpener : $('timer-goal');
+  resetOpener = null;
+  target.focus({ preventScroll: true });
+});
 $('meal-dialog').addEventListener('cancel', event => { event.preventDefault(); requestMealClose(); });
+$('discard-meal-dialog').addEventListener('close', () => {
+  if (!$('discard-meal-dialog').open) requestAnimationFrame(restoreMealEditor);
+});
 $('discard-meal').addEventListener('click', () => {
   $('discard-meal-dialog').close();
   $('meal-dialog').close();
@@ -1351,6 +1429,7 @@ document.querySelectorAll('[data-goal-preset]').forEach(button => button.addEven
 $('goal-dialog').addEventListener('cancel', event => { if (goalSaving) event.preventDefault(); });
 document.querySelectorAll('[data-welcome-plan]').forEach(button => button.addEventListener('click', () => { welcomePlan = button.dataset.welcomePlan; showWelcomeStep(welcomeStep); }));
 ['age', 'height', 'weight'].forEach(id => $(`welcome-${id}`).addEventListener('input', () => showWelcomeStep(welcomeStep)));
+$('welcome-sex').addEventListener('change', () => showWelcomeStep(welcomeStep));
 $('welcome-back').addEventListener('click', () => showWelcomeStep(Math.max(1, welcomeStep - 1)));
 $('welcome-skip').addEventListener('click', () => finishWelcome(false));
 $('welcome-dialog').addEventListener('cancel', event => { event.preventDefault(); finishWelcome(false); });
@@ -1443,13 +1522,14 @@ $('meal-dialog').addEventListener('close', () => {
   } else if (mealOpener?.isConnected && mealOpener !== document.body) mealOpener.focus({ preventScroll: true });
   mealOpener = null;
   mealBaseline = null;
+  mealLastEditor = null;
 });
 
 
-$('settings-button').addEventListener('click', () => openSettings());
+$('settings-button').addEventListener('click', event => openSettings(false, event.currentTarget));
 $('settings-food-ai-open').addEventListener('click', () => showFoodAiSettings($('settings-food-ai-open').getAttribute('aria-expanded') !== 'true'));
-$('restore-recovery-shortcut').addEventListener('click', () => { openSettings(); $('settings-backup').open = true; $('restore-recovery').scrollIntoView({ block: 'nearest' }); });
-$('energy-profile').addEventListener('click', () => openSettings(true));
+$('restore-recovery-shortcut').addEventListener('click', event => { openSettings(false, event.currentTarget); $('settings-backup').open = true; $('restore-recovery').scrollIntoView({ block: 'nearest' }); });
+$('energy-profile').addEventListener('click', event => openSettings(true, event.currentTarget));
 $('color-theme-input').addEventListener('change',()=>applyColorTheme($('color-theme-input').value));
 $('timer-gradient-input').addEventListener('change',()=>{
   timerGradientPreview = $('timer-gradient-input').value;
@@ -1458,13 +1538,26 @@ $('timer-gradient-input').addEventListener('change',()=>{
   renderDialGradient(dialGradientProgress, dialGradientActive);
 });
 $('settings-dialog').addEventListener('close', () => {
+  if ($('settings-dialog').open) return;
   if (!providerDraftCommitted) window.MealFoods?.revertProviderDraft?.();
   providerDraftCommitted = false;
   applyColorTheme(prefs.colorTheme);
   discardTimerGradientPreview();
   if (returnToMealAfterSettings && $('meal-dialog').open) {
     returnToMealAfterSettings = false;
-    requestAnimationFrame(() => $('meal-note')?.focus({ preventScroll: true }));
+    requestAnimationFrame(restoreMealEditor);
+    settingsOpener = null;
+  } else {
+    const opener = settingsOpener;
+    settingsOpener = null;
+    requestAnimationFrame(() => {
+      if ($('settings-dialog').open) return;
+      const target = opener?.isConnected ? opener : opener?.id ? $(opener.id) : null;
+      const usable = target && ![document.body, document.documentElement].includes(target) && !target.disabled && target.getClientRects().length &&
+        getComputedStyle(target).visibility !== 'hidden' && !target.closest('[hidden], [inert]') && (!target.closest('dialog') || target.closest('dialog').open);
+      if (usable) target.focus({ preventScroll: true });
+      else if (!document.querySelector('dialog[open]')) $('settings-button').focus({ preventScroll: true });
+    });
   }
   if ($('fasting-dialog').open && fastingSelection?.live) openFastingDetail(fastingSelection);
 });
@@ -1672,7 +1765,10 @@ async function importData() {
 }
 $('import-settings').addEventListener('click',importData);
 $('import-cancel').addEventListener('click',()=>$('import-dialog').close());
-$('import-dialog').addEventListener('close',()=>{window.desktop.action({type:'import-cancel'}).catch(()=>{});});
+$('import-dialog').addEventListener('close',()=>{
+  // A queued close from the previous preview must not cancel a newly opened one.
+  if (!$('import-dialog').open) window.desktop.action({type:'import-cancel'}).catch(()=>{});
+});
 $('import-confirm').addEventListener('click',async()=>{
   const result = await action({type:'import-commit',mode:document.querySelector('input[name=import-mode]:checked').value}, t('import.done'));
   if (result) { $('import-dialog').close(); $('settings-dialog').close(); }
@@ -1700,7 +1796,7 @@ $('meal-form').addEventListener('submit',async event=>{
   try { foods = window.MealFoods.read({ confirmAnalysis: true }); }
   catch (error) { $('meal-error').textContent = L.err(error); return; }
   const patch = { type: $('meal-type').value, note: $('meal-note').value.trim(), foods };
-  if (!timeUntouched) patch.at = at;
+  if (!mealUseSaveTime && !timeUntouched) patch.at = at;
   const saveButton = $('save-meal'), saveLabel = saveButton.textContent;
   saveButton.textContent = t('meal.saving');
   try {
@@ -1730,7 +1826,7 @@ $('settings-form').addEventListener('submit', async event => {
     error.textContent = t('settings.bodyInvalid');
     return;
   }
-  const wanted = { sex: $('sex-input').value, age, heightCm, weightKg, activityLevel: $('activity-input').value, profileConfirmed: $('profile-confirmed-input').checked };
+  const wanted = { sex: $('sex-input').value, age, heightCm, weightKg, profileConfirmed: $('profile-confirmed-input').checked };
   const baseline = settingsBaseline || { prefs, settings: state.settings };
   let settingsPatch = {};
   if (!profileOnly) {
@@ -1774,9 +1870,9 @@ $('settings-form').addEventListener('submit', async event => {
     submit.disabled = false;
   }
 });
-function openHelp(scrollToShortcuts) {
+function openHelp(scrollToShortcuts, opener = document.activeElement) {
   $('about-version').textContent = appInfo.version ? t('help.version', { version: appInfo.version }) : '';
-  if (!$('help-dialog').open) { helpOpener = document.activeElement; $('help-dialog').showModal(); }
+  if (!$('help-dialog').open) { helpOpener = opener; $('help-dialog').showModal(); }
   if (scrollToShortcuts) $('shortcuts-title').scrollIntoView({block:'start'});
 }
 $('help-dialog').addEventListener('close', () => {
@@ -1787,7 +1883,7 @@ $('help-dialog').addEventListener('close', () => {
   target?.focus({ preventScroll: true });
   helpOpener = null;
 });
-$('settings-help')?.addEventListener('click', () => openHelp(false));
+$('settings-help')?.addEventListener('click', event => openHelp(false, event.currentTarget));
 const MEAL_KEYS = { '1': 'breakfast', '2': 'lunch', '3': 'dinner', '4': 'snack' };
 document.querySelectorAll('[data-meal]').forEach(button => { const key = Object.keys(MEAL_KEYS).find(k => MEAL_KEYS[k] === button.dataset.meal); button.setAttribute('aria-keyshortcuts', `Control+${key}`); button.title = t('meal.hint', { meal: mealName(button.dataset.meal), key }); });
 document.addEventListener('keydown',event=>{
